@@ -18,16 +18,18 @@ public class Connector {
 
         endpoints = new ArrayList<>();
         for (int i = 0; i < numOfReplica; i++) {
-            String addr = prop.getProperty("replica" + i);
-            String[] parsedAddr = addr.split(":");
+            String address = prop.getProperty("replica" + i);
+            String[] parsedAddress = address.split(":");
 
-            Endpoint endpoint = new Endpoint(parsedAddr[0], Integer.parseInt(parsedAddr[1]));
-            System.out.print("ip : " + endpoint.ip);
-            System.out.println("\t" + "port : " + endpoint.port);
+            Endpoint endpoint = new Endpoint(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
             endpoints.add(endpoint);
         }
 
         makeConnections();
+    }
+
+    void send(Endpoint endpoint, Message message){
+
     }
 
     private void makeConnections() {

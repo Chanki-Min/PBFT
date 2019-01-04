@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class Replica extends Connector implements Primary, Backup {
+    static final String path = "src/main/resources/replica.properties";
+
     static final double timeout = 1.;
     int primary = 0;
 
@@ -43,9 +45,9 @@ public class Replica extends Connector implements Primary, Backup {
     }
 
     public static void main(String[] args) throws IOException {
-        String path = "samplecfg.txt";
         Properties properties = new Properties();
-        properties.load(new FileInputStream(path));
+        FileInputStream fis = new FileInputStream(path);
+        properties.load(new java.io.BufferedInputStream(fis));
 
         Replica replica = new Replica(properties);
     }
