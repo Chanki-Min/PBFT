@@ -9,11 +9,12 @@ import java.util.Properties;
 public class Connector {
     List<Endpoint> endpoints;
     List<Socket> sockets;
+    int numOfReplica;
 
     public Connector() { }
 
     public Connector(Properties prop) {
-        int numOfReplica = Integer.parseInt( prop.getProperty("replica"));
+        numOfReplica = Integer.parseInt( prop.getProperty("replica"));
 
         endpoints = new ArrayList<>();
         for (int i = 0; i < numOfReplica; i++) {
@@ -21,6 +22,8 @@ public class Connector {
             String[] parsedAddr = addr.split(":");
 
             Endpoint endpoint = new Endpoint(parsedAddr[0], Integer.parseInt(parsedAddr[1]));
+            System.out.print("ip : " + endpoint.ip);
+            System.out.println("\t" + "port : " + endpoint.port);
             endpoints.add(endpoint);
         }
 
@@ -40,5 +43,6 @@ public class Connector {
             }
         }
     }
+
 
 }

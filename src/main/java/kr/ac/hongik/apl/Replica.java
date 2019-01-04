@@ -42,9 +42,9 @@ public class Replica extends Connector implements Primary, Backup {
 
     }
 
-    static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException {
         String path = "samplecfg.txt";
-        Properties properties = new Properties()
+        Properties properties = new Properties();
         properties.load(new FileInputStream(path));
 
         Replica replica = new Replica(properties);

@@ -9,5 +9,8 @@
         <module name="PBFT" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="PBFT" target="8" />
+    </bytecodeTargetLevel>
   </component>
 </project>
