@@ -1,14 +1,14 @@
 package kr.ac.hongik.apl;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-public class Connector {
-    List<Endpoint> endpoints;
-    List<Socket> sockets;
+class Connector {
+    protected List<Endpoint> endpoints;
+    protected List<Socket> sockets;
     int numOfReplica;
 
     public Connector() { }
@@ -28,22 +28,76 @@ public class Connector {
         makeConnections();
     }
 
-    void send(Endpoint endpoint, Message message){
+    static byte[] serialize(Message message){
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            ObjectOutputStream outputStream = new ObjectOutputStream(out);
+            outputStream.writeObject(message);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
+        return out.toByteArray();
+    }
+
+    static Message deserialize(byte[] bytes){
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        Message object = null;
+        try {
+            ObjectInputStream inputStream = new ObjectInputStream(in);
+            object = (Message) inputStream.readObject();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return object;
+    }
+
+    /**
+     * It is a exception free wrapper of send function.
+     * It sends the data and also manage the wrong sockets
+     * @param endpoint
+     * @param message
+     */
+    protected void send(Endpoint endpoint, Message message){
+        byte[] serializedMessage = serialize(message);
+        sockets.stream()
+                .filter(x -> x.getInetAddress().equals(endpoint.ip) && x.getPort() == endpoint.port)
+                .forEach(x -> {
+                    try {
+                        OutputStream out = x.getOutputStream();
+                        out.write(serializedMessage);
+                        out.flush();
+                    } catch (IOException | NullPointerException e) {
+                        e.printStackTrace();
+                        //Close previous connection
+                        try {
+                            x.close();
+                        } catch (IOException e1) {
+                            e1.printStackTrace();
+                        }
+                        sockets.remove(x);
+                        //Reconnect
+                        sockets.add(makeConnectionOrNull(endpoint));
+                    }
+                });
+    }
+
+    private Socket makeConnectionOrNull(Endpoint endpoint){
+        try {
+            Socket socket = new Socket(endpoint.ip, endpoint.port);
+            return socket;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private void makeConnections() {
-        sockets = new ArrayList<>(endpoints.size());
-
-        for (int i = 0; i < endpoints.size(); i++) {
-            Endpoint endpoint = endpoints.get(i);
-            try {
-                sockets.set(i, new Socket(endpoint.ip, endpoint.port));
-            } catch (IOException e) {
-                e.printStackTrace();
-                sockets.set(i, null);
-            }
-        }
+        sockets = new ArrayList<>();
+        endpoints.stream().forEach(x -> sockets.add(makeConnectionOrNull(x)));
     }
 
 

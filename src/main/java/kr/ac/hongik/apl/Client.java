@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class Client extends Connector {
-    static final String path = "src/main/resources/replica.properties";
+    private static final String path = "src/main/resources/replica.properties";
 
 
     public Client(Properties prop){
