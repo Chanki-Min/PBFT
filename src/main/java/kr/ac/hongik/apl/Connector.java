@@ -46,31 +46,28 @@ abstract class Connector {
         makeConnections();
     }
 
-    static ByteBuffer serialize(Message message){
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try {
-            ObjectOutputStream outputStream = new ObjectOutputStream(out);
-            outputStream.writeObject(message);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    private void makeConnections() {
+        //Connect to every replica
+        sockets = new ArrayList<>();
+        addresses.stream().forEach(x -> sockets.add(makeConnectionOrNull(x)));
 
-        return ByteBuffer.wrap(out.toByteArray());
+        sockets.stream().forEach(socket -> {
+            try {
+                socket.register(this.selector, SelectionKey.OP_READ);
+            } catch (ClosedChannelException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
-    static Message deserialize(ByteBuffer bytes){
-        ByteArrayInputStream in = new ByteArrayInputStream(bytes.array());
-        Message object = null;
+    private SocketChannel makeConnectionOrNull(InetSocketAddress address){
         try {
-            ObjectInputStream inputStream = new ObjectInputStream(in);
-            object = (Message) inputStream.readObject();
-
+            SocketChannel socket = SocketChannel.open();
+            return socket;
         } catch (IOException e) {
             e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            return null;
         }
-        return object;
     }
 
     /**
@@ -137,27 +134,31 @@ abstract class Connector {
         }
     }
 
-    private SocketChannel makeConnectionOrNull(InetSocketAddress address){
+    static ByteBuffer serialize(Message message){
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
-            SocketChannel socket = SocketChannel.open();
-            return socket;
+            ObjectOutputStream outputStream = new ObjectOutputStream(out);
+            outputStream.writeObject(message);
         } catch (IOException e) {
             e.printStackTrace();
-            return null;
         }
+
+        return ByteBuffer.wrap(out.toByteArray());
     }
 
-    private void makeConnections() {
-        //Connect to every replica
-        sockets = new ArrayList<>();
-        addresses.stream().forEach(x -> sockets.add(makeConnectionOrNull(x)));
+    static Message deserialize(ByteBuffer bytes){
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes.array());
+        Message object = null;
+        try {
+            ObjectInputStream inputStream = new ObjectInputStream(in);
+            object = (Message) inputStream.readObject();
 
-        sockets.stream().forEach(socket -> {
-            try {
-                socket.register(this.selector, SelectionKey.OP_READ);
-            } catch (ClosedChannelException e) {
-                e.printStackTrace();
-            }
-        });
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return object;
     }
+
 }
