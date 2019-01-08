@@ -14,9 +14,14 @@ Liveness는 클라이언트의 요청을 처리해 줄 수 있음을 보장하�
 4. Log를 특정 stable checkpoint마다 정리할 수 있도록 ***Garbage Collection***을 구현한다.
 
 ## TODO
-* 메시지를 저장할 logger 클래스 구현, 혹은 적절한 클래스 import.
-* Client 클래스 구현 - 김민균
-* Replica 클래스 구현 - 문준오
+* 1차 목표 - 3월 초: 
+    * 메시지를 저장할 logger 클래스 구현, 혹은 적절한 클래스 import.
+    * Client 클래스 구현 - 김민균
+    * Replica 클래스 구현 - 문준오
+* 2차 목표: 
+    * ***View Change*** 단계 구현
+    * ***Garbage Collection*** 구현
+    * 알고리즘 최적화 
 
 ## Reference
 1. Practical Byzantine Fault Tolerance - <http://www.read.seas.harvard.edu/~kohler/class/cs239-w08/castro99practical.pdf>
