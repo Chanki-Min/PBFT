@@ -1,6 +1,6 @@
 # Practical Byzantine Fault Tolerance
 
-![description](./logo.jpg)
+![description](./description.jpg)
 
 
 
