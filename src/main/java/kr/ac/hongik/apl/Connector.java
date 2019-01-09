@@ -62,7 +62,7 @@ abstract class Connector {
 
     private SocketChannel makeConnectionOrNull(InetSocketAddress address){
         try {
-            SocketChannel socket = SocketChannel.open();
+            SocketChannel socket = SocketChannel.open(address);
             return socket;
         } catch (IOException e) {
             e.printStackTrace();
