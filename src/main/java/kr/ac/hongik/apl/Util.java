@@ -1,8 +1,7 @@
 package kr.ac.hongik.apl;
 
 import java.io.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
 import java.util.Formatter;
 import java.util.stream.IntStream;
 
@@ -52,4 +51,32 @@ public class Util {
         return object;
     }
 
+    /**
+     * Return (private, public) key pair.
+     * To get each keys, use KeyPair.getPublic and KeyPair.getPrivate methods.
+     * @return KeyPair object
+     * @throws NoSuchAlgorithmException
+     */
+    public static KeyPair generateKeyPair() throws NoSuchAlgorithmException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        return generator.generateKeyPair();
+    }
+
+    public static byte[] sign(PrivateKey key, Message message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchProviderException {
+        Signature signature = Signature.getInstance("SHA1withRSA");
+        signature.initSign(key);
+        signature.update(serialize(message));
+        return signature.sign();
+    }
+    public static boolean verify(PublicKey key, Message message, byte[] signatureBytes) {
+        try {
+            Signature signature = Signature.getInstance("SHA1withRSA");
+            signature.initVerify(key);
+            signature.update(serialize(message));
+            return signature.verify(signatureBytes);
+        } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 }
