@@ -7,6 +7,10 @@
     <groupId>kr.ac.hongik.apl</groupId>
     <artifactId>PBFT</artifactId>
     <version>0.1</version>
+    <properties>
+        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+    </properties>
     <build>
         <plugins>
             <plugin>
