@@ -1,6 +1,6 @@
 package kr.ac.hongik.apl;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -11,6 +11,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+
+import static kr.ac.hongik.apl.Util.deserialize;
+import static kr.ac.hongik.apl.Util.serialize;
 
 /**
  * Caution: It doesn't handling server's listening socket
@@ -78,7 +81,7 @@ abstract class Connector {
      * @param message
      */
     protected void send(InetSocketAddress address, Message message){
-        ByteBuffer serializedMessage = serialize(message);
+        ByteBuffer serializedMessage = ByteBuffer.wrap(serialize(message));
 
         for (SocketChannel socket : sockets) {
             try {
@@ -127,38 +130,13 @@ abstract class Connector {
                 ByteBuffer byteBuffer = ByteBuffer.allocateDirect(bufferSize);
                 socketChannel.read(byteBuffer);
 
-                return deserialize(byteBuffer);
+                return deserialize(byteBuffer.array());
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    static ByteBuffer serialize(Message message){
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try {
-            ObjectOutputStream outputStream = new ObjectOutputStream(out);
-            outputStream.writeObject(message);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
-        return ByteBuffer.wrap(out.toByteArray());
-    }
-
-    static Message deserialize(ByteBuffer bytes){
-        ByteArrayInputStream in = new ByteArrayInputStream(bytes.array());
-        Message object = null;
-        try {
-            ObjectInputStream inputStream = new ObjectInputStream(in);
-            object = (Message) inputStream.readObject();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return object;
-    }
 
 }
