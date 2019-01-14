@@ -6,7 +6,7 @@ import java.util.Formatter;
 import java.util.stream.IntStream;
 
 public class Util {
-    public static String hash(Message obj) {
+    public static String hash(Serializable obj) {
         return hash(serialize(obj));
     }
     public static String hash(final byte[] bytes) {
@@ -24,7 +24,7 @@ public class Util {
                         (sb, i) -> new Formatter(sb).format("%02x", bytes[i] & 0xFF),
                         StringBuilder::append).toString();
     }
-     public static byte[] serialize(Message message){
+     public static byte[] serialize(Serializable message){
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             ObjectOutputStream outputStream = new ObjectOutputStream(out);
@@ -36,12 +36,12 @@ public class Util {
         return out.toByteArray();
     }
 
-    public static Message deserialize(byte[] bytes){
+    public static Serializable deserialize(byte[] bytes){
         ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-        Message object = null;
+        Serializable object = null;
         try {
             ObjectInputStream inputStream = new ObjectInputStream(in);
-            object = (Message) inputStream.readObject();
+            object = (Serializable)inputStream.readObject();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -62,13 +62,13 @@ public class Util {
         return generator.generateKeyPair();
     }
 
-    public static byte[] sign(PrivateKey key, Message message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchProviderException {
+    public static byte[] sign(PrivateKey key, Serializable message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchProviderException {
         Signature signature = Signature.getInstance("SHA1withRSA");
         signature.initSign(key);
         signature.update(serialize(message));
         return signature.sign();
     }
-    public static boolean verify(PublicKey key, Message message, byte[] signatureBytes) {
+    public static boolean verify(PublicKey key, Serializable message, byte[] signatureBytes) {
         try {
             Signature signature = Signature.getInstance("SHA1withRSA");
             signature.initVerify(key);
