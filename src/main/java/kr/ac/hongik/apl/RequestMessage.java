@@ -1,19 +1,26 @@
 package kr.ac.hongik.apl;
 
 
+import java.io.Serializable;
 import java.net.InetSocketAddress;
+import java.security.*;
 import java.text.SimpleDateFormat;
+
+import static kr.ac.hongik.apl.Util.sign;
 
 public class RequestMessage implements Message {
 
     private Data data;
     private byte[] signature;
 
-    public RequestMessage(PrivateKey privateKey, Operation operation, String ip, Integer port){
+    public RequestMessage(PrivateKey privateKey, Operation operation, String ip, Integer port) {
 
         this.data = new Data(operation, ip, port);
-        this.signature = sign(privateKey, this.data);
-
+        try {
+            this.signature = sign(privateKey, this.data);
+        }catch(NoSuchProviderException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e){
+            e.printStackTrace();
+        }
     }
 
     public Operation getOperation(){
@@ -31,7 +38,7 @@ public class RequestMessage implements Message {
         return this.data.clientInfo;
     }
 
-    private class Data {
+    private class Data implements Serializable {
         private Operation operation;
         private String time;
         private InetSocketAddress clientInfo;
