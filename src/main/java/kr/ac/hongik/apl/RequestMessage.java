@@ -18,35 +18,32 @@ public class RequestMessage implements Message {
         this.data = new Data(operation, ip, port);
         try {
             this.signature = sign(privateKey, this.data);
-        }catch(NoSuchProviderException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e){
+        } catch (NoSuchProviderException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
             e.printStackTrace();
         }
     }
 
-    public Operation getOperation(){
-
+    public Operation getOperation() {
         return this.data.operation;
     }
 
-    public String getTime(){
-
+    public long getTime() {
         return this.data.time;
     }
 
-    public InetSocketAddress getClientInfo(){
-
+    public InetSocketAddress getClientInfo() {
         return this.data.clientInfo;
     }
 
     private class Data implements Serializable {
         private Operation operation;
-        private String time;
+        private long time;
         private InetSocketAddress clientInfo;
 
-        public Data(Operation operation, String ip, Integer port){
+        public Data(Operation operation, String ip, Integer port) {
             this.operation = operation;
             SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            this.time = format.format(System.currentTimeMillis());
+            this.time = System.currentTimeMillis() / 1000;
             this.clientInfo = new InetSocketAddress(ip, port);
         }
     }
