@@ -24,7 +24,7 @@ public class PreprepareMessage implements Message {
         this.operation = operation;
         try {
             this.data = new Data(viewNum, seqNum, operation);
-            final byte[] signature = sign(privateKey, this.data);
+            this.signature = sign(privateKey, this.data);
         } catch (NoSuchProviderException| InvalidKeyException | SignatureException | NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
