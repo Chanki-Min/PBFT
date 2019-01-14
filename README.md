@@ -13,20 +13,20 @@ Liveness는 클라이언트의 요청을 처리해 줄 수 있음을 보장하�
 3. Primary의 비정상 작동을 고려한 ***View Change***단계를 구현한다.
 4. Log를 특정 stable checkpoint마다 정리할 수 있도록 ***Garbage Collection***을 구현한다.
 
-## TODO
-* 1차 목표 - 3월 초: 
-    * 메시지를 저장할 logger 클래스 구현, 혹은 적절한 클래스 import
-    * Util 클래스 구현
-        * Hash 함수 구현
-        * 암호화 / 복호화
-    * public key 관리 및 분배
-    * 메시지 타입별 클래스 구현
-    * Client 클래스 구현 - 김민균
-    * Replica 클래스 구현 - 문준오
-* 2차 목표: 
-    * ***View Change*** 단계 구현
-    * ***Garbage Collection*** 구현
-    * 알고리즘 최적화 
-
+## Convention
+* 작업은 issue 단위로 진행한다.
+    * 각 이슈는 dev/\<issue number\>/simple description 형태로 branch를 생성하여 작업 후 master에 병합한다.
+    * 병합시에는 close/fix등의 키워드를 커밋 메시지에 삽입하여 해당 이슈를 자동으로 닫도록 한다. * 커밋시에는 다음과 같은 형식의 메시지를 취한다.
+> This is a commit header
+>   
+> This is a commmit body. You can describe as you want.
+ 
+    * 제목의 첫 글자는 대문자이고, 제목에는 온점을 달지 아니함에 유의한다.
+* intellij를 이용하여 commit을 할 시에
+    * Reformat code
+    * Rearrange code
+    * Optimize imports
+    * Cleanup을 사용한다.
+    
 ## Reference
 1. Practical Byzantine Fault Tolerance - <http://www.read.seas.harvard.edu/~kohler/class/cs239-w08/castro99practical.pdf>
