@@ -31,7 +31,7 @@ public class Logger {
      */
     private void createTables(){
         String[] queries = {
-                "CREATE TABLE Requests (client BLOB,timestamp DATE,operaton BLOB, PRIMARY KEY(client, timestamp, operation))",
+                "CREATE TABLE Requests (client BLOB,timestamp DATE,operation BLOB, PRIMARY KEY(client, timestamp, operation))",
                 "CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, operation BLOB, PRIMARY KEY(viewNum, seqNum, digest))",
                 "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, seqNum, digest, replica))",
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
