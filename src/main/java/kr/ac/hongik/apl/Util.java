@@ -24,7 +24,8 @@ public class Util {
                         (sb, i) -> new Formatter(sb).format("%02x", bytes[i] & 0xFF),
                         StringBuilder::append).toString();
     }
-     public static byte[] serialize(Serializable message){
+
+    public static byte[] serialize(Serializable message) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             ObjectOutputStream outputStream = new ObjectOutputStream(out);
@@ -62,18 +63,34 @@ public class Util {
         return generator.generateKeyPair();
     }
 
+    /**
+     * @param key     A private key to identify itself.
+     * @param message Any object to identify the owner.
+     * @return A byte array which contains a digital signature
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidKeyException
+     * @throws SignatureException
+     * @throws NoSuchProviderException
+     */
     public static byte[] sign(PrivateKey key, Serializable message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchProviderException {
         Signature signature = Signature.getInstance("SHA1withRSA");
         signature.initSign(key);
         signature.update(serialize(message));
         return signature.sign();
     }
-    public static boolean verify(PublicKey key, Serializable message, byte[] signatureBytes) {
+
+    /**
+     * @param key              A public key to check for the owner
+     * @param message          Any object to verify the owner
+     * @param digitalSignature
+     * @return
+     */
+    public static boolean verify(PublicKey key, Serializable message, byte[] digitalSignature) {
         try {
             Signature signature = Signature.getInstance("SHA1withRSA");
             signature.initVerify(key);
             signature.update(serialize(message));
-            return signature.verify(signatureBytes);
+            return signature.verify(digitalSignature);
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
             e.printStackTrace();
         }
