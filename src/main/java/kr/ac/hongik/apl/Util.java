@@ -9,6 +9,7 @@ public class Util {
     public static String hash(Serializable obj) {
         return hash(serialize(obj));
     }
+
     public static String hash(final byte[] bytes) {
         MessageDigest digest = null;
         try {
@@ -18,6 +19,7 @@ public class Util {
         }
         return bytesToHex(digest.digest(bytes));
     }
+
     public static String bytesToHex(final byte[] bytes) {
         return IntStream.range(0, bytes.length)
                 .collect(StringBuilder::new,
@@ -37,12 +39,12 @@ public class Util {
         return out.toByteArray();
     }
 
-    public static Serializable deserialize(byte[] bytes){
+    public static Serializable deserialize(byte[] bytes) {
         ByteArrayInputStream in = new ByteArrayInputStream(bytes);
         Serializable object = null;
         try {
             ObjectInputStream inputStream = new ObjectInputStream(in);
-            object = (Serializable)inputStream.readObject();
+            object = (Serializable) inputStream.readObject();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -55,6 +57,7 @@ public class Util {
     /**
      * Return (private, public) key pair.
      * To get each keys, use KeyPair.getPublic and KeyPair.getPrivate methods.
+     *
      * @return KeyPair object
      * @throws NoSuchAlgorithmException
      */

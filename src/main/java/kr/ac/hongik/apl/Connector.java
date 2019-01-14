@@ -26,7 +26,8 @@ abstract class Connector {
 
     int numOfReplica;
 
-    public Connector() { }
+    public Connector() {
+    }
 
     public Connector(Properties prop) {
         numOfReplica = Integer.parseInt(prop.getProperty("replica"));
@@ -63,7 +64,7 @@ abstract class Connector {
         });
     }
 
-    private SocketChannel makeConnectionOrNull(InetSocketAddress address){
+    private SocketChannel makeConnectionOrNull(InetSocketAddress address) {
         try {
             SocketChannel socket = SocketChannel.open(address);
             return socket;
@@ -77,10 +78,11 @@ abstract class Connector {
      * It is a exception free wrapper of send function.
      * It sends the data and also manage the wrong sockets
      * The endpoint object must be in the sockets list, or this function does nothing.
+     *
      * @param address
      * @param message
      */
-    protected void send(InetSocketAddress address, Message message){
+    protected void send(InetSocketAddress address, Message message) {
         ByteBuffer serializedMessage = ByteBuffer.wrap(serialize(message));
 
         for (SocketChannel socket : sockets) {
@@ -88,7 +90,7 @@ abstract class Connector {
                 if (socket.getRemoteAddress().equals(address)) {
                     socket.write(serializedMessage);
                 }
-            } catch (IOException | NullPointerException e){
+            } catch (IOException | NullPointerException e) {
                 e.printStackTrace();
                 //Close previous connection
                 try {
@@ -105,17 +107,19 @@ abstract class Connector {
 
     /**
      * This abstract method must be implemented in Replica class to handle Accept situation.
+     *
      * @param key
      */
     protected abstract void acceptOp(SelectionKey key);
 
     /**
      * If the selector contains any listening socket, acceptOp method must be implemented!
+     *
      * @return Message
      */
     protected Message receive() {
         //Selector must not hold acceptable or writable sockets
-        while(true) {
+        while (true) {
             try {
                 selector.select();
                 Iterator<SelectionKey> it = selector.selectedKeys().iterator();
@@ -136,7 +140,6 @@ abstract class Connector {
             }
         }
     }
-
 
 
 }
