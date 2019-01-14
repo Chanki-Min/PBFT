@@ -130,7 +130,7 @@ abstract class Connector {
                 ByteBuffer byteBuffer = ByteBuffer.allocateDirect(bufferSize);
                 socketChannel.read(byteBuffer);
 
-                return deserialize(byteBuffer.array());
+                return (Message) deserialize(byteBuffer.array());
             } catch (IOException e) {
                 e.printStackTrace();
             }
