@@ -1,6 +1,8 @@
 package kr.ac.hongik.apl;
 
-import java.io.*;
+import org.apache.commons.lang3.SerializationUtils;
+
+import java.io.Serializable;
 import java.security.*;
 import java.util.Formatter;
 import java.util.stream.IntStream;
@@ -28,30 +30,11 @@ public class Util {
     }
 
     public static byte[] serialize(Serializable message) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try {
-            ObjectOutputStream outputStream = new ObjectOutputStream(out);
-            outputStream.writeObject(message);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return out.toByteArray();
+        return SerializationUtils.serialize(message);
     }
 
     public static Serializable deserialize(byte[] bytes) {
-        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-        Serializable object = null;
-        try {
-            ObjectInputStream inputStream = new ObjectInputStream(in);
-            object = (Serializable) inputStream.readObject();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return object;
+        return SerializationUtils.deserialize(bytes);
     }
 
     /**
