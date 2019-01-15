@@ -10,44 +10,53 @@ public class PreprepareMessage implements Message {
     private Operation operation;
     private Data data;
     private byte[] signature;
-    public PreprepareMessage(){
+
+    public PreprepareMessage() {
     }
 
     /**
      * @param privateKey for digital signature
-     * @param viewNum current view number represents current leader.
-     *                Each replicas can access .properties file to get its own number.
-     * @param seqNum Current sequence number to identify. It didn't yet reach to agreement.
+     * @param viewNum    current view number represents current leader.
+     *                   Each replicas can access .properties file to get its own number.
+     * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
      * @param operation
      */
-    public PreprepareMessage(PrivateKey privateKey, final int viewNum, final int seqNum, final Operation operation){
+    public PreprepareMessage(PrivateKey privateKey, final int viewNum, final int seqNum, final Operation operation) {
         this.operation = operation;
         try {
             this.data = new Data(viewNum, seqNum, operation);
-            final byte[] signature = sign(privateKey, this.data);
-        } catch (NoSuchProviderException| InvalidKeyException | SignatureException | NoSuchAlgorithmException e) {
+            this.signature = sign(privateKey, this.data);
+        } catch (NoSuchProviderException | InvalidKeyException | SignatureException | NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
     }
 
-    public int getViewNum(){
+    public int getViewNum() {
         return this.data.viewNum;
     }
 
-    public int getSeqNum() { return this.data.seqNum; }
+    public int getSeqNum() {
+        return this.data.seqNum;
+    }
 
-    public String getDigest() { return this.data.digest; }
+    public String getDigest() {
+        return this.data.digest;
+    }
 
-    public byte[] getSignature() { return this.signature; }
+    public byte[] getSignature() {
+        return this.signature;
+    }
 
-    public Operation getOperation() { return this.operation; }
+    public Operation getOperation() {
+        return this.operation;
+    }
 
-    private class Data implements Serializable{
+    private class Data implements Serializable {
         private int viewNum;
         private int seqNum;
         private String digest;
 
-        private Data(final int viewNum, final int seqNum, Operation operation){
+        private Data(final int viewNum, final int seqNum, Operation operation) {
             this.viewNum = viewNum;
             this.seqNum = seqNum;
             this.digest = hash(operation);

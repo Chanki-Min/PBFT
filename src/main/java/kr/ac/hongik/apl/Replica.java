@@ -19,12 +19,11 @@ public class Replica extends Connector implements Primary, Backup {
     List<SocketChannel> clients;
 
 
-
-    public Replica(Properties prop, String serverIp, int serverPort){
+    public Replica(Properties prop, String serverIp, int serverPort) {
         super(prop);
         InetSocketAddress serverAddress = new InetSocketAddress(serverIp, serverPort);
         try {
-            this.serverSocketChannel =  ServerSocketChannel.open();
+            this.serverSocketChannel = ServerSocketChannel.open();
             this.serverSocketChannel.bind(serverAddress);
             this.serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
         } catch (IOException e) {
