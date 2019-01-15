@@ -11,9 +11,6 @@ public class PreprepareMessage implements Message {
     private Data data;
     private byte[] signature;
 
-    public PreprepareMessage() {
-    }
-
     /**
      * @param privateKey for digital signature
      * @param viewNum    current view number represents current leader.
@@ -21,7 +18,7 @@ public class PreprepareMessage implements Message {
      * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
      * @param operation
      */
-    public PreprepareMessage(PrivateKey privateKey, final int viewNum, final int seqNum, final Operation operation) {
+    PreprepareMessage(PrivateKey privateKey, final int viewNum, final int seqNum, final Operation operation) {
         this.operation = operation;
         try {
             this.data = new Data(viewNum, seqNum, operation);
@@ -31,15 +28,15 @@ public class PreprepareMessage implements Message {
         }
     }
 
-    public int getViewNum() {
+    int getViewNum() {
         return this.data.viewNum;
     }
 
-    public int getSeqNum() {
+    int getSeqNum() {
         return this.data.seqNum;
     }
 
-    public String getDigest() {
+    String getDigest() {
         return this.data.digest;
     }
 
@@ -47,7 +44,7 @@ public class PreprepareMessage implements Message {
         return this.signature;
     }
 
-    public Operation getOperation() {
+    Operation getOperation() {
         return this.operation;
     }
 
