@@ -50,7 +50,7 @@ public class Logger {
         }
     }
 
-    public void close() {
+    void close() {
         try {
             conn.close();
         } catch (SQLException e) {
@@ -58,8 +58,13 @@ public class Logger {
         }
     }
 
-    public PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
+    PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
         return conn.prepareStatement(baseQuery);
+    }
+
+    private InputStream makeCompatibleToBlob(Serializable serializable) {
+        byte[] bytes = serialize(serializable);
+        return new ByteArrayInputStream(bytes);
     }
 
     public void insertMessage(Message message) {
@@ -67,14 +72,30 @@ public class Logger {
             insertRequestMessage((RequestMessage) message);
         } else if (message instanceof PreprepareMessage) {
             insertPreprepareMessage((PreprepareMessage) message);
+        } else if (message instanceof PrepareMessage) {
+            insertPrepareMessage((PrepareMessage) message);
         }
 
     }
 
-    private InputStream makeCompatibleToBlob(Serializable serializable) {
-        byte[] bytes = serialize(serializable);
-        return new ByteArrayInputStream(bytes);
+    private void insertPrepareMessage(PrepareMessage message) {
+        String baseQuery = "INSERT INTO Requests VALUES ( ?, ?, ? )";
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+
+            preparedStatement.setInt(1, message.getViewNum());
+            preparedStatement.setInt(2, message.getSeqNum());
+            preparedStatement.setString(3, message.getDigest());
+            preparedStatement.setInt(4, message.getReplicaNum());
+
+            preparedStatement.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+
     }
+
 
     private void insertRequestMessage(RequestMessage message) {
         String baseQuery = "INSERT INTO Requests VALUES ( ?, ?, ? )";
@@ -115,8 +136,26 @@ public class Logger {
             return findRequestMessage((RequestMessage) message);
         } else if (message instanceof PreprepareMessage) {
             return findPreprepareMessage((PreprepareMessage) message);
+        } else if (message instanceof PrepareMessage) {
+            return findPrepareMessage((PrepareMessage) message);
         } else
             throw new SQLException("Message type is incompatible");
+    }
+
+    private boolean findPrepareMessage(PrepareMessage message) throws SQLException {
+        String baseQuery = "SELECT COUNT(*) FROM Prepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ? AND P.replica = ?";
+        PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+
+        pstatement.setInt(1, message.getViewNum());
+        pstatement.setInt(2, message.getSeqNum());
+        pstatement.setString(3, message.getDigest());
+        pstatement.setInt(4, message.getReplicaNum());
+
+        ResultSet ret = pstatement.executeQuery();
+        if (ret.next())
+            return ret.getInt(1) > 0;
+        else
+            throw new SQLException("Failed to find the message in the DB");
     }
 
     private boolean findRequestMessage(RequestMessage message) throws SQLException {
