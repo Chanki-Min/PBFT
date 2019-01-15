@@ -74,12 +74,14 @@ public class Logger {
             insertPreprepareMessage((PreprepareMessage) message);
         } else if (message instanceof PrepareMessage) {
             insertPrepareMessage((PrepareMessage) message);
+        } else if (message instanceof CommitMessage) {
+            insertCommitMessage((CommitMessage) message);
         }
 
     }
 
-    private void insertPrepareMessage(PrepareMessage message) {
-        String baseQuery = "INSERT INTO Requests VALUES ( ?, ?, ? )";
+    private void insertCommitMessage(CommitMessage message) {
+        String baseQuery = "INSERT INTO Commit VALUES ( ?, ?, ?, ? )";
         try {
             PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
@@ -92,10 +94,23 @@ public class Logger {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-
-
     }
 
+    private void insertPrepareMessage(PrepareMessage message) {
+        String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ? )";
+        try {
+            PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+
+            preparedStatement.setInt(1, message.getViewNum());
+            preparedStatement.setInt(2, message.getSeqNum());
+            preparedStatement.setString(3, message.getDigest());
+            preparedStatement.setInt(4, message.getReplicaNum());
+
+            preparedStatement.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     private void insertRequestMessage(RequestMessage message) {
         String baseQuery = "INSERT INTO Requests VALUES ( ?, ?, ? )";
@@ -138,8 +153,26 @@ public class Logger {
             return findPreprepareMessage((PreprepareMessage) message);
         } else if (message instanceof PrepareMessage) {
             return findPrepareMessage((PrepareMessage) message);
+        } else if (message instanceof CommitMessage) {
+            return findCommitMessage((CommitMessage) message);
         } else
             throw new SQLException("Message type is incompatible");
+    }
+
+    private boolean findCommitMessage(CommitMessage message) throws SQLException {
+        String baseQuery = "SELECT COUNT(*) FROM Commits C WHERE C.viewNum = ? AND C.seqNum = ? AND C.digest = ? AND C.replica = ?";
+        PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+
+        pstatement.setInt(1, message.getViewNum());
+        pstatement.setInt(2, message.getSeqNum());
+        pstatement.setString(3, message.getDigest());
+        pstatement.setInt(4, message.getReplicaNum());
+
+        ResultSet ret = pstatement.executeQuery();
+        if (ret.next())
+            return ret.getInt(1) > 0;
+        else
+            throw new SQLException("Failed to find the message in the DB");
     }
 
     private boolean findPrepareMessage(PrepareMessage message) throws SQLException {
@@ -174,7 +207,7 @@ public class Logger {
     }
 
     private boolean findPreprepareMessage(PreprepareMessage message) throws SQLException {
-        String baseQuery = "SELECT COUNT(*) FROM Prepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?";
+        String baseQuery = "SELECT COUNT(*) FROM Preprepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
 
         pstatement.setInt(1, message.getViewNum());
