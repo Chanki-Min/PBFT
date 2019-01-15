@@ -67,7 +67,7 @@ public class Logger {
         return new ByteArrayInputStream(bytes);
     }
 
-    public void insertMessage(Message message) {
+    void insertMessage(Message message) {
         if (message instanceof RequestMessage) {
             insertRequestMessage((RequestMessage) message);
         } else if (message instanceof PreprepareMessage) {
@@ -81,7 +81,7 @@ public class Logger {
     }
 
     private void insertCommitMessage(CommitMessage message) {
-        String baseQuery = "INSERT INTO Commit VALUES ( ?, ?, ?, ? )";
+        String baseQuery = "INSERT INTO Commits VALUES ( ?, ?, ?, ? )";
         try {
             PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
@@ -97,7 +97,7 @@ public class Logger {
     }
 
     private void insertPrepareMessage(PrepareMessage message) {
-        String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ? )";
+        String baseQuery = "INSERT INTO Prepares VALUES ( ?, ?, ?, ? )";
         try {
             PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
@@ -121,7 +121,7 @@ public class Logger {
             preparedStatement.setBlob(1, clientData);               //client info
             preparedStatement.setLong(2, message.getTime());        //timestamp
             var operationData = makeCompatibleToBlob(message.getOperation());
-            preparedStatement.setBlob(4, operationData);            //operation
+            preparedStatement.setBlob(3, operationData);            //operation
 
             preparedStatement.execute();
         } catch (SQLException e) {
@@ -194,6 +194,7 @@ public class Logger {
     private boolean findRequestMessage(RequestMessage message) throws SQLException {
         String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+        var statement = conn.createStatement();
 
         pstatement.setBlob(1, makeCompatibleToBlob(message.getClientInfo()));
         pstatement.setLong(2, message.getTime());
