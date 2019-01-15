@@ -41,6 +41,10 @@ class ReplyMessage implements Message {
         return this.data.result;
     }
 
+    public byte[] getSignature() {
+        return this.signature;
+    }
+
     private class Data implements Serializable {
         private int viewNum;
         private long time;
@@ -48,7 +52,7 @@ class ReplyMessage implements Message {
         private int replicaNum;
         private Result result;
 
-        public Data(int viewNum, long time, String ip, Integer port, int replicaNum, Result result) {
+        private Data(int viewNum, long time, String ip, Integer port, int replicaNum, Result result) {
             this.viewNum = viewNum;
             this.time = time;
             this.clientInfo = new InetSocketAddress(ip, port);
