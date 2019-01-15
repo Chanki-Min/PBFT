@@ -58,6 +58,10 @@ public class Logger {
         }
     }
 
+    public PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
+        return conn.prepareStatement(baseQuery);
+    }
+
     public void insertMessage(Message message) {
         if (message instanceof RequestMessage) {
             insertRequestMessage((RequestMessage) message);
