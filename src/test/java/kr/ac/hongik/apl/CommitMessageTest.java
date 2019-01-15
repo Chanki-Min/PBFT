@@ -1,0 +1,18 @@
+package kr.ac.hongik.apl;
+
+import org.junit.jupiter.api.Test;
+
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+
+import static kr.ac.hongik.apl.Util.generateKeyPair;
+
+class CommitMessageTest {
+    @Test
+    void test() throws NoSuchAlgorithmException {
+        System.out.println("CommitMessage Class Unit Test Start");
+        KeyPair keyPair = generateKeyPair();
+        CommitMessage commitMessage = new CommitMessage(keyPair.getPrivate(), 0, 0, "digest", 0);
+        System.out.println("CommitMessage Class Unit Test Success");
+    }
+}
