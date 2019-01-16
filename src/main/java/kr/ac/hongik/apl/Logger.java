@@ -1,12 +1,10 @@
 package kr.ac.hongik.apl;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.InputStream;
-import java.io.Serializable;
 import java.sql.*;
 import java.util.Arrays;
 
+import static java.util.Base64.getEncoder;
 import static kr.ac.hongik.apl.Util.serialize;
 
 public class Logger {
@@ -31,11 +29,13 @@ public class Logger {
      * Prepares:    (^viewNum, ^seqNum, ^digest, ^i)
      * Commits:     (^viewNum, ^seqNum, ^digest, ^i)
      * Checkpoints: (^seqNum, ^stateDigest, ^i)
+     *
+     * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
      */
     private void createTables() {
         String[] queries = {
-                "CREATE TABLE Requests (client BLOB,timestamp DATE,operation BLOB, PRIMARY KEY(client, timestamp, operation))",
-                "CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, operation BLOB, PRIMARY KEY(viewNum, seqNum, digest))",
+                "CREATE TABLE Requests (client TEXT,timestamp DATE,operation TEXT, PRIMARY KEY(client, timestamp, operation))",
+                "CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, operation TEXT, PRIMARY KEY(viewNum, seqNum, digest))",
                 "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, seqNum, digest, replica))",
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
@@ -74,11 +74,6 @@ public class Logger {
 
     PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
         return conn.prepareStatement(baseQuery);
-    }
-
-    private InputStream makeCompatibleToBlob(Serializable serializable) {
-        byte[] bytes = serialize(serializable);
-        return new ByteArrayInputStream(bytes);
     }
 
     void insertMessage(Message message) {
@@ -127,17 +122,17 @@ public class Logger {
     }
 
     private void insertRequestMessage(RequestMessage message) {
-        String baseQuery = "INSERT INTO Requests VALUES ( ?, ?, ? )";
+        String baseQuery = "INSERT INTO Requests (client, timestamp, operation) VALUES ( ?, ?, ? )";
         try {
-            PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+            PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
-            var clientData = makeCompatibleToBlob(message.getClientInfo());
-            preparedStatement.setBlob(1, clientData);               //client info
-            preparedStatement.setLong(2, message.getTime());        //timestamp
-            var operationData = makeCompatibleToBlob(message.getOperation());
-            preparedStatement.setBlob(3, operationData);            //operation
+            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
+            pstmt.setString(1, clientBase64);
+            pstmt.setLong(2, message.getTime());
+            String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
+            pstmt.setString(3, operationBase64);
 
-            preparedStatement.execute();
+            pstmt.execute();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -146,15 +141,15 @@ public class Logger {
     private void insertPreprepareMessage(PreprepareMessage message) {
         String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ? )";
         try {
-            PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+            PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
-            preparedStatement.setInt(1, message.getViewNum());
-            preparedStatement.setInt(2, message.getSeqNum());
-            preparedStatement.setString(3, message.getDigest());
-            var operationData = makeCompatibleToBlob(message.getOperation());
-            preparedStatement.setBlob(4, operationData);
+            pstmt.setInt(1, message.getViewNum());
+            pstmt.setInt(2, message.getSeqNum());
+            pstmt.setString(3, message.getDigest());
+            String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
+            pstmt.setString(4, operationBase64);
 
-            preparedStatement.execute();
+            pstmt.execute();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -184,7 +179,7 @@ public class Logger {
 
         ResultSet ret = pstatement.executeQuery();
         if (ret.next())
-            return ret.getInt(1) > 0;
+            return ret.getInt(1) == 1;
         else
             throw new SQLException("Failed to find the message in the DB");
     }
@@ -200,7 +195,7 @@ public class Logger {
 
         ResultSet ret = pstatement.executeQuery();
         if (ret.next())
-            return ret.getInt(1) > 0;
+            return ret.getInt(1) == 1;
         else
             throw new SQLException("Failed to find the message in the DB");
     }
@@ -209,15 +204,15 @@ public class Logger {
         String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
 
-        pstatement.setBlob(1, makeCompatibleToBlob(message.getClientInfo()));
+        String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
+        pstatement.setString(1, clientBase64);
         pstatement.setLong(2, message.getTime());
-        pstatement.setBlob(3, makeCompatibleToBlob(message.getOperation()));
+        String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
+        pstatement.setString(3, operationBase64);
 
         ResultSet ret = pstatement.executeQuery();
-        if (ret.next()) {
-            var tmp = ret.getInt(1);
-            return tmp > 0;
-        }
+        if (ret.next())
+            return ret.getInt(1) == 1;
         else
             throw new SQLException("Failed to find the message in the DB");
     }
@@ -232,7 +227,7 @@ public class Logger {
 
         ResultSet ret = pstatement.executeQuery();
         if (ret.next())
-            return ret.getInt(1) > 0;
+            return ret.getInt(1) == 1;
         else
             throw new SQLException("Failed to find the message in the DB");
     }
