@@ -1,9 +1,11 @@
 package kr.ac.hongik.apl;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.sql.*;
+import java.util.Arrays;
 
 import static kr.ac.hongik.apl.Util.serialize;
 
@@ -56,6 +58,18 @@ public class Logger {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Close the database connection and delete entire database files
+     */
+    void deleteDBFile() {
+        this.close();
+        this.conn = null;
+        File file = new File("src/main/resources/");
+        Arrays.stream(file.listFiles())
+                .filter(x -> x.getName().contains(this.toString()))
+                .forEach(File::delete);
     }
 
     PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
@@ -194,15 +208,16 @@ public class Logger {
     private boolean findRequestMessage(RequestMessage message) throws SQLException {
         String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
-        var statement = conn.createStatement();
 
         pstatement.setBlob(1, makeCompatibleToBlob(message.getClientInfo()));
         pstatement.setLong(2, message.getTime());
         pstatement.setBlob(3, makeCompatibleToBlob(message.getOperation()));
 
         ResultSet ret = pstatement.executeQuery();
-        if (ret.next())
-            return ret.getInt(1) > 0;
+        if (ret.next()) {
+            var tmp = ret.getInt(1);
+            return tmp > 0;
+        }
         else
             throw new SQLException("Failed to find the message in the DB");
     }
