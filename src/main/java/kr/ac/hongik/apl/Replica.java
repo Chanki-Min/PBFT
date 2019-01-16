@@ -74,10 +74,9 @@ public class Replica extends Connector implements Primary, Backup {
     }
 
     public void startPrepreparePhase(RequestMessage message) {
-        // TODO: view number는 어디를 기준으로 증가하여 사용할 것 인가?
-        // TODO: public key 관리 문제
-        PreprepareMessage preprepareMessage = new PreprepareMessage();
-
+		// TODO: sequence number는 어디를 기준으로 증가하여 사용할 것 인가?
+		int seqNum;
+		PreprepareMessage preprepareMessage = new PreprepareMessage(this.getPrivateKey(), this.primary, seqNum, message.getOperation());
         //Broadcast messages
         addresses.parallelStream().forEach(address -> send(address, preprepareMessage));
     }
@@ -91,7 +90,6 @@ public class Replica extends Connector implements Primary, Backup {
         SocketChannel channel = (SocketChannel) key.channel();
         clients.add(channel);
 
-        //TODO: public key를 받고 그 키를 저장하자.
     }
 
     public void broadcastViewChange(Message message) {
