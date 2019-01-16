@@ -44,8 +44,13 @@ public class Util {
      * @return KeyPair object
      * @throws NoSuchAlgorithmException
      */
-    public static KeyPair generateKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+	public static KeyPair generateKeyPair() {
+		KeyPairGenerator generator = null;
+		try {
+			generator = KeyPairGenerator.getInstance("RSA");
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
         return generator.generateKeyPair();
     }
 
