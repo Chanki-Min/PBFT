@@ -7,14 +7,21 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.*;
 import java.util.stream.Collectors;
 
-import static kr.ac.hongik.apl.Util.deserialize;
-import static kr.ac.hongik.apl.Util.serialize;
+import static kr.ac.hongik.apl.Util.*;
+
+class PublicKeyMessage implements Message {
+	public PublicKey publicKey;
+
+	public PublicKeyMessage(PublicKey publicKey) {
+		this.publicKey = publicKey;
+	}
+}
 
 /**
  * Caution: It doesn't handling server's listening socket
@@ -26,12 +33,18 @@ abstract class Connector {
 	protected List<SocketChannel> sockets;
 	protected Selector selector;
 
+	protected Map<InetSocketAddress, PublicKey> publicKeyMap;
+	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
+
+
+
 	int numOfReplica;
 
-	public Connector() {
-	}
-
 	public Connector(Properties prop) {
+		KeyPair keyPair = generateKeyPair();
+		this.privateKey = keyPair.getPrivate();
+		PublicKey publicKey = keyPair.getPublic();
+
 		numOfReplica = Integer.parseInt(prop.getProperty("replica"));
 
 		addresses = new ArrayList<>();
@@ -50,6 +63,19 @@ abstract class Connector {
 		}
 
 		makeConnections();
+		//TODO: Invariant: every connection must be established!
+		broadcastPublicKey(publicKey);
+	}
+
+	private void broadcastPublicKey(PublicKey publicKey) {
+		PublicKeyMessage publicKeyMessage = new PublicKeyMessage(publicKey);
+		for (var address : addresses) {
+			send(address, publicKeyMessage);
+		}
+	}
+
+	protected final PrivateKey getPrivateKey() {
+		return this.privateKey;
 	}
 
 	private void makeConnections() {
@@ -119,7 +145,7 @@ abstract class Connector {
 
 	/**
 	 * If the selector contains any listening socket, acceptOp method must be implemented!
-	 *
+	 * Receive mehtod also handles public key sharing situation
 	 * @return Message
 	 */
 	protected Message receive() {
@@ -139,7 +165,14 @@ abstract class Connector {
 				ByteBuffer byteBuffer = ByteBuffer.allocateDirect(bufferSize);
 				socketChannel.read(byteBuffer);
 
-				return (Message) deserialize(byteBuffer.array());
+				Message message = (Message) deserialize(byteBuffer.array());
+				if (message instanceof PublicKeyMessage) {
+					this.publicKeyMap.put(
+							(InetSocketAddress) socketChannel.getRemoteAddress(),
+							((PublicKeyMessage) message).publicKey);
+					continue;
+				}
+				return message;
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
