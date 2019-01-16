@@ -14,6 +14,7 @@ public class Replica extends Connector implements Primary, Backup {
 
     static final double timeout = 1.;
     int primary = 0;
+    final int myNumber;
 
     ServerSocketChannel serverSocketChannel;
     List<SocketChannel> clients;
@@ -21,6 +22,9 @@ public class Replica extends Connector implements Primary, Backup {
 
     public Replica(Properties prop, String serverIp, int serverPort) {
         super(prop);
+
+        this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
+
         InetSocketAddress serverAddress = new InetSocketAddress(serverIp, serverPort);
         try {
             this.serverSocketChannel = ServerSocketChannel.open();
@@ -29,6 +33,16 @@ public class Replica extends Connector implements Primary, Backup {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private int getMyNumberFromProperty(Properties prop, String serverIp, int serverPort) {
+        int numOfReplica = Integer.valueOf(prop.getProperty("replica"));
+        for (int i = 0; i < numOfReplica; i++) {
+            if (prop.getProperty("replica" + i).equals(serverIp + ":" + serverPort)) {
+                return i;
+            }
+        }
+        throw new RuntimeException("Unauthorized replica");
     }
 
     public static void main(String[] args) throws IOException {
@@ -41,12 +55,31 @@ public class Replica extends Connector implements Primary, Backup {
         Replica replica = new Replica(properties, ip, port);
     }
 
-    public void broadcastRequest(Message msg) {
+    public void start() {
+        //Assume that every connection is established
+
+        while (true) {
+            Message message = super.receive();
+            if (message instanceof RequestMessage) {
+                if (this.primary == this.myNumber) {
+                    //Enter broadcast phase
+                    startPrepreparePhase((RequestMessage) message);
+                } else {
+                    //Relay to primary
+                    super.send(addresses.get(primary), message);
+                }
+            }
+        }
 
     }
 
-    public void broadcastPrePrepare(Message message) {
+    public void startPrepreparePhase(RequestMessage message) {
+        // TODO: view number는 어디를 기준으로 증가하여 사용할 것 인가?
+        // TODO: public key 관리 문제
+        PreprepareMessage preprepareMessage = new PreprepareMessage();
 
+        //Broadcast messages
+        addresses.parallelStream().forEach(address -> send(address, preprepareMessage));
     }
 
     public void broadcastPrepare(Message message) {
@@ -57,6 +90,8 @@ public class Replica extends Connector implements Primary, Backup {
     protected void acceptOp(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
         clients.add(channel);
+
+        //TODO: public key를 받고 그 키를 저장하자.
     }
 
     public void broadcastViewChange(Message message) {
