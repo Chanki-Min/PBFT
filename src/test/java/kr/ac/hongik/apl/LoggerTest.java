@@ -61,7 +61,7 @@ class LoggerTest {
     }
 
     @Test
-    void findMessage() throws NoSuchAlgorithmException, SQLException {
+    void findRequestMessage() throws SQLException, NoSuchAlgorithmException {
 
         Logger logger = new Logger();
         try {
@@ -74,28 +74,98 @@ class LoggerTest {
                     Instant.now().getEpochSecond());
 
             RequestMessage requestMessage = new RequestMessage(privateKey, sampleOperation);
-            PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
-            PrepareMessage prepareMessage = new PrepareMessage(privateKey, 0, 0, "hi", 0);
-            CommitMessage commitMessage = new CommitMessage(privateKey, 0, 0, "hi", 0);
 
             logger.insertMessage(requestMessage);
+
+            assertTrue(logger.findMessage(requestMessage));
+
+            Operation sampleOperation2 = new SampleOperation(
+                    new InetSocketAddress("1.1.1.1", 1),
+                    Instant.now().getEpochSecond()
+            );
+            RequestMessage requestMessage2 = new RequestMessage(privateKey, sampleOperation2);
+
+            assertFalse(logger.findMessage(requestMessage2));
+        } finally {
+            logger.deleteDBFile();
+        }
+    }
+
+    @Test
+    void findPreprepareMessage() throws NoSuchAlgorithmException, SQLException {
+
+        Logger logger = new Logger();
+        try {
+            KeyPair keyPair = Util.generateKeyPair();
+            PrivateKey privateKey = keyPair.getPrivate();
+            PublicKey publicKey = keyPair.getPublic();
+
+            Operation sampleOperation = new SampleOperation(
+                    new InetSocketAddress("0.0.0.0", 0),
+                    Instant.now().getEpochSecond());
+
+            PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
+
             logger.insertMessage(preprepareMessage);
+
+            assertTrue(logger.findMessage(preprepareMessage));
+
+            PreprepareMessage preprepareMessage2 = new PreprepareMessage(privateKey, 1, 1, sampleOperation);
+
+            assertFalse(logger.findMessage(preprepareMessage2));
+        } finally {
+            logger.deleteDBFile();
+        }
+    }
+
+    @Test
+    void findPrepareMessage() throws NoSuchAlgorithmException, SQLException {
+
+        Logger logger = new Logger();
+        try {
+            KeyPair keyPair = Util.generateKeyPair();
+            PrivateKey privateKey = keyPair.getPrivate();
+            PublicKey publicKey = keyPair.getPublic();
+
+            Operation sampleOperation = new SampleOperation(
+                    new InetSocketAddress("0.0.0.0", 0),
+                    Instant.now().getEpochSecond());
+
+            PrepareMessage prepareMessage = new PrepareMessage(privateKey, 0, 0, "hi", 0);
+
             logger.insertMessage(prepareMessage);
+
+            assertTrue(logger.findMessage(prepareMessage));
+
+            PrepareMessage prepareMessage2 = new PrepareMessage(privateKey, 1, 1, "hello", 1);
+
+            assertFalse(logger.findMessage(prepareMessage2));
+        } finally {
+            logger.deleteDBFile();
+        }
+    }
+
+    @Test
+    void findCommitMessage() throws NoSuchAlgorithmException, SQLException {
+
+        Logger logger = new Logger();
+        try {
+            KeyPair keyPair = Util.generateKeyPair();
+            PrivateKey privateKey = keyPair.getPrivate();
+            PublicKey publicKey = keyPair.getPublic();
+
+            Operation sampleOperation = new SampleOperation(
+                    new InetSocketAddress("0.0.0.0", 0),
+                    Instant.now().getEpochSecond());
+
+            CommitMessage commitMessage = new CommitMessage(privateKey, 0, 0, "hi", 0);
+
             logger.insertMessage(commitMessage);
 
             assertTrue(logger.findMessage(commitMessage));
-            assertTrue(logger.findMessage(prepareMessage));
-            assertTrue(logger.findMessage(preprepareMessage));
-            assertTrue(logger.findMessage(requestMessage));
 
-            RequestMessage requestMessage2 = new RequestMessage(privateKey, sampleOperation);
-            PreprepareMessage preprepareMessage2 = new PreprepareMessage(privateKey, 1, 1, sampleOperation);
-            PrepareMessage prepareMessage2 = new PrepareMessage(privateKey, 1, 1, "hello", 1);
             CommitMessage commitMessage2 = new CommitMessage(privateKey, 1, 1, "hello", 1);
 
-            assertFalse(logger.findMessage(requestMessage2));
-            assertFalse(logger.findMessage(preprepareMessage2));
-            assertFalse(logger.findMessage(prepareMessage2));
             assertFalse(logger.findMessage(commitMessage2));
         } finally {
             logger.deleteDBFile();
