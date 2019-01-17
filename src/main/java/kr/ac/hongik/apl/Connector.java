@@ -36,9 +36,8 @@ abstract class Connector {
 	protected Map<InetSocketAddress, PublicKey> publicKeyMap;
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 
-
-
 	int numOfReplica;
+
 
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();
@@ -72,10 +71,6 @@ abstract class Connector {
 		for (var address : addresses) {
 			send(address, publicKeyMessage);
 		}
-	}
-
-	protected final PrivateKey getPrivateKey() {
-		return this.privateKey;
 	}
 
 	private void makeConnections() {
@@ -179,5 +174,17 @@ abstract class Connector {
 		}
 	}
 
+	/************************************************************
+	 *
+	 * This methods are just a common methods, not related to connection
+	 */
+
+	protected final PrivateKey getPrivateKey() {
+		return this.privateKey;
+	}
+
+	final int getMaximumFaulty() {
+		return this.numOfReplica / 3;
+	}
 
 }
