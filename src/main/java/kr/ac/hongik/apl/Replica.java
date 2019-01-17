@@ -77,6 +77,7 @@ public class Replica extends Connector implements Primary, Backup {
                 RequestMessage rmsg = (RequestMessage) message;
                 if (this.primary == this.myNumber
                         && rmsg.isFirstSent(rethrow().wrap(logger::getPreparedStatement))) {
+                    logger.insertMessage(rmsg);
                     //Enter broadcast phase
                     broadcastToReplica(rmsg);
                 } else {
@@ -91,6 +92,8 @@ public class Replica extends Connector implements Primary, Backup {
                     logger.insertMessage(message);
                 }
                 broadcastPrepareMessage(ppmsg);
+            } else if (message instanceof PrepareMessage) {
+
             }
         }
 
