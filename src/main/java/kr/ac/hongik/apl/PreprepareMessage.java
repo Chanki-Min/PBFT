@@ -41,6 +41,7 @@ public class PreprepareMessage implements Message {
             pstmt.setInt(1, getViewNum());
             pstmt.setInt(2, getSeqNum());
             var ret = pstmt.executeQuery();
+            ret.next();             //fetch the data
             return ret.getInt(1) == 0;
         } catch (SQLException e) {
             e.printStackTrace();

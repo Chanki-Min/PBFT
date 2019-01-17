@@ -74,10 +74,11 @@ public class Replica extends Connector implements Primary, Backup {
         while (true) {
             Message message = super.receive();              //Blocking method
             if (message instanceof RequestMessage) {
-                if (this.primary == this.myNumber) {
-                    //TODO: check for duplication
+                RequestMessage rmsg = (RequestMessage) message;
+                if (this.primary == this.myNumber
+                        && rmsg.isFirstSent(rethrow().wrap(logger::getPreparedStatement))) {
                     //Enter broadcast phase
-                    broadcastToReplica((RequestMessage) message);
+                    broadcastToReplica(rmsg);
                 } else {
                     //Relay to primary
                     super.send(addresses.get(primary), message);
