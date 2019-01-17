@@ -6,16 +6,21 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
 
-public class Replica extends Connector implements Primary, Backup {
-    static final String path = "src/main/resources/replica.properties";
+import static com.diffplug.common.base.Errors.rethrow;
 
-    static final double timeout = 1.;
+public class Replica extends Connector implements Primary, Backup {
+    final static String path = "src/main/resources/replica.properties";
+    final static int WATERMARK_UNIT = 100;
+    private final static double timeout = 1.;
+
+
     int primary = 0;
     final int myNumber;
 
@@ -60,21 +65,31 @@ public class Replica extends Connector implements Primary, Backup {
         properties.load(new java.io.BufferedInputStream(fis));
 
         Replica replica = new Replica(properties, ip, port);
+        replica.start();
     }
 
     public void start() {
         //Assume that every connection is established
 
         while (true) {
-            Message message = super.receive();
+            Message message = super.receive();              //Blocking method
             if (message instanceof RequestMessage) {
                 if (this.primary == this.myNumber) {
+                    //TODO: check for duplication
                     //Enter broadcast phase
-                    startPrepreparePhase((RequestMessage) message);
+                    broadcastToReplica((RequestMessage) message);
                 } else {
                     //Relay to primary
                     super.send(addresses.get(primary), message);
                 }
+            } else if (message instanceof PreprepareMessage) {
+                PreprepareMessage ppmsg = (PreprepareMessage) message;
+                PublicKey publicKey = publicKeyMap.get(ppmsg.getClientInfo());
+
+                if (ppmsg.isVerified(publicKey, this.primary, 0, rethrow().wrap(logger::getPreparedStatement))) {
+                    logger.insertMessage(message);
+                }
+                broadcastPrepareMessage(ppmsg);
             }
         }
 
@@ -91,7 +106,7 @@ public class Replica extends Connector implements Primary, Backup {
             return 0;
     }
 
-    public void startPrepreparePhase(RequestMessage message) {
+    public void broadcastToReplica(RequestMessage message) {
         try {
             int seqNum = getLatestSequenceNumber() + 1;
             PreprepareMessage preprepareMessage = new PreprepareMessage(this.getPrivateKey(), this.primary, seqNum, message.getOperation());
@@ -102,8 +117,15 @@ public class Replica extends Connector implements Primary, Backup {
         }
     }
 
-    public void broadcastPrepare(Message message) {
 
+    public void broadcastPrepareMessage(PreprepareMessage message) {
+        PrepareMessage prepareMessage = new PrepareMessage(
+                this.getPrivateKey(),
+                message.getViewNum(),
+                message.getSeqNum(),
+                message.getDigest(),
+                this.myNumber);
+        addresses.parallelStream().forEach(address -> send(address, prepareMessage));
     }
 
     @Override
@@ -127,6 +149,7 @@ public class Replica extends Connector implements Primary, Backup {
     public void broadcastCommit(Message message) {
 
         //Close connection
+        //Delete client's public key
     }
 
 

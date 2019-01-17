@@ -1,7 +1,7 @@
 package kr.ac.hongik.apl;
 
 public interface Backup {
-    void broadcastPrepare(Message message);
+    void broadcastPrepareMessage(PreprepareMessage message);
 
     void broadcastCommit(Message message);
 

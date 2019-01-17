@@ -27,7 +27,7 @@ class PublicKeyMessage implements Message {
  * Caution: It doesn't handling server's listening socket
  */
 abstract class Connector {
-	final static int bufferSize = 16 * 1024 * 1024;
+	final static int BUFFER_SIZE = 16 * 1024 * 1024;
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> addresses;
 	protected List<SocketChannel> sockets;
@@ -162,7 +162,7 @@ abstract class Connector {
 				}
 				//Invariant: every key must be readable
 				SocketChannel socketChannel = (SocketChannel) key.channel();
-				ByteBuffer byteBuffer = ByteBuffer.allocateDirect(bufferSize);
+				ByteBuffer byteBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
 				socketChannel.read(byteBuffer);
 
 				Message message = (Message) deserialize(byteBuffer.array());
