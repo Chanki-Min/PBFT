@@ -2,8 +2,11 @@ package kr.ac.hongik.apl;
 
 import java.io.Serializable;
 import java.security.*;
+import java.util.Arrays;
+import java.util.function.Supplier;
 
 import static kr.ac.hongik.apl.Util.sign;
+import static kr.ac.hongik.apl.Util.verify;
 
 public class PrepareMessage implements Message {
     byte[] signature;
@@ -38,6 +41,21 @@ public class PrepareMessage implements Message {
         return this.data.replicaNum;
     }
 
+
+    boolean isVerified(PublicKey publicKey, final int currentPrimary, Supplier<int[]> watermarkGetter) {
+        Boolean[] checklist = new Boolean[3];
+
+        checklist[0] = verify(publicKey, this.data, this.signature);
+
+        checklist[1] = currentPrimary == this.getViewNum();
+
+        int[] watermarks = watermarkGetter.get();
+        int lowWatermark = watermarks[0],
+                highWatermark = watermarks[1];
+        checklist[2] = (lowWatermark <= this.getSeqNum()) && (this.getSeqNum() <= highWatermark);
+
+        return Arrays.stream(checklist).allMatch(x -> x);
+    }
 
     private class Data implements Serializable {
         private final int viewNum;

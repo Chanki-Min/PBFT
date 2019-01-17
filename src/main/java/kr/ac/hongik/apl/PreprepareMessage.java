@@ -7,10 +7,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-import static kr.ac.hongik.apl.Replica.WATERMARK_UNIT;
-import static kr.ac.hongik.apl.Util.hash;
-import static kr.ac.hongik.apl.Util.sign;
+import static kr.ac.hongik.apl.Util.*;
 
 public class PreprepareMessage implements Message {
     private Operation operation;
@@ -49,37 +48,31 @@ public class PreprepareMessage implements Message {
         }
     }
 
+
     /**
-     * @return (low - watermark, high - watermark)
+     * Checks for signature, watermark, current view, and duplication
+     * @param publicKey
+     * @param currentPrimary
+     * @param watermarkGetter
+     * @param prepareStatement
+     * @return
      */
-    private int[] getWatermarkPair(final int currentSeqNum) {
-        int[] watermarks = new int[2];
-        watermarks[0] = currentSeqNum / WATERMARK_UNIT * WATERMARK_UNIT;
-        watermarks[1] = watermarks[0] + WATERMARK_UNIT;
-
-        return watermarks;
-    }
-
     boolean isVerified(PublicKey publicKey,
                        final int currentPrimary,
-                       final int latestStableSeqNum,
+                       Supplier<int[]> watermarkGetter,
                        Function<String, PreparedStatement> prepareStatement) {
         Boolean[] checklist = new Boolean[4];
 
-        checklist[0] = verifySignature(publicKey);
+        checklist[0] = verify(publicKey, this.data, this.signature);
 
         checklist[1] = getViewNum() == currentPrimary;
 
         checklist[2] = doesNotExistInDB(prepareStatement);
 
-        int[] watermarks = getWatermarkPair(latestStableSeqNum);
+        int[] watermarks = watermarkGetter.get();
         checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() <= watermarks[1]);
 
         return Arrays.stream(checklist).allMatch(x -> x);
-    }
-
-    boolean verifySignature(PublicKey publicKey) {
-        return Util.verify(publicKey, this.data, this.signature);
     }
 
     int getViewNum() {
