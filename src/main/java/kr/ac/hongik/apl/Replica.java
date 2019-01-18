@@ -111,12 +111,11 @@ public class Replica extends Connector implements Primary, Backup {
                             pmsg.getSeqNum(),
                             pmsg.getDigest(),
                             this.myNumber);
-                    broadcastCommit(commitMessage);
+                    broadcastCommitMessage(commitMessage);
                 }
             } else if (message instanceof CommitMessage) {
                 CommitMessage cmsg = (CommitMessage) message;
                 if (cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
-
                 }
             }
         }
@@ -175,7 +174,7 @@ public class Replica extends Connector implements Primary, Backup {
 
     }
 
-    public void broadcastCommit(Message message) {
+    public void broadcastCommitMessage(Message message) {
 
         //TODO: Close connection
         //TODO: Delete client's public key

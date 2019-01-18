@@ -3,7 +3,7 @@ package kr.ac.hongik.apl;
 public interface Backup {
     void broadcastPrepareMessage(PreprepareMessage message);
 
-    void broadcastCommit(Message message);
+    void broadcastCommitMessage(Message message);
 
     void broadcastViewChange(Message message);
 
