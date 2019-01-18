@@ -3,8 +3,10 @@ package kr.ac.hongik.apl;
 import java.io.File;
 import java.sql.*;
 import java.util.Arrays;
+import java.util.Base64;
 
 import static java.util.Base64.getEncoder;
+import static kr.ac.hongik.apl.Util.deserialize;
 import static kr.ac.hongik.apl.Util.serialize;
 
 public class Logger {
@@ -74,6 +76,30 @@ public class Logger {
 
     PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
         return conn.prepareStatement(baseQuery);
+    }
+
+    Operation getOperation(CommitMessage message) {
+        String baseQuery = new StringBuilder()
+                .append("SELECT P.operation ")
+                .append("FROM Preprepares P ")
+                .append("WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?")
+                .toString();
+        try (var pstmt = getPreparedStatement(baseQuery)) {
+            pstmt.setInt(1, message.getViewNum());
+            pstmt.setInt(2, message.getSeqNum());
+            pstmt.setString(3, message.getDigest());
+
+            try (var ret = pstmt.executeQuery()) {
+                ret.next();
+                String operationBase64 = ret.getString(1);
+                byte[] ser = Base64.getDecoder().decode(operationBase64);
+                Operation operation = (Operation) deserialize(ser);
+                return operation;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 
     void insertMessage(Message message) {

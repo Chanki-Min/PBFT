@@ -116,12 +116,22 @@ public class Replica extends Connector implements Primary, Backup {
             } else if (message instanceof CommitMessage) {
                 CommitMessage cmsg = (CommitMessage) message;
                 if (cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
+                    //TODO: Implement sequential execution
+                    Operation operation = logger.getOperation(cmsg);
+                    Result ret = operation.execute();
+                    ReplyMessage replyMessage = new ReplyMessage(
+                            getPrivateKey(),
+                            cmsg.getViewNum(),
+                            operation.getTimestamp(),
+                            operation.getClientInfo(),
+                            this.myNumber,
+                            ret);
+
+                    send(replyMessage.getClientInfo(), replyMessage);
                 }
             }
         }
-
     }
-
 
     private int getLatestSequenceNumber() throws SQLException {
         String query = "SELECT MAX(P.seqNum) FROM Preprepares P";

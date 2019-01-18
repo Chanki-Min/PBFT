@@ -11,9 +11,9 @@ class ReplyMessage implements Message {
     private Data data;
     private byte[] signature;
 
-    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, String ip, Integer port, int replicaNum, Result result) {
+    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, InetSocketAddress clientInfo, int replicaNum, Result result) {
 
-        this.data = new Data(viewNum, time, ip, port, replicaNum, result);
+        this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
         try {
             this.signature = sign(privateKey, this.data);
         } catch (NoSuchProviderException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
@@ -52,10 +52,10 @@ class ReplyMessage implements Message {
         private int replicaNum;
         private Result result;
 
-        private Data(int viewNum, long time, String ip, Integer port, int replicaNum, Result result) {
+        private Data(int viewNum, long time, InetSocketAddress clientInfo, int replicaNum, Result result) {
             this.viewNum = viewNum;
             this.time = time;
-            this.clientInfo = new InetSocketAddress(ip, port);
+            this.clientInfo = clientInfo;
             this.replicaNum = replicaNum;
             this.result = result;
         }
