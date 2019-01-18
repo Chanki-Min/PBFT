@@ -2,6 +2,10 @@ package kr.ac.hongik.apl;
 
 import java.io.Serializable;
 import java.security.*;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.function.Function;
 
 import static kr.ac.hongik.apl.Util.sign;
 
@@ -36,6 +40,33 @@ public class CommitMessage implements Message {
 
     public int getReplicaNum() {
         return this.data.replicaNum;
+    }
+
+    boolean isCommittedLocal(Function<String, PreparedStatement> prepareStatement, int maxFaulty, int replicaNum) {
+        Boolean[] checklist = new Boolean[2];
+        //Predicate isPrepared(m, v, n, i) is true
+        PrepareMessage prepareMessage = PrepareMessage.fromCommitMessage(this);
+        checklist[0] = prepareMessage.isPrepared(prepareStatement, maxFaulty, replicaNum);
+        //And got 2f+1 same commit messages
+        String baseQuery = new StringBuilder()
+                .append("SELECT DISTINCT count(*) ")
+                .append("FROM Commits C")
+                .append("WHERE C.seqNum = ? AND C.replica = ?")
+                .toString();
+        try (var pstmt = prepareStatement.apply(baseQuery)) {
+            pstmt.setInt(1, this.getSeqNum());
+            pstmt.setInt(2, replicaNum);
+
+            try (var ret = pstmt.executeQuery()) {
+                ret.next();
+                checklist[1] = ret.getInt(1) > maxFaulty * 2;
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return Arrays.stream(checklist).allMatch(x -> x);
     }
 
 

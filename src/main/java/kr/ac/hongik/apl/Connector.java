@@ -15,13 +15,6 @@ import java.util.stream.Collectors;
 
 import static kr.ac.hongik.apl.Util.*;
 
-class PublicKeyMessage implements Message {
-	public PublicKey publicKey;
-
-	public PublicKeyMessage(PublicKey publicKey) {
-		this.publicKey = publicKey;
-	}
-}
 
 /**
  * Caution: It doesn't handling server's listening socket
@@ -38,6 +31,13 @@ abstract class Connector {
 
 	int numOfReplica;
 
+	static class PublicKeyMessage implements Message {
+		public PublicKey publicKey;
+
+		public PublicKeyMessage(PublicKey publicKey) {
+			this.publicKey = publicKey;
+		}
+	}
 
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();

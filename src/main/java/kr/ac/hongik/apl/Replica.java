@@ -113,6 +113,11 @@ public class Replica extends Connector implements Primary, Backup {
                             this.myNumber);
                     broadcastCommit(commitMessage);
                 }
+            } else if (message instanceof CommitMessage) {
+                CommitMessage cmsg = (CommitMessage) message;
+                if (cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
+
+                }
             }
         }
 
