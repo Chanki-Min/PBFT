@@ -29,7 +29,7 @@ public class Logger {
      * Requests:    (^client, ^timestamp, ^operation). Insert this triple after its signature is validated. Primary only.
      * Preprepares: (^viewNum, ^seqNum, ^digest, operation)
      * Prepares:    (^viewNum, ^seqNum, ^digest, ^i)
-     * Commits:     (^viewNum, ^seqNum, ^digest, ^i)
+     * Commits:     (viewNum, ^seqNum, digest, ^i)
      * Checkpoints: (^seqNum, ^stateDigest, ^i)
      *
      * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
@@ -41,6 +41,9 @@ public class Logger {
                 "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, seqNum, digest, replica))",
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
+
+                //This is for client
+                "CREATE TABLE Replies (viewNum INT, timestamp DATE, client TEXT, replica INT, result TEXT, PRIMARY KEY(timestamp, replica, result))",
         };
         for (String query : queries) {
             try {
@@ -111,8 +114,26 @@ public class Logger {
             insertPrepareMessage((PrepareMessage) message);
         } else if (message instanceof CommitMessage) {
             insertCommitMessage((CommitMessage) message);
-        }
+        } else if (message instanceof ReplyMessage) {
+            insertReplyMessage((ReplyMessage) message);
+        } else
+            throw new RuntimeException("Invalid message type");
 
+    }
+
+    private void insertReplyMessage(ReplyMessage message) {
+        String query = "INSERT INTO Replies VALUES (?, ?, ?, ?, ?)";
+        try (var pstmt = getPreparedStatement(query)) {
+            pstmt.setInt(1, message.getViewNum());
+            pstmt.setLong(2, message.getTime());
+            pstmt.setString(3, getEncoder().encodeToString(serialize(message.getClientInfo())));
+            pstmt.setInt(4, message.getReplicaNum());
+            pstmt.setString(5, getEncoder().encodeToString(serialize(message.getResult())));
+
+            pstmt.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     private void insertCommitMessage(CommitMessage message) {
