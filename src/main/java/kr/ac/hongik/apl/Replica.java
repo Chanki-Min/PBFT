@@ -104,7 +104,7 @@ public class Replica extends Connector implements Primary, Backup {
                 if (pmsg.isVerified(publicKey, this.primary, this::getWatermarks)) {
                     logger.insertMessage(pmsg);
                 }
-                if (isPrepared()) {
+                if (pmsg.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
                     CommitMessage commitMessage = new CommitMessage(
                             this.getPrivateKey(),
                             pmsg.getViewNum(),
@@ -118,11 +118,6 @@ public class Replica extends Connector implements Primary, Backup {
 
     }
 
-    private boolean isPrepared() {
-        //TODO: (m, v, n)이 동일한 2f+1개의 prepare메시지를 모았는가?
-        //TODO: 위의 메시지들과 내용이 동일한 pre-prepare메시지가 존재하는가?
-        //TODO: 그 메시지 중, 자신의 메시지도 존재하는가? -> commit 단계 진입
-    }
 
     private int getLatestSequenceNumber() throws SQLException {
         String query = "SELECT MAX(P.seqNum) FROM Preprepares P";
