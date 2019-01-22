@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.time.Instant;
 
 import static kr.ac.hongik.apl.Util.generateKeyPair;
 
@@ -20,9 +22,10 @@ class ReplyMessageTest {
         System.out.println("ReplyMessage Class Unit Test Start");
         KeyPair keyPair = generateKeyPair();
         InetSocketAddress clientInfo = new InetSocketAddress("127.0.0.1", 3000);
-        long timestamp = System.currentTimeMillis() / 1000;
+        long timestamp = Instant.now().getEpochSecond();
         Result result = new ReplyResult(clientInfo, timestamp);
-        ReplyMessage replyMessage = new ReplyMessage(keyPair.getPrivate(), 0, 0, "127.0.0.1", 0, 0, result);
+        PrivateKey privateKey = keyPair.getPrivate();
+        ReplyMessage replyMessage = new ReplyMessage(privateKey, 0, 0, clientInfo, 0, result);
         System.out.println("ReplyMessage Class Unit Test Success");
     }
 }
