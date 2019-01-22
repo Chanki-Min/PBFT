@@ -28,6 +28,7 @@ abstract class Connector {
 
 	protected Map<InetSocketAddress, PublicKey> publicKeyMap;
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
+	protected PublicKey publicKey;
 
 	int numOfReplica;
 
@@ -42,8 +43,19 @@ abstract class Connector {
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();
 		this.privateKey = keyPair.getPrivate();
-		PublicKey publicKey = keyPair.getPublic();
+		this.publicKey = keyPair.getPublic();
 
+		parseProperties(prop);
+
+	}
+
+	public void connect() {
+		makeConnections();
+		//TODO: Invariant: every connection must be established!
+		broadcastPublicKey(publicKey);
+	}
+
+	private void parseProperties(Properties prop) {
 		numOfReplica = Integer.parseInt(prop.getProperty("replica"));
 
 		addresses = new ArrayList<>();
@@ -54,16 +66,6 @@ abstract class Connector {
 			InetSocketAddress address = new InetSocketAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
 			addresses.add(address);
 		}
-
-		try {
-			this.selector = Selector.open();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		makeConnections();
-		//TODO: Invariant: every connection must be established!
-		broadcastPublicKey(publicKey);
 	}
 
 	private void broadcastPublicKey(PublicKey publicKey) {
@@ -85,6 +87,7 @@ abstract class Connector {
 					}
 					return socket;
 				}).collect(Collectors.toList());
+		return;
 	}
 
 	private void closeWithoutException(SocketChannel socketChannel) {

@@ -26,6 +26,7 @@ public class Replica extends Connector implements Primary, Backup {
 
     ServerSocketChannel serverSocketChannel;
     List<SocketChannel> clients;
+    private InetSocketAddress myAddress;
 
     private Logger logger;
     private int lowWatermark;
@@ -39,14 +40,19 @@ public class Replica extends Connector implements Primary, Backup {
         this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
         this.lowWatermark = 0;
 
-        InetSocketAddress serverAddress = new InetSocketAddress(serverIp, serverPort);
-        try {
-            this.serverSocketChannel = ServerSocketChannel.open();
-            this.serverSocketChannel.bind(serverAddress);
-            this.serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        this.myAddress = new InetSocketAddress(serverIp, serverPort);
+    }
+
+    public static void main(String[] args) throws IOException {
+        String ip = "127.0.0.1";
+        int port = 0;
+        Properties properties = new Properties();
+        FileInputStream fis = new FileInputStream(path);
+        properties.load(new java.io.BufferedInputStream(fis));
+
+        Replica replica = new Replica(properties, ip, port);
+        replica.connect();
+        replica.start();
     }
 
     int[] getWatermarks() {
@@ -63,15 +69,34 @@ public class Replica extends Connector implements Primary, Backup {
         throw new RuntimeException("Unauthorized replica");
     }
 
-    public static void main(String[] args) throws IOException {
-        String ip = "127.0.0.1";
-        int port = 0;
-        Properties properties = new Properties();
-        FileInputStream fis = new FileInputStream(path);
-        properties.load(new java.io.BufferedInputStream(fis));
+    @Override
+    public void connect() {
+        //Server setup
+        try {
+            this.serverSocketChannel = ServerSocketChannel.open();
+            this.serverSocketChannel.bind(this.myAddress);
+            this.serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
-        Replica replica = new Replica(properties, ip, port);
-        replica.start();
+        Thread acceptanceThread = new Thread(() -> {
+            while (true) {
+                try {
+                    var newSocket = serverSocketChannel.accept();
+                    clients.add(newSocket);
+                    newSocket.register(selector, SelectionKey.OP_READ);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        acceptanceThread.setDaemon(true);
+        acceptanceThread.start();
+
+        //Connect to every replica
+        //Plus, share public keys
+        super.connect();
     }
 
     public void start() {

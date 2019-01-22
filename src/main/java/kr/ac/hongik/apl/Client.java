@@ -82,5 +82,6 @@ public class Client extends Connector {
 
     public static void main(String[] args) throws IOException {
         Client client = new Client(readProperties());
+        client.connect();
     }
 }
