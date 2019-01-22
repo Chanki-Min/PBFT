@@ -45,6 +45,10 @@ class ReplyMessage implements Message {
         return this.signature;
     }
 
+    public boolean verifySignature(PublicKey publicKey) {
+        return Util.verify(publicKey, this.data, this.signature);
+    }
+
     private class Data implements Serializable {
         private int viewNum;
         private long time;
