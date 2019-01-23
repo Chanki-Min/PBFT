@@ -10,6 +10,7 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
@@ -24,7 +25,7 @@ public class Replica extends Connector implements Primary, Backup {
     int primary = 0;
     final int myNumber;
 
-    ServerSocketChannel serverSocketChannel;
+    ServerSocketChannel listener;
     List<SocketChannel> clients;
     private InetSocketAddress myAddress;
 
@@ -36,11 +37,36 @@ public class Replica extends Connector implements Primary, Backup {
         super(prop);
 
         this.logger = new Logger();
+        this.clients = new ArrayList<>();
 
         this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
         this.lowWatermark = 0;
 
         this.myAddress = new InetSocketAddress(serverIp, serverPort);
+        try {
+            listener = ServerSocketChannel.open();
+            listener.socket().setReuseAddress(true);
+            listener.configureBlocking(true);
+            listener.bind(new InetSocketAddress(serverPort));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        Thread acceptanceThread = new Thread(() -> {
+            while (true) {
+                try {
+                    SocketChannel channel = listener.accept();
+
+                    clients.add(channel);
+                    channel.configureBlocking(false);
+                    channel.register(this.selector, SelectionKey.OP_READ);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        acceptanceThread.setDaemon(true);
+        acceptanceThread.start();
     }
 
     public static void main(String[] args) throws IOException {
@@ -69,39 +95,8 @@ public class Replica extends Connector implements Primary, Backup {
         throw new RuntimeException("Unauthorized replica");
     }
 
-    @Override
-    public void connect() {
-        //Server setup
-        try {
-            this.serverSocketChannel = ServerSocketChannel.open();
-            this.serverSocketChannel.bind(this.myAddress);
-            this.serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        Thread acceptanceThread = new Thread(() -> {
-            while (true) {
-                try {
-                    var newSocket = serverSocketChannel.accept();
-                    clients.add(newSocket);
-                    newSocket.register(selector, SelectionKey.OP_READ);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        acceptanceThread.setDaemon(true);
-        acceptanceThread.start();
-
-        //Connect to every replica
-        //Plus, share public keys
-        super.connect();
-    }
-
     public void start() {
         //Assume that every connection is established
-
         while (true) {
             Message message = super.receive();              //Blocking method
             if (message instanceof RequestMessage) {

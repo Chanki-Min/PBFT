@@ -3,7 +3,6 @@ package kr.ac.hongik.apl;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -44,6 +43,11 @@ abstract class Connector {
 		KeyPair keyPair = generateKeyPair();
 		this.privateKey = keyPair.getPrivate();
 		this.publicKey = keyPair.getPublic();
+        try {
+            this.selector = Selector.open();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
 		parseProperties(prop);
 
@@ -77,17 +81,7 @@ abstract class Connector {
 
 	private void makeConnections() {
 		//Connect to every replica
-		sockets = addresses.stream()
-				.map(address -> {
-					var socket = makeConnectionOrNull(address);
-					try {
-						socket.register(this.selector, SelectionKey.OP_READ);
-					} catch (ClosedChannelException | NullPointerException e) {
-						e.printStackTrace();
-					}
-					return socket;
-				}).collect(Collectors.toList());
-		return;
+        sockets = addresses.stream().map(this::makeConnectionOrNull).collect(Collectors.toList());
 	}
 
 	private void closeWithoutException(SocketChannel socketChannel) {
@@ -100,8 +94,10 @@ abstract class Connector {
 
 	private SocketChannel makeConnectionOrNull(InetSocketAddress address) {
 		try {
-			SocketChannel socket = SocketChannel.open(address);
-			return socket;
+            SocketChannel channel = SocketChannel.open(address);
+            channel.configureBlocking(false);
+            channel.register(selector, SelectionKey.OP_READ);
+            return channel;
 		} catch (IOException e) {
 			e.printStackTrace();
 			return null;

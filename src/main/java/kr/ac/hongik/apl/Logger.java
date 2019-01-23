@@ -4,6 +4,7 @@ import java.io.File;
 import java.sql.*;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.UUID;
 
 import static java.util.Base64.getEncoder;
 import static kr.ac.hongik.apl.Util.deserialize;
@@ -14,7 +15,7 @@ public class Logger {
 
 
     public Logger() {
-        String url = "jdbc:sqlite:src/main/resources/" + this.toString() + ".db";
+        String url = "jdbc:sqlite:src/main/resources/" + UUID.randomUUID().toString() + ".db";
         try {
             this.conn = DriverManager.getConnection(url);
         } catch (SQLException e) {
@@ -50,8 +51,6 @@ public class Logger {
                 PreparedStatement preparedStatement = conn.prepareStatement(query);
                 preparedStatement.execute();
             } catch (SQLException e) {
-                System.err.println(query);
-                System.err.println(e.getSQLState());
                 e.printStackTrace();
             }
         }
@@ -73,7 +72,7 @@ public class Logger {
         this.conn = null;
         File file = new File("src/main/resources/");
         Arrays.stream(file.listFiles())
-                .filter(x -> x.getName().contains(this.toString()))
+                .filter(x -> x.getName().contains(".db"))
                 .forEach(File::delete);
     }
 
