@@ -57,11 +57,12 @@ public class Client extends Connector {
     }
 
     private int countSameMessages(ReplyMessage replyMessage) {
-        String query = "SELECT COUNT(*) FROM Replies R WHERE R.timestamp = ? AND R.result = ?";
+        String query = "SELECT COUNT(*) FROM Replies R WHERE R.client = ? AND R.timestamp = ? AND R.result = ?";
 
         try (var pstmt = logger.getPreparedStatement(query)) {
-            pstmt.setLong(1, replyMessage.getTime());
-            pstmt.setString(2, getEncoder().encodeToString(serialize(replyMessage.getResult())));
+            pstmt.setString(1, getEncoder().encodeToString(serialize(replyMessage.getClientInfo().getAddress())));
+            pstmt.setLong(2, replyMessage.getTime());
+            pstmt.setString(3, getEncoder().encodeToString(serialize(replyMessage.getResult())));
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
                 return ret.getInt(1);

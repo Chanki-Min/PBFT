@@ -125,7 +125,8 @@ public class Logger {
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, message.getViewNum());
             pstmt.setLong(2, message.getTime());
-            pstmt.setString(3, getEncoder().encodeToString(serialize(message.getClientInfo())));
+            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo().getAddress()));
+            pstmt.setString(3, clientBase64);
             pstmt.setInt(4, message.getReplicaNum());
             pstmt.setString(5, getEncoder().encodeToString(serialize(message.getResult())));
 
@@ -172,7 +173,7 @@ public class Logger {
         try {
             PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
-            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
+            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo().getAddress()));
             pstmt.setString(1, clientBase64);
             pstmt.setLong(2, message.getTime());
             String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
@@ -250,7 +251,7 @@ public class Logger {
         String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
 
-        String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
+        String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo().getAddress()));
         pstatement.setString(1, clientBase64);
         pstatement.setLong(2, message.getTime());
         String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
