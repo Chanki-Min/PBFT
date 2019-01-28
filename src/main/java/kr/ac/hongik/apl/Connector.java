@@ -16,7 +16,7 @@ import static kr.ac.hongik.apl.Util.*;
 
 
 /**
- * Caution: It doesn't handling server's listening socket
+ * Caution: It doesn't handle server's listening socket
  */
 abstract class Connector {
 	final static int BUFFER_SIZE = 16 * 1024 * 1024;
@@ -54,9 +54,10 @@ abstract class Connector {
 	}
 
 	public void connect() {
-		makeConnections();
-		//TODO: Invariant: every connection must be established!
-		broadcastPublicKey(publicKey);
+		//Connect to every replica
+		this.sockets = this.addresses.stream()
+				.map(this::makeConnectionOrNull)
+				.collect(Collectors.toList());
 	}
 
 	private void parseProperties(Properties prop) {
@@ -72,34 +73,38 @@ abstract class Connector {
 		}
 	}
 
-	private void broadcastPublicKey(PublicKey publicKey) {
-		PublicKeyMessage publicKeyMessage = new PublicKeyMessage(publicKey);
-		for (var address : addresses) {
-			send(address, publicKeyMessage);
-		}
-	}
-
-	private void makeConnections() {
-		//Connect to every replica
-        sockets = addresses.stream().map(this::makeConnectionOrNull).collect(Collectors.toList());
-	}
-
 	private void closeWithoutException(SocketChannel socketChannel) {
 		try {
 			socketChannel.close();
-		} catch (IOException e) {
+		} catch (IOException | NullPointerException e) {
 			e.printStackTrace();
 		}
 	}
 
+	private void sendPublicKey(SocketChannel channel) throws IOException {
+		byte[] bytes = serialize(new PublicKeyMessage(this.publicKey));
+		channel.write(ByteBuffer.wrap(bytes));
+	}
+
+	private SocketChannel handshake(InetSocketAddress address) throws IOException {
+		SocketChannel channel = SocketChannel.open(address);
+		channel.configureBlocking(false);
+		channel.register(selector, SelectionKey.OP_READ);
+		return channel;
+	}
+
+	/**
+	 * Try handshaking and send my public key
+	 */
 	private SocketChannel makeConnectionOrNull(InetSocketAddress address) {
+		SocketChannel channel = null;
 		try {
-            SocketChannel channel = SocketChannel.open(address);
-            channel.configureBlocking(false);
-            channel.register(selector, SelectionKey.OP_READ);
-            return channel;
-		} catch (IOException e) {
+			channel = handshake(address);
+			sendPublicKey(channel);
+			return channel;
+		} catch (IOException | NullPointerException e) {
 			e.printStackTrace();
+			closeWithoutException(channel);
 			return null;
 		}
 	}
