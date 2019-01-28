@@ -61,7 +61,7 @@ public class Client extends Connector {
         String query = "SELECT COUNT(*) FROM Replies R WHERE R.client = ? AND R.timestamp = ? AND R.result = ?";
 
         try (var pstmt = logger.getPreparedStatement(query)) {
-            pstmt.setString(1, getEncoder().encodeToString(serialize(replyMessage.getClientInfo().getAddress())));
+            pstmt.setString(1, getEncoder().encodeToString(serialize(replyMessage.getClientInfo())));
             pstmt.setLong(2, replyMessage.getTime());
             pstmt.setString(3, getEncoder().encodeToString(serialize(replyMessage.getResult())));
             try (var ret = pstmt.executeQuery()) {

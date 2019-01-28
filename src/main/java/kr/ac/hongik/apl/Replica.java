@@ -149,7 +149,10 @@ public class Replica extends Connector implements Primary, Backup {
                             this.myNumber,
                             ret);
 
-                    send(replyMessage.getClientInfo(), replyMessage);
+                    InetSocketAddress destination = publicKeyMap.entrySet().stream()
+                            .filter(x -> x.getValue().equals(replyMessage.getClientInfo()))
+                            .findFirst().get().getKey();
+                    send(destination, replyMessage);
                 }
             }
         }
@@ -212,6 +215,4 @@ public class Replica extends Connector implements Primary, Backup {
         //TODO: Delete client's public key
         //TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
     }
-
-
 }

@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl;
 
 import java.io.Serializable;
-import java.net.InetSocketAddress;
 import java.security.*;
 
 import static kr.ac.hongik.apl.Util.sign;
@@ -11,7 +10,7 @@ class ReplyMessage implements Message {
     private Data data;
     private byte[] signature;
 
-    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, InetSocketAddress clientInfo, int replicaNum, Result result) {
+    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
 
         this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
         try {
@@ -29,7 +28,7 @@ class ReplyMessage implements Message {
         return this.data.time;
     }
 
-    public InetSocketAddress getClientInfo() {
+    public PublicKey getClientInfo() {
         return this.data.clientInfo;
     }
 
@@ -52,11 +51,11 @@ class ReplyMessage implements Message {
     private class Data implements Serializable {
         private int viewNum;
         private long time;
-        private InetSocketAddress clientInfo;
+        private PublicKey clientInfo;
         private int replicaNum;
         private Result result;
 
-        private Data(int viewNum, long time, InetSocketAddress clientInfo, int replicaNum, Result result) {
+        private Data(int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
             this.viewNum = viewNum;
             this.time = time;
             this.clientInfo = clientInfo;

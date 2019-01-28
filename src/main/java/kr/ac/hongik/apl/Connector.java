@@ -19,7 +19,7 @@ import static kr.ac.hongik.apl.Util.*;
  * Caution: It doesn't handle server's listening socket
  */
 abstract class Connector {
-	final static int BUFFER_SIZE = 16 * 1024 * 1024;
+	final static int BUFFER_SIZE = 64 * 1024 * 1024;
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> addresses;
 	protected List<SocketChannel> sockets;
@@ -89,6 +89,8 @@ abstract class Connector {
 	private SocketChannel handshake(InetSocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
 		channel.configureBlocking(false);
+		channel.socket().setReceiveBufferSize(Connector.BUFFER_SIZE);
+		channel.socket().setSendBufferSize(Connector.BUFFER_SIZE);
 		channel.register(selector, SelectionKey.OP_READ);
 		return channel;
 	}

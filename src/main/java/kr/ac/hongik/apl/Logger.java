@@ -33,6 +33,8 @@ public class Logger {
      * Commits:     (viewNum, ^seqNum, digest, ^i)
      * Checkpoints: (^seqNum, ^stateDigest, ^i)
      *
+     * Replies: (viewNum, ^timestamp, client, ^replica, ^result)
+     *
      * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
      */
     private void createTables() {
@@ -125,7 +127,7 @@ public class Logger {
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, message.getViewNum());
             pstmt.setLong(2, message.getTime());
-            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo().getAddress()));
+            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
             pstmt.setString(3, clientBase64);
             pstmt.setInt(4, message.getReplicaNum());
             pstmt.setString(5, getEncoder().encodeToString(serialize(message.getResult())));
@@ -173,7 +175,7 @@ public class Logger {
         try {
             PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
-            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo().getAddress()));
+            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
             pstmt.setString(1, clientBase64);
             pstmt.setLong(2, message.getTime());
             String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
@@ -251,7 +253,7 @@ public class Logger {
         String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
 
-        String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo().getAddress()));
+        String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
         pstatement.setString(1, clientBase64);
         pstatement.setLong(2, message.getTime());
         String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));

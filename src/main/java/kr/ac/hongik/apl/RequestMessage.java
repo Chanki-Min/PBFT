@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl;
 
 
-import java.net.InetSocketAddress;
 import java.security.*;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -54,7 +53,7 @@ public class RequestMessage implements Message {
         return this.operation.getTimestamp();
     }
 
-    public InetSocketAddress getClientInfo() {
+    public PublicKey getClientInfo() {
         return this.operation.getClientInfo();
     }
 
