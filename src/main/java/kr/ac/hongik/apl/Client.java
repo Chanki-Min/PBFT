@@ -28,7 +28,7 @@ public class Client extends Connector {
     }
 
     private void request(Message msg){
-
+        addresses.parallelStream().forEach(x -> this.send(x, msg));
     }
 
     Result getReply() {
