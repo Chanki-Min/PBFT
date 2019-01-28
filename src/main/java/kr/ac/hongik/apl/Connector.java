@@ -81,7 +81,7 @@ abstract class Connector {
 		}
 	}
 
-	private void sendPublicKey(SocketChannel channel) throws IOException {
+    protected void sendPublicKey(SocketChannel channel) throws IOException {
 		byte[] bytes = serialize(new PublicKeyMessage(this.publicKey));
 		channel.write(ByteBuffer.wrap(bytes));
 	}
@@ -166,6 +166,7 @@ abstract class Connector {
 
 				Message message = (Message) deserialize(byteBuffer.array());
 				if (message instanceof PublicKeyMessage) {
+					assert (message instanceof InetSocketAddress);
 					this.publicKeyMap.put(
 							(InetSocketAddress) socketChannel.getRemoteAddress(),
 							((PublicKeyMessage) message).publicKey);

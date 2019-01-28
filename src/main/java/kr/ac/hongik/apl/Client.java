@@ -23,7 +23,9 @@ public class Client extends Connector {
     //Empty method.
     @Override
     @Deprecated
-    protected void acceptOp(SelectionKey key) { }
+    protected void acceptOp(SelectionKey key) {
+        throw new UnsupportedOperationException("Client class does not need this method.");
+    }
 
     private void request(Message msg){
 
@@ -34,7 +36,6 @@ public class Client extends Connector {
         while (true) {
             replyMessage = (ReplyMessage) receive();
             // check client info
-            //TODO: client - replica간 public 키 공유 구현하기
             PublicKey publicKey = this.publicKeyMap.get(this.addresses.get(replyMessage.getReplicaNum()));
             if (replyMessage.verifySignature(publicKey)) {
                 logger.insertMessage(replyMessage);

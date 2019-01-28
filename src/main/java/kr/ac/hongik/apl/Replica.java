@@ -60,6 +60,8 @@ public class Replica extends Connector implements Primary, Backup {
                     clients.add(channel);
                     channel.configureBlocking(false);
                     channel.register(this.selector, SelectionKey.OP_READ);
+
+                    this.sendPublicKey(channel);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
