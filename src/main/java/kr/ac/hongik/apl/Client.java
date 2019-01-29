@@ -11,7 +11,7 @@ import static java.util.Base64.getEncoder;
 import static kr.ac.hongik.apl.Util.serialize;
 
 public class Client extends Connector {
-    private static final String path = "src/main/resources/replica.properties";
+    private static final String path = Client.class.getResource("/replica.properties").getPath();
     private Logger logger;
 
 
@@ -28,7 +28,7 @@ public class Client extends Connector {
     }
 
     public void request(Message msg) {
-        addresses.parallelStream().forEach(x -> this.send(x, msg));
+        addresses.stream().forEach(x -> this.send(x, msg));
     }
 
     Result getReply() {

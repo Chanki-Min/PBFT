@@ -13,15 +13,23 @@ import static kr.ac.hongik.apl.Util.serialize;
 public class Logger {
     private Connection conn = null;
 
-
     public Logger() {
-        String url = "jdbc:sqlite:src/main/resources/" + UUID.randomUUID().toString() + ".db";
+        this(UUID.randomUUID().toString() + ".db");
+    }
+
+
+    public Logger(String fileName) {
+
+        if (!fileName.endsWith(".db"))
+            fileName += ".db";
+
+        String url = "jdbc:sqlite:" + getClass().getResource("/").getPath() + fileName;
         try {
             this.conn = DriverManager.getConnection(url);
+            this.createTables();
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        this.createTables();
     }
 
     /**

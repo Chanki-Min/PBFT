@@ -17,7 +17,6 @@ import java.util.Properties;
 import static com.diffplug.common.base.Errors.rethrow;
 
 public class Replica extends Connector implements Primary, Backup {
-    final static String path = "src/main/resources/replica.properties";
     final static int WATERMARK_UNIT = 100;
     private final static double timeout = 1.;
 
@@ -72,6 +71,7 @@ public class Replica extends Connector implements Primary, Backup {
     }
 
     public static void main(String[] args) throws IOException {
+        String path = Replica.class.getResource("/replica.properties").getPath();
         try {
             String ip = args[0];
             int port = Integer.parseInt(args[1]);
