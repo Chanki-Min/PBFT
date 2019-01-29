@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl;
 
 import java.io.Serializable;
-import java.net.InetSocketAddress;
 import java.security.*;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -95,7 +94,7 @@ public class PreprepareMessage implements Message {
         return this.operation;
     }
 
-    InetSocketAddress getClientInfo() {
+    PublicKey getClientInfo() {
         return this.getOperation().getClientInfo();
     }
 

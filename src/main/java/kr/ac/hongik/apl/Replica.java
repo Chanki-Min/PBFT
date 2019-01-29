@@ -72,15 +72,19 @@ public class Replica extends Connector implements Primary, Backup {
     }
 
     public static void main(String[] args) throws IOException {
-        String ip = "127.0.0.1";
-        int port = 0;
-        Properties properties = new Properties();
-        FileInputStream fis = new FileInputStream(path);
-        properties.load(new java.io.BufferedInputStream(fis));
+        try {
+            String ip = args[0];
+            int port = Integer.parseInt(args[1]);
+            Properties properties = new Properties();
+            FileInputStream fis = new FileInputStream(path);
+            properties.load(new java.io.BufferedInputStream(fis));
 
-        Replica replica = new Replica(properties, ip, port);
-        replica.connect();
-        replica.start();
+            Replica replica = new Replica(properties, ip, port);
+            replica.connect();
+            replica.start();
+        } catch (ArrayIndexOutOfBoundsException e) {
+            System.err.println("Usage: program <ip> <port>");
+        }
     }
 
     int[] getWatermarks() {

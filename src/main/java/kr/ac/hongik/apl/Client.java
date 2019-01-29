@@ -27,7 +27,7 @@ public class Client extends Connector {
         throw new UnsupportedOperationException("Client class does not need this method.");
     }
 
-    private void request(Message msg){
+    public void request(Message msg) {
         addresses.parallelStream().forEach(x -> this.send(x, msg));
     }
 

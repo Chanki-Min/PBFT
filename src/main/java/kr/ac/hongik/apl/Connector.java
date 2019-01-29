@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -130,7 +131,7 @@ abstract class Connector {
 					socket.write(serializedMessage);
 				return socket;
 			} catch (IOException | NullPointerException e) {
-				e.printStackTrace();
+				//e.printStackTrace();
 				closeWithoutException(socket);
 				return makeConnectionOrNull(destination);
 			}
@@ -188,6 +189,10 @@ abstract class Connector {
 
 	protected final PrivateKey getPrivateKey() {
 		return this.privateKey;
+	}
+
+	public PublicKey getPublicKey() {
+		return this.publicKey;
 	}
 
 	final int getMaximumFaulty() {
