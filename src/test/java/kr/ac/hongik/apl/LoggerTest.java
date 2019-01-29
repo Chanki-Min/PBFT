@@ -2,7 +2,6 @@ package kr.ac.hongik.apl;
 
 import org.junit.jupiter.api.Test;
 
-import java.net.InetSocketAddress;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -15,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SampleOperation extends Operation {
 
-    SampleOperation(InetSocketAddress clientInfo, long timestamp) {
+    SampleOperation(PublicKey clientInfo, long timestamp) {
         super(clientInfo, timestamp);
     }
 
@@ -43,7 +42,7 @@ class LoggerTest {
             PublicKey publicKey = keyPair.getPublic();
 
             Operation sampleOperation = new SampleOperation(
-                    new InetSocketAddress("0.0.0.0", 0),
+                    publicKey,
                     Instant.now().getEpochSecond());
 
             RequestMessage requestMessage = new RequestMessage(privateKey, sampleOperation);
@@ -70,7 +69,7 @@ class LoggerTest {
             PublicKey publicKey = keyPair.getPublic();
 
             Operation sampleOperation = new SampleOperation(
-                    new InetSocketAddress("0.0.0.0", 0),
+                    publicKey,
                     Instant.now().getEpochSecond());
 
             RequestMessage requestMessage = new RequestMessage(privateKey, sampleOperation);
@@ -80,7 +79,7 @@ class LoggerTest {
             assertTrue(logger.findMessage(requestMessage));
 
             Operation sampleOperation2 = new SampleOperation(
-                    new InetSocketAddress("1.1.1.1", 1),
+                    publicKey,
                     Instant.now().getEpochSecond()
             );
             RequestMessage requestMessage2 = new RequestMessage(privateKey, sampleOperation2);
@@ -101,7 +100,7 @@ class LoggerTest {
             PublicKey publicKey = keyPair.getPublic();
 
             Operation sampleOperation = new SampleOperation(
-                    new InetSocketAddress("0.0.0.0", 0),
+                    publicKey,
                     Instant.now().getEpochSecond());
 
             PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
@@ -128,7 +127,7 @@ class LoggerTest {
             PublicKey publicKey = keyPair.getPublic();
 
             Operation sampleOperation = new SampleOperation(
-                    new InetSocketAddress("0.0.0.0", 0),
+                    publicKey,
                     Instant.now().getEpochSecond());
 
             PrepareMessage prepareMessage = new PrepareMessage(privateKey, 0, 0, "hi", 0);
@@ -155,7 +154,7 @@ class LoggerTest {
             PublicKey publicKey = keyPair.getPublic();
 
             Operation sampleOperation = new SampleOperation(
-                    new InetSocketAddress("0.0.0.0", 0),
+                    publicKey,
                     Instant.now().getEpochSecond());
 
             CommitMessage commitMessage = new CommitMessage(privateKey, 0, 0, "hi", 0);

@@ -2,15 +2,15 @@ package kr.ac.hongik.apl;
 
 import org.junit.jupiter.api.Test;
 
-import java.net.InetSocketAddress;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 
 import static kr.ac.hongik.apl.Util.generateKeyPair;
 
 class PreprepareOperation extends Operation {
 
-    PreprepareOperation(InetSocketAddress clientInfo, long timestamp) {
+    PreprepareOperation(PublicKey clientInfo, long timestamp) {
         super(clientInfo, timestamp);
     }
 
@@ -25,7 +25,7 @@ class PreprepareMessageTest {
     void test() throws NoSuchAlgorithmException {
         System.out.println("PreprepareMessage Class Unit Test Start");
         KeyPair keyPair = generateKeyPair();
-        InetSocketAddress clientInfo = new InetSocketAddress("127.0.0.1", 3000);
+        PublicKey clientInfo = keyPair.getPublic();
         long timestamp = System.currentTimeMillis() / 1000;
         Operation operation = new PreprepareOperation(clientInfo, timestamp);
         PreprepareMessage preprepareMessage = new PreprepareMessage(keyPair.getPrivate(), 0, 0, operation);
