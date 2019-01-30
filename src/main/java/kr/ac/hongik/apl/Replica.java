@@ -1,7 +1,7 @@
 package kr.ac.hongik.apl;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -35,7 +35,9 @@ public class Replica extends Connector implements Primary, Backup {
     public Replica(Properties prop, String serverIp, int serverPort) {
         super(prop);
 
-        this.logger = new Logger();
+        String loggerFileName = String.format("consensus_%s_%d.db", serverIp, serverPort);
+
+        this.logger = new Logger(loggerFileName);
         this.clients = new ArrayList<>();
 
         this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
@@ -76,8 +78,8 @@ public class Replica extends Connector implements Primary, Backup {
             String ip = args[0];
             int port = Integer.parseInt(args[1]);
             Properties properties = new Properties();
-            FileInputStream fis = new FileInputStream(path);
-            properties.load(new java.io.BufferedInputStream(fis));
+            InputStream is = Replica.class.getResourceAsStream("/replica.properties");
+            properties.load(new java.io.BufferedInputStream(is));
 
             Replica replica = new Replica(properties, ip, port);
             replica.connect();

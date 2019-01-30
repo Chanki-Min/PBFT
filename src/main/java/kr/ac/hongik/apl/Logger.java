@@ -12,6 +12,7 @@ import static kr.ac.hongik.apl.Util.serialize;
 
 public class Logger {
     private Connection conn = null;
+    private String fileName;
 
     public Logger() {
         this(UUID.randomUUID().toString() + ".db");
@@ -19,17 +20,21 @@ public class Logger {
 
 
     public Logger(String fileName) {
-
         if (!fileName.endsWith(".db"))
             fileName += ".db";
-
-        String url = "jdbc:sqlite:" + getClass().getResource("/").getPath() + fileName;
+        this.fileName = fileName;
+        String url = getURL();
         try {
             this.conn = DriverManager.getConnection(url);
             this.createTables();
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    String getURL() {
+        File folder = new File(Logger.class.getResource("/replica.properties").getPath()).getParentFile();
+        return "jdbc:sqlite:" + new File(folder, fileName).getPath();
     }
 
     /**
@@ -82,7 +87,7 @@ public class Logger {
         this.conn = null;
         File file = new File("src/main/resources/");
         Arrays.stream(file.listFiles())
-                .filter(x -> x.getName().contains(".db"))
+                .filter(x -> x.getName().equals(this.fileName))
                 .forEach(File::delete);
     }
 
