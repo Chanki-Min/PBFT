@@ -54,7 +54,7 @@ abstract class Connector {
 
 	}
 
-	public void connect() {
+	protected void connect() {
 		//Connect to every replica
 		this.sockets = this.addresses.stream()
 				.map(this::makeConnectionOrNull)
@@ -125,6 +125,7 @@ abstract class Connector {
 	protected void send(InetSocketAddress destination, Message message) {
 		ByteBuffer serializedMessage = ByteBuffer.wrap(serialize(message));
 
+		if (sockets == null) throw new AssertionError();
 		sockets = sockets.stream().map(socket -> {
 			try {
 				if (socket.getRemoteAddress().equals(destination))

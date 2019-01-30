@@ -1,6 +1,8 @@
 package kr.ac.hongik.apl;
 
 import java.io.File;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.Arrays;
 import java.util.Base64;
@@ -24,13 +26,12 @@ public class Logger {
         if (!fileName.endsWith(".db"))
             fileName += ".db";
         this.fileName = fileName;
-        String url = getURL();
         try {
-            if(new File(url.replace("jdbc:sqlite:", "")).isFile()){
-                this.conn = DriverManager.getConnection(url);
+            if (new File(getURL().replace("jdbc:sqlite:", "")).exists()) {
+                this.conn = DriverManager.getConnection(getURL());
             }
             else {
-                this.conn = DriverManager.getConnection(url);
+                this.conn = DriverManager.getConnection(getURL());
                 this.createTables();
             }
         } catch (SQLException e) {
@@ -40,7 +41,8 @@ public class Logger {
 
     private String getURL() {
         File folder = new File(Logger.class.getResource("/replica.properties").getPath()).getParentFile();
-        return "jdbc:sqlite:" + new File(folder, fileName).getPath();
+        var encodedPath = "jdbc:sqlite:" + new File(folder, fileName).getPath();
+        return URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
     }
 
     /**

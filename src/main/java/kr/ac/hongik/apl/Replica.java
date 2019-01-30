@@ -70,6 +70,8 @@ public class Replica extends Connector implements Primary, Backup {
         });
         acceptanceThread.setDaemon(true);
         acceptanceThread.start();
+
+        super.connect();
     }
 
     public static void main(String[] args) throws IOException {
@@ -82,7 +84,6 @@ public class Replica extends Connector implements Primary, Backup {
             properties.load(new java.io.BufferedInputStream(is));
 
             Replica replica = new Replica(properties, ip, port);
-            replica.connect();
             replica.start();
         } catch (ArrayIndexOutOfBoundsException e) {
             System.err.println("Usage: program <ip> <port>");

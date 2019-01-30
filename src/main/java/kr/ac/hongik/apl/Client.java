@@ -17,12 +17,13 @@ public class Client extends Connector {
 
     public Client(Properties prop){
         super(prop);    //make socket to every replica
-        this.logger = new Logger();
+        this.logger = new Logger("client_database.db");
+
+        super.connect();
     }
 
     //Empty method.
     @Override
-    @Deprecated
     protected void acceptOp(SelectionKey key) {
         throw new UnsupportedOperationException("Client class does not need this method.");
     }
@@ -84,6 +85,5 @@ public class Client extends Connector {
 
     public static void main(String[] args) throws IOException {
         Client client = new Client(readProperties());
-        client.connect();
     }
 }
