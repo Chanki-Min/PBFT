@@ -25,14 +25,19 @@ public class Logger {
         this.fileName = fileName;
         String url = getURL();
         try {
-            this.conn = DriverManager.getConnection(url);
-            this.createTables();
+            if(new File(url.replace("jdbc:sqlite:", "")).isFile()){
+                this.conn = DriverManager.getConnection(url);
+            }
+            else {
+                this.conn = DriverManager.getConnection(url);
+                this.createTables();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    String getURL() {
+    private String getURL() {
         File folder = new File(Logger.class.getResource("/replica.properties").getPath()).getParentFile();
         return "jdbc:sqlite:" + new File(folder, fileName).getPath();
     }
