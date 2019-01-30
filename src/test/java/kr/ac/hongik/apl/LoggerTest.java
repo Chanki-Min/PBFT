@@ -33,6 +33,29 @@ class LoggerTest {
     }
 
     @Test
+    void insertPreprepareMessage(){
+        Logger logger = new Logger();
+
+        try {
+            KeyPair keyPair = Util.generateKeyPair();
+            PrivateKey privateKey = keyPair.getPrivate();
+            PublicKey publicKey = keyPair.getPublic();
+
+            Operation sampleOperation = new SampleOperation(
+                    publicKey,
+                    Instant.now().getEpochSecond());
+
+            PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
+
+            logger.insertMessage(preprepareMessage);
+            logger.insertMessage(preprepareMessage);
+
+        } finally {
+            logger.deleteDBFile();
+        }
+    }
+
+    @Test
     void insertMessage() throws NoSuchAlgorithmException {
         Logger logger = new Logger();
 

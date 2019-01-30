@@ -179,6 +179,7 @@ public class Replica extends Connector implements Primary, Backup {
         try {
             int seqNum = getLatestSequenceNumber() + 1;
             PreprepareMessage preprepareMessage = new PreprepareMessage(this.getPrivateKey(), this.primary, seqNum, message.getOperation());
+            logger.insertMessage(preprepareMessage);
             //Broadcast messages
             addresses.parallelStream().forEach(address -> send(address, preprepareMessage));
         } catch (SQLException e) {

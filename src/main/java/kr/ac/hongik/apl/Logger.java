@@ -11,6 +11,7 @@ import static kr.ac.hongik.apl.Util.deserialize;
 import static kr.ac.hongik.apl.Util.serialize;
 
 public class Logger {
+    static final int CONSTRAINT_ERROR = 19;
     private Connection conn = null;
     private String fileName;
 
@@ -218,6 +219,8 @@ public class Logger {
 
             pstmt.execute();
         } catch (SQLException e) {
+            if(e.getErrorCode() == CONSTRAINT_ERROR)
+                return;
             e.printStackTrace();
         }
     }
