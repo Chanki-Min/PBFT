@@ -13,26 +13,26 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.function.Supplier;
 
 import static com.diffplug.common.base.Errors.rethrow;
 
-public class Replica extends Connector implements Primary, Backup {
+public class Replica extends Connector {
     final static int WATERMARK_UNIT = 100;
     private final static double timeout = 1.;
 
 
-    int primary = 0;
-    final int myNumber;
-
-    ServerSocketChannel listener;
-    List<SocketChannel> clients;
+    private final int myNumber;
+    private int primary = 0;
+    private ServerSocketChannel listener;
+    private List<SocketChannel> clients;
     private InetSocketAddress myAddress;
 
     private Logger logger;
     private int lowWatermark;
 
 
-    public Replica(Properties prop, String serverIp, int serverPort) {
+    Replica(Properties prop, String serverIp, int serverPort) {
         super(prop);
 
         String loggerFileName = String.format("consensus_%s_%d.db", serverIp, serverPort);
@@ -84,6 +84,11 @@ public class Replica extends Connector implements Primary, Backup {
             properties.load(new java.io.BufferedInputStream(is));
 
             Replica replica = new Replica(properties, ip, port);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             replica.start();
         } catch (ArrayIndexOutOfBoundsException e) {
             System.err.println("Usage: program <ip> <port>");
@@ -104,65 +109,91 @@ public class Replica extends Connector implements Primary, Backup {
         throw new RuntimeException("Unauthorized replica");
     }
 
-    public void start() {
+    void start() {
         //Assume that every connection is established
         while (true) {
             Message message = super.receive();              //Blocking method
             if (message instanceof RequestMessage) {
-                RequestMessage rmsg = (RequestMessage) message;
-                if (this.primary == this.myNumber
-                        && rmsg.isFirstSent(rethrow().wrap(logger::getPreparedStatement))) {
-                    logger.insertMessage(rmsg);
-                    //Enter broadcast phase
-                    broadcastToReplica(rmsg);
-                } else {
-                    //Relay to primary
-                    super.send(addresses.get(primary), message);
-                }
+                handleRequestMessage((RequestMessage) message);
             } else if (message instanceof PreprepareMessage) {
-                PreprepareMessage ppmsg = (PreprepareMessage) message;
-                PublicKey publicKey = publicKeyMap.get(ppmsg.getClientInfo());
-
-                if (ppmsg.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement))) {
-                    logger.insertMessage(message);
-                }
-                broadcastPrepareMessage(ppmsg);
+                handlePreprepareMessage((PreprepareMessage) message);
             } else if (message instanceof PrepareMessage) {
-                PrepareMessage pmsg = (PrepareMessage) message;
-                PublicKey publicKey = publicKeyMap.get(addresses.get(pmsg.getReplicaNum()));
-                if (pmsg.isVerified(publicKey, this.primary, this::getWatermarks)) {
-                    logger.insertMessage(pmsg);
-                }
-                if (pmsg.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
-                    CommitMessage commitMessage = new CommitMessage(
-                            this.getPrivateKey(),
-                            pmsg.getViewNum(),
-                            pmsg.getSeqNum(),
-                            pmsg.getDigest(),
-                            this.myNumber);
-                    broadcastCommitMessage(commitMessage);
-                }
+                handlePrepareMessage((PrepareMessage) message);
             } else if (message instanceof CommitMessage) {
-                CommitMessage cmsg = (CommitMessage) message;
-                if (cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
-                    //TODO: Implement sequential execution
-                    Operation operation = logger.getOperation(cmsg);
-                    Result ret = operation.execute();
-                    ReplyMessage replyMessage = new ReplyMessage(
-                            getPrivateKey(),
-                            cmsg.getViewNum(),
-                            operation.getTimestamp(),
-                            operation.getClientInfo(),
-                            this.myNumber,
-                            ret);
-
-                    InetSocketAddress destination = publicKeyMap.entrySet().stream()
-                            .filter(x -> x.getValue().equals(replyMessage.getClientInfo()))
-                            .findFirst().get().getKey();
-                    send(destination, replyMessage);
-                }
-            }
+                handleCommitMessage((CommitMessage) message);
+            } else
+                throw new UnsupportedOperationException("Invalid message");
         }
+    }
+
+    private void handleCommitMessage(CommitMessage cmsg) {
+        Supplier<Boolean> isCommitted = () -> cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
+                getMaximumFaulty(), this.myNumber);
+
+        if (isCommitted.get()) {
+            //TODO: Implement sequential execution
+            Operation operation = logger.getOperation(cmsg);
+            Result ret = operation.execute();
+            ReplyMessage replyMessage = new ReplyMessage(
+                    getPrivateKey(),
+                    cmsg.getViewNum(),
+                    operation.getTimestamp(),
+                    operation.getClientInfo(),
+                    this.myNumber,
+                    ret);
+
+            InetSocketAddress destination = publicKeyMap.entrySet().stream()
+                    .filter(x -> x.getValue().equals(replyMessage.getClientInfo()))
+                    .findFirst().get().getKey();
+            send(destination, replyMessage);
+
+            //TODO: Close connection
+            //TODO: Delete client's public key
+            //TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
+        }
+    }
+
+    private void handlePrepareMessage(PrepareMessage message) {
+        PublicKey publicKey = publicKeyMap.get(addresses.get(message.getReplicaNum()));
+        if (message.isVerified(publicKey, this.primary, this::getWatermarks)) {
+            logger.insertMessage(message);
+        }
+        if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
+            CommitMessage commitMessage = new CommitMessage(
+                    this.getPrivateKey(),
+                    message.getViewNum(),
+                    message.getSeqNum(),
+                    message.getDigest(),
+                    this.myNumber);
+            addresses.forEach(address -> send(address, commitMessage));
+        }
+    }
+
+    private void handleRequestMessage(RequestMessage message) {
+        if (this.primary == this.myNumber
+                && message.isFirstSent(rethrow().wrap(logger::getPreparedStatement))) {
+            logger.insertMessage(message);
+            //Enter broadcast phase
+            broadcastToReplica(message);
+        } else {
+            //Relay to primary
+            super.send(addresses.get(primary), message);
+        }
+    }
+
+    private void handlePreprepareMessage(PreprepareMessage message) {
+        PublicKey publicKey = publicKeyMap.get(message.getClientInfo());
+
+        if (message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement))) {
+            logger.insertMessage(message);
+        }
+        PrepareMessage prepareMessage = new PrepareMessage(
+                this.getPrivateKey(),
+                message.getViewNum(),
+                message.getSeqNum(),
+                message.getDigest(),
+                this.myNumber);
+        addresses.forEach(address -> send(address, prepareMessage));
     }
 
     private int getLatestSequenceNumber() throws SQLException {
@@ -176,7 +207,7 @@ public class Replica extends Connector implements Primary, Backup {
             return 0;
     }
 
-    public void broadcastToReplica(RequestMessage message) {
+    private void broadcastToReplica(RequestMessage message) {
         try {
             int seqNum = getLatestSequenceNumber() + 1;
             PreprepareMessage preprepareMessage = new PreprepareMessage(this.getPrivateKey(), this.primary, seqNum, message.getOperation());
@@ -189,15 +220,6 @@ public class Replica extends Connector implements Primary, Backup {
     }
 
 
-    public void broadcastPrepareMessage(PreprepareMessage message) {
-        PrepareMessage prepareMessage = new PrepareMessage(
-                this.getPrivateKey(),
-                message.getViewNum(),
-                message.getSeqNum(),
-                message.getDigest(),
-                this.myNumber);
-        addresses.parallelStream().forEach(address -> send(address, prepareMessage));
-    }
 
     @Override
     protected void acceptOp(SelectionKey key) {
@@ -211,16 +233,5 @@ public class Replica extends Connector implements Primary, Backup {
 
     public void broadcastNewView(Message message) {
 
-    }
-
-    public void broadcastCheckpoint(Message message) {
-
-    }
-
-    public void broadcastCommitMessage(Message message) {
-
-        //TODO: Close connection
-        //TODO: Delete client's public key
-        //TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
     }
 }
