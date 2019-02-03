@@ -27,11 +27,13 @@ public class Logger {
             fileName += ".db";
         this.fileName = fileName;
         try {
-            if (new File(getURL().replace("jdbc:sqlite:", "")).exists()) {
-                this.conn = DriverManager.getConnection(getURL());
+			var filePath = getFilePath();
+			System.err.println("URL: " + filePath);
+			if (new File(getFilePath().replace("jdbc:sqlite:", "")).exists()) {
+				this.conn = DriverManager.getConnection(filePath);
             }
             else {
-                this.conn = DriverManager.getConnection(getURL());
+				this.conn = DriverManager.getConnection(filePath);
                 this.createTables();
             }
         } catch (SQLException e) {
@@ -39,10 +41,16 @@ public class Logger {
         }
     }
 
-    private String getURL() {
-        File folder = new File(Logger.class.getResource("/replica.properties").getPath()).getParentFile();
-        var encodedPath = "jdbc:sqlite:" + new File(folder, fileName).getPath();
-        return URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
+	private String getResourceFolder() {
+		var folder = System.getProperty("user.dir");
+		return folder.endsWith("/") ? folder : folder + '/';
+    }
+
+	private String getFilePath() {
+		var folder = getResourceFolder();
+		String encodedPath = "jdbc:sqlite:" + folder + fileName;
+        String url = URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
+        return url;
     }
 
     /**

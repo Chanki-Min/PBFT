@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class Launcher {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         try {
             switch (args[0].toLowerCase()) {
                 case "server":
@@ -17,12 +17,13 @@ public class Launcher {
                 default:
                     throw new IllegalArgumentException();
             }
-        } catch (IndexOutOfBoundsException | IllegalArgumentException | IOException e) {
+        } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
             String name = new File(Launcher.class.getProtectionDomain()
                     .getCodeSource()
                     .getLocation()
                     .getPath()
             ).getName();
+            System.err.println(e);
             System.err.printf("Usage: java -jar %s server|client [<ip> <port>]\n", name);
         }
     }

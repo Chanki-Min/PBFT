@@ -77,8 +77,11 @@ abstract class Connector {
 	private void closeWithoutException(SocketChannel socketChannel) {
 		try {
 			socketChannel.close();
-		} catch (IOException | NullPointerException e) {
-			e.printStackTrace();
+		} catch (IOException e) {
+			//e.printStackTrace();
+			System.err.println(e);
+		} catch (NullPointerException e) {
+			//Ignore error message
 		}
 	}
 
@@ -106,7 +109,8 @@ abstract class Connector {
 			sendPublicKey(channel);
 			return channel;
 		} catch (IOException | NullPointerException e) {
-			e.printStackTrace();
+			//e.printStackTrace();
+			System.err.printf("%s from %s\n", e, this);
 			closeWithoutException(channel);
 			return null;
 		}
