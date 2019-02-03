@@ -71,6 +71,10 @@ public class Replica extends Connector {
         acceptanceThread.setDaemon(true);
         acceptanceThread.start();
 
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e) {
+		}
         super.connect();
     }
 
