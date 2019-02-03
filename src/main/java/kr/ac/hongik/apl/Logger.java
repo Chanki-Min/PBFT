@@ -28,7 +28,6 @@ public class Logger {
         this.fileName = fileName;
         try {
 			var filePath = getFilePath();
-			System.err.println("URL: " + filePath);
 			if (new File(getFilePath().replace("jdbc:sqlite:", "")).exists()) {
 				this.conn = DriverManager.getConnection(filePath);
             }
