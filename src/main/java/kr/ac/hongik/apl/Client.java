@@ -4,21 +4,17 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.security.PublicKey;
-import java.sql.SQLException;
 import java.util.Properties;
-
-import static java.util.Base64.getEncoder;
-import static kr.ac.hongik.apl.Util.serialize;
+import java.util.HashMap;
 
 public class Client extends Connector {
     private static final String path = Client.class.getResource("/replica.properties").getPath();
-    private Logger logger;
+    private HashMap<Message, Integer> hashMap;
 
 
     public Client(Properties prop){
         super(prop);    //make socket to every replica
-        this.logger = new Logger("client_database.db");
-
+        hashMap = new HashMap<>();
         super.connect();
     }
 
@@ -39,39 +35,18 @@ public class Client extends Connector {
             // check client info
             PublicKey publicKey = this.publicKeyMap.get(this.addresses.get(replyMessage.getReplicaNum()));
             if (replyMessage.verifySignature(publicKey)) {
-                logger.insertMessage(replyMessage);
-                if (countSameMessages(replyMessage) > getMaximumFaulty()) {
-                    //Reached an agreement
-                    //Delete messages in DB
-                    String query = "DELETE FROM Replies R WHERE R.timestamp = ? AND R.result = ?";
-                    try (var pstmt = logger.getPreparedStatement(query)) {
-                        pstmt.setLong(1, replyMessage.getTime());
-                        pstmt.setString(2, getEncoder().encodeToString(serialize(replyMessage.getResult())));
-                        pstmt.execute();
-                    } catch (SQLException e) {
-                        e.printStackTrace();
-                    }
-                    break;
+                Integer numOfValue = null;
+                if((numOfValue = hashMap.get(replyMessage)) == null){
+                    hashMap.put(replyMessage, 1);
+                }
+                else if(numOfValue < numOfReplica - 1){
+                    hashMap.put(replyMessage, ++numOfValue);
+                }
+                else{
+                    hashMap.remove(replyMessage);
+                    return replyMessage.getResult();
                 }
             }
-        }
-        return replyMessage.getResult();
-    }
-
-    private int countSameMessages(ReplyMessage replyMessage) {
-        String query = "SELECT COUNT(*) FROM Replies R WHERE R.client = ? AND R.timestamp = ? AND R.result = ?";
-
-        try (var pstmt = logger.getPreparedStatement(query)) {
-            pstmt.setString(1, getEncoder().encodeToString(serialize(replyMessage.getClientInfo())));
-            pstmt.setLong(2, replyMessage.getTime());
-            pstmt.setString(3, getEncoder().encodeToString(serialize(replyMessage.getResult())));
-            try (var ret = pstmt.executeQuery()) {
-                ret.next();
-                return ret.getInt(1);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return 1;
         }
     }
 
