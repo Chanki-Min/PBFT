@@ -60,8 +60,7 @@ public class Logger {
      * Prepares:    (^viewNum, ^seqNum, ^digest, ^i)
      * Commits:     (viewNum, ^seqNum, digest, ^i)
      * Checkpoints: (^seqNum, ^stateDigest, ^i)
-     *
-     * Replies: (viewNum, ^timestamp, client, ^replica, ^result)
+     * Executed: (^timestamp, replyMessage)
      *
      * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
      */
@@ -72,9 +71,7 @@ public class Logger {
                 "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, seqNum, digest, replica))",
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
-
-                //This is for client
-                "CREATE TABLE Replies (viewNum INT, timestamp DATE, client TEXT, replica INT, result TEXT, PRIMARY KEY(timestamp, replica, result))",
+                "CREATE TABLE Executed (timestamp DATE, replyMessage TEXT NOT NULL, PRIMARY KEY(timestamp))",
         };
         for (String query : queries) {
             try {
@@ -134,6 +131,7 @@ public class Logger {
         }
     }
 
+
     void insertMessage(Message message) {
         if (message instanceof RequestMessage) {
             insertRequestMessage((RequestMessage) message);
@@ -143,22 +141,21 @@ public class Logger {
             insertPrepareMessage((PrepareMessage) message);
         } else if (message instanceof CommitMessage) {
             insertCommitMessage((CommitMessage) message);
-        } else if (message instanceof ReplyMessage) {
-            insertReplyMessage((ReplyMessage) message);
         } else
             throw new RuntimeException("Invalid message type");
 
     }
 
-    private void insertReplyMessage(ReplyMessage message) {
-        String query = "INSERT INTO Replies VALUES (?, ?, ?, ?, ?)";
+    void insertMessage(int sequenceNumber, ReplyMessage message) {
+        insertReplyMessage(sequenceNumber, message);
+    }
+
+    private void insertReplyMessage(int seqNum, ReplyMessage message) {
+        String query = "INSERT INTO Replies VALUES (?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
-            pstmt.setInt(1, message.getViewNum());
-            pstmt.setLong(2, message.getTime());
-            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
-            pstmt.setString(3, clientBase64);
-            pstmt.setInt(4, message.getReplicaNum());
-            pstmt.setString(5, getEncoder().encodeToString(serialize(message.getResult())));
+            pstmt.setInt(1, seqNum);
+            String clientBase64 = getEncoder().encodeToString(serialize(message));
+            pstmt.setString(2, clientBase64);
 
             pstmt.execute();
         } catch (SQLException e) {

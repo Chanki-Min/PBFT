@@ -146,6 +146,8 @@ public class Replica extends Connector {
                     this.myNumber,
                     ret);
 
+            logger.insertMessage(cmsg.getSeqNum(), replyMessage);
+
             InetSocketAddress destination = publicKeyMap.entrySet().stream()
                     .filter(x -> x.getValue().equals(replyMessage.getClientInfo()))
                     .findFirst().get().getKey();
