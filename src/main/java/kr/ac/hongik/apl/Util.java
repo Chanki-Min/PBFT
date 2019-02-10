@@ -2,12 +2,42 @@ package kr.ac.hongik.apl;
 
 import org.apache.commons.lang3.SerializationUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.security.*;
 import java.util.Formatter;
 import java.util.stream.IntStream;
 
 public class Util {
+
+    public static void fastCopy(final InputStream src, final OutputStream dest) throws IOException {
+        final ReadableByteChannel inputChannel = Channels.newChannel(src);
+        final WritableByteChannel outputChannel = Channels.newChannel(dest);
+        fastCopy(inputChannel, outputChannel);
+    }
+
+    public static void fastCopy(final ReadableByteChannel src, final WritableByteChannel dest) throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024);
+
+        while (src.read(buffer) != -1) {
+            buffer.flip();
+            dest.write(buffer);
+            buffer.compact();
+        }
+
+        buffer.flip();
+
+        while (buffer.hasRemaining()) {
+            dest.write(buffer);
+        }
+    }
+
     public static String hash(Serializable obj) {
         return hash(serialize(obj));
     }

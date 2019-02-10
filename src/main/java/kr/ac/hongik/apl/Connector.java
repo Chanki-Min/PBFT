@@ -1,9 +1,13 @@
 package kr.ac.hongik.apl;
 
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -20,7 +24,6 @@ import static kr.ac.hongik.apl.Util.*;
  * Caution: It doesn't handle server's listening socket
  */
 abstract class Connector {
-	final static int BUFFER_SIZE = 64 * 1024 * 1024;
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> addresses;
 	protected List<SocketChannel> sockets;
@@ -93,8 +96,8 @@ abstract class Connector {
 	private SocketChannel handshake(InetSocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
 		channel.configureBlocking(false);
-		channel.socket().setReceiveBufferSize(Connector.BUFFER_SIZE);
-		channel.socket().setSendBufferSize(Connector.BUFFER_SIZE);
+		//channel.socket().setReceiveBufferSize(Connector.BUFFER_SIZE);
+		//channel.socket().setSendBufferSize(Connector.BUFFER_SIZE);
 		channel.register(selector, SelectionKey.OP_READ);
 		return channel;
 	}
@@ -127,17 +130,19 @@ abstract class Connector {
 	 * @param message
 	 */
 	protected void send(InetSocketAddress destination, Message message) {
-		ByteBuffer serializedMessage = ByteBuffer.wrap(serialize(message));
+		byte[] bytes = serialize(message);
+		InputStream in = new ByteArrayInputStream(bytes);
 
 		if (sockets == null) throw new AssertionError();
-		sockets = sockets.stream().map(socket -> {
+		sockets = sockets.stream().map(channel -> {
 			try {
-				if (socket.getRemoteAddress().equals(destination))
-					socket.write(serializedMessage);
-				return socket;
+				if (channel.getRemoteAddress().equals(destination)) {
+					fastCopy(Channels.newChannel(in), channel);
+				}
+				return channel;
 			} catch (IOException | NullPointerException e) {
 				//e.printStackTrace();
-				closeWithoutException(socket);
+				closeWithoutException(channel);
 				return makeConnectionOrNull(destination);
 			}
 		}).collect(Collectors.toList());
@@ -157,6 +162,7 @@ abstract class Connector {
 	 */
 	protected Message receive() {
 		//Selector must not hold acceptable or writable sockets
+		//TODO: Consider closing the socket situation
 		while (true) {
 			try {
 				selector.select();
@@ -168,15 +174,15 @@ abstract class Connector {
 					continue;
 				}
 				//Invariant: every key must be readable
-				SocketChannel socketChannel = (SocketChannel) key.channel();
-				ByteBuffer byteBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
-				socketChannel.read(byteBuffer);
+				SocketChannel channel = (SocketChannel) key.channel();
+				//ByteArrayOutputStream doubles its buffer when it is full
+				ByteArrayOutputStream os = new ByteArrayOutputStream();
+				fastCopy(channel, Channels.newChannel(os));
 
-				Message message = (Message) deserialize(byteBuffer.array());
+				Message message = (Message) deserialize(os.toByteArray());
 				if (message instanceof PublicKeyMessage) {
-					assert (message instanceof InetSocketAddress);
 					this.publicKeyMap.put(
-							(InetSocketAddress) socketChannel.getRemoteAddress(),
+							(InetSocketAddress) channel.getRemoteAddress(),
 							((PublicKeyMessage) message).publicKey);
 					continue;
 				}

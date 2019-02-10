@@ -15,7 +15,10 @@ import java.util.function.Predicate;
 
 import static com.diffplug.common.base.Errors.rethrow;
 
+
 public class Replica extends Connector {
+    public static final boolean DEBUG = true;
+
     final static int WATERMARK_UNIT = 100;
     private final static double timeout = 1.;
 
@@ -57,6 +60,8 @@ public class Replica extends Connector {
             while (true) {
                 try {
                     SocketChannel channel = listener.accept();
+                    if (DEBUG)
+                        System.err.printf("%s -> %s\n", listener.getLocalAddress(), channel.getRemoteAddress());
 
                     clients.add(channel);
                     channel.configureBlocking(false);
@@ -79,20 +84,14 @@ public class Replica extends Connector {
     }
 
     public static void main(String[] args) throws IOException {
-        String path = Replica.class.getResource("/replica.properties").getPath();
         try {
             String ip = args[0];
             int port = Integer.parseInt(args[1]);
             Properties properties = new Properties();
-            InputStream is = Replica.class.getResourceAsStream("/replica.properties");
+            InputStream is = Replica.class.getResourceAsStream("/loopback.properties");
             properties.load(new java.io.BufferedInputStream(is));
 
             Replica replica = new Replica(properties, ip, port);
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
             replica.start();
         } catch (ArrayIndexOutOfBoundsException e) {
             System.err.println("Usage: program <ip> <port>");
