@@ -60,7 +60,7 @@ public class Logger {
      * Prepares:    (^viewNum, ^seqNum, ^digest, ^i)
      * Commits:     (viewNum, ^seqNum, digest, ^i)
      * Checkpoints: (^seqNum, ^stateDigest, ^i)
-     * Executed: (^timestamp, replyMessage)
+     * Executed: (^seqNum, replyMessage)
      *
      * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
      */
@@ -71,7 +71,7 @@ public class Logger {
                 "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, seqNum, digest, replica))",
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
-                "CREATE TABLE Executed (timestamp DATE, replyMessage TEXT NOT NULL, PRIMARY KEY(timestamp))",
+                "CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
         };
         for (String query : queries) {
             try {
@@ -151,7 +151,7 @@ public class Logger {
     }
 
     private void insertReplyMessage(int seqNum, ReplyMessage message) {
-        String query = "INSERT INTO Replies VALUES (?, ?)";
+        String query = "INSERT INTO Executed VALUES (?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, seqNum);
             String clientBase64 = getEncoder().encodeToString(serialize(message));

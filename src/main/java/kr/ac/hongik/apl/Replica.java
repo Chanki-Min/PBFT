@@ -10,10 +10,8 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.function.Supplier;
+import java.util.*;
+import java.util.function.Predicate;
 
 import static com.diffplug.common.base.Errors.rethrow;
 
@@ -24,9 +22,11 @@ public class Replica extends Connector {
 
     private final int myNumber;
     private int primary = 0;
+
     private ServerSocketChannel listener;
     private List<SocketChannel> clients;
     private InetSocketAddress myAddress;
+    private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>((lhs, rhs) -> lhs.getSeqNum() - rhs.getSeqNum());
 
     private Logger logger;
     private int lowWatermark;
@@ -130,33 +130,60 @@ public class Replica extends Connector {
         }
     }
 
+    private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
+        String query = "SELECT MAX(E.seqNum) FROM Executed E";
+        try (var pstmt = logger.getPreparedStatement(query)) {
+            try (var ret = pstmt.executeQuery()) {
+                ret.next();
+                int soFarMaxSeqNum = ret.getInt(1);
+                var first = priorityQueue.peek();
+                if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
+                    priorityQueue.poll();
+                    return first;
+                }
+                throw new NoSuchElementException();
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new NoSuchElementException();
+        }
+    }
+
     private void handleCommitMessage(CommitMessage cmsg) {
-        Supplier<Boolean> isCommitted = () -> cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
+        Predicate<CommitMessage> committed = (x) -> x.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
                 getMaximumFaulty(), this.myNumber);
 
-        if (isCommitted.get()) {
-            //TODO: Implement sequential execution
-            Operation operation = logger.getOperation(cmsg);
-            Result ret = operation.execute();
-            ReplyMessage replyMessage = new ReplyMessage(
-                    getPrivateKey(),
-                    cmsg.getViewNum(),
-                    operation.getTimestamp(),
-                    operation.getClientInfo(),
-                    this.myNumber,
-                    ret);
+        if (committed.test(cmsg)) {
+            priorityQueue.add(cmsg);
+            try {
+                CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
+                var operation = logger.getOperation(rightNextCommitMsg);
+                Result ret = operation.execute();
+                ReplyMessage replyMessage = new ReplyMessage(
+                        getPrivateKey(),
+                        cmsg.getViewNum(),
+                        operation.getTimestamp(),
+                        operation.getClientInfo(),
+                        this.myNumber,
+                        ret);
 
-            logger.insertMessage(cmsg.getSeqNum(), replyMessage);
-
-            InetSocketAddress destination = publicKeyMap.entrySet().stream()
-                    .filter(x -> x.getValue().equals(replyMessage.getClientInfo()))
-                    .findFirst().get().getKey();
-            send(destination, replyMessage);
-
-            //TODO: Close connection
-            //TODO: Delete client's public key
-            //TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
+                logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
+                InetSocketAddress destination = getAddressByClientInfo(replyMessage.getClientInfo());
+                send(destination, replyMessage);
+                //TODO: Close connection
+                //TODO: Delete client's public key
+                //TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
+            } catch (NoSuchElementException e) {
+                return;
+            }
         }
+    }
+
+    private InetSocketAddress getAddressByClientInfo(PublicKey key) {
+        return publicKeyMap.entrySet().stream()
+                .filter(x -> x.getValue().equals(key))
+                .findFirst().get().getKey();
     }
 
     private void handlePrepareMessage(PrepareMessage message) {
