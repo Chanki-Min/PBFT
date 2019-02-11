@@ -60,8 +60,6 @@ public class Replica extends Connector {
             while (true) {
                 try {
                     SocketChannel channel = listener.accept();
-                    if (DEBUG)
-                        System.err.printf("%s -> %s\n", listener.getLocalAddress(), channel.getRemoteAddress());
 
                     clients.add(channel);
                     channel.configureBlocking(false);
@@ -77,7 +75,7 @@ public class Replica extends Connector {
         acceptanceThread.start();
 
 		try {
-			Thread.sleep(5000);
+            Thread.sleep(3000);
 		} catch (InterruptedException e) {
 		}
         super.connect();

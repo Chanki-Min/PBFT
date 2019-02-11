@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -29,7 +28,7 @@ abstract class Connector {
 	protected List<SocketChannel> sockets;
 	protected Selector selector;
 
-	protected Map<InetSocketAddress, PublicKey> publicKeyMap;
+	protected Map<InetSocketAddress, PublicKey> publicKeyMap = new HashMap<>();
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
 
@@ -90,7 +89,8 @@ abstract class Connector {
 
     protected void sendPublicKey(SocketChannel channel) throws IOException {
 		byte[] bytes = serialize(new PublicKeyMessage(this.publicKey));
-		channel.write(ByteBuffer.wrap(bytes));
+		ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+		fastCopy(Channels.newChannel(in), channel);
 	}
 
 	private SocketChannel handshake(InetSocketAddress address) throws IOException {
@@ -165,22 +165,27 @@ abstract class Connector {
 		//TODO: Consider closing the socket situation
 		while (true) {
 			try {
-				selector.select();
+				while (selector.select(50) == 0) ;
+				if (Replica.DEBUG)
+					System.err.println("Selected");
 				Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 				SelectionKey key = it.next();
-				it.remove();    //Remove the key from selected-keys set
-				if (key.isAcceptable()) {
-					acceptOp(key);
-					continue;
-				}
 				//Invariant: every key must be readable
 				SocketChannel channel = (SocketChannel) key.channel();
+				it.remove();    //Remove the key from selected-keys set
 				//ByteArrayOutputStream doubles its buffer when it is full
 				ByteArrayOutputStream os = new ByteArrayOutputStream();
+				assert (key.isReadable());
 				fastCopy(channel, Channels.newChannel(os));
+				if (Replica.DEBUG)
+					System.err.println("Got data");
 
 				Message message = (Message) deserialize(os.toByteArray());
 				if (message instanceof PublicKeyMessage) {
+					if (Replica.DEBUG) {
+						System.err.println("Got PublicKey");
+						System.err.println(message);
+					}
 					this.publicKeyMap.put(
 							(InetSocketAddress) channel.getRemoteAddress(),
 							((PublicKeyMessage) message).publicKey);

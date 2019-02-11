@@ -7,12 +7,11 @@ import java.util.HashMap;
 import java.util.Properties;
 
 public class Client extends Connector {
-    private HashMap<Message, Integer> hashMap;
+    private HashMap<Message, Integer> hashMap = new HashMap<>();
 
 
     public Client(Properties prop){
         super(prop);    //make socket to every replica
-        hashMap = new HashMap<>();
         super.connect();
     }
 
