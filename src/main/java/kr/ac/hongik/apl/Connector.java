@@ -1,11 +1,9 @@
 package kr.ac.hongik.apl;
 
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -28,7 +26,7 @@ abstract class Connector {
 	protected List<SocketChannel> sockets;
 	protected Selector selector;
 
-	protected Map<InetSocketAddress, PublicKey> publicKeyMap = new HashMap<>();
+	protected Map<SocketAddress, PublicKey> publicKeyMap = new HashMap<>();
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
 
@@ -93,7 +91,7 @@ abstract class Connector {
 		fastCopy(Channels.newChannel(in), channel);
 	}
 
-	private SocketChannel handshake(InetSocketAddress address) throws IOException {
+	private SocketChannel handshake(SocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
 		channel.configureBlocking(false);
 		//channel.socket().setReceiveBufferSize(Connector.BUFFER_SIZE);
@@ -105,7 +103,7 @@ abstract class Connector {
 	/**
 	 * Try handshaking and send my public key
 	 */
-	private SocketChannel makeConnectionOrNull(InetSocketAddress address) {
+	private SocketChannel makeConnectionOrNull(SocketAddress address) {
 		SocketChannel channel = null;
 		try {
 			channel = handshake(address);
@@ -129,7 +127,7 @@ abstract class Connector {
 	 * @param destination
 	 * @param message
 	 */
-	protected void send(InetSocketAddress destination, Message message) {
+	protected void send(SocketAddress destination, Message message) {
 		byte[] bytes = serialize(message);
 		InputStream in = new ByteArrayInputStream(bytes);
 
@@ -180,18 +178,23 @@ abstract class Connector {
 				if (Replica.DEBUG)
 					System.err.println("Got data");
 
-				Message message = (Message) deserialize(os.toByteArray());
+				Serializable message = deserialize(os.toByteArray());
+				if (Replica.DEBUG)
+					System.err.println(message.getClass().getName());
 				if (message instanceof PublicKeyMessage) {
 					if (Replica.DEBUG) {
 						System.err.println("Got PublicKey");
 						System.err.println(message);
 					}
+					if (Replica.DEBUG) {
+						System.err.println(channel.getRemoteAddress());
+					}
 					this.publicKeyMap.put(
-							(InetSocketAddress) channel.getRemoteAddress(),
+							channel.getRemoteAddress(),
 							((PublicKeyMessage) message).publicKey);
 					continue;
 				}
-				return message;
+				return (Message) message;
 			} catch (IOException e) {
 				e.printStackTrace();
 			}

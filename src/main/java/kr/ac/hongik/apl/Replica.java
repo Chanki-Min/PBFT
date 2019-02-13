@@ -3,6 +3,7 @@ package kr.ac.hongik.apl;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -29,7 +30,7 @@ public class Replica extends Connector {
     private ServerSocketChannel listener;
     private List<SocketChannel> clients;
     private InetSocketAddress myAddress;
-    private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>((lhs, rhs) -> lhs.getSeqNum() - rhs.getSeqNum());
+    private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
 
     private Logger logger;
     private int lowWatermark;
@@ -60,6 +61,7 @@ public class Replica extends Connector {
             while (true) {
                 try {
                     SocketChannel channel = listener.accept();
+                    //TODO: 레플리카도 여기서 받을텐데, 아마 잘못하면 replica도 clients에 들어갈 듯..?
 
                     clients.add(channel);
                     channel.configureBlocking(false);
@@ -115,12 +117,16 @@ public class Replica extends Connector {
         while (true) {
             Message message = super.receive();              //Blocking method
             if (message instanceof RequestMessage) {
+                if (DEBUG) System.err.println("Got request message");
                 handleRequestMessage((RequestMessage) message);
             } else if (message instanceof PreprepareMessage) {
+                if (DEBUG) System.err.println("Got PrePrepare message");
                 handlePreprepareMessage((PreprepareMessage) message);
             } else if (message instanceof PrepareMessage) {
+                if (DEBUG) System.err.println("Got Prepare message");
                 handlePrepareMessage((PrepareMessage) message);
             } else if (message instanceof CommitMessage) {
+                if (DEBUG) System.err.println("Got Commit message");
                 handleCommitMessage((CommitMessage) message);
             } else
                 throw new UnsupportedOperationException("Invalid message");
@@ -166,7 +172,10 @@ public class Replica extends Connector {
                         ret);
 
                 logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
-                InetSocketAddress destination = getAddressByClientInfo(replyMessage.getClientInfo());
+                SocketAddress destination = getAddressByClientInfo(replyMessage.getClientInfo());
+
+                if (Replica.DEBUG)
+                    System.err.println("Send to client");
                 send(destination, replyMessage);
                 //TODO: Close connection
                 //TODO: Delete client's public key
@@ -177,7 +186,7 @@ public class Replica extends Connector {
         }
     }
 
-    private InetSocketAddress getAddressByClientInfo(PublicKey key) {
+    private SocketAddress getAddressByClientInfo(PublicKey key) {
         return publicKeyMap.entrySet().stream()
                 .filter(x -> x.getValue().equals(key))
                 .findFirst().get().getKey();

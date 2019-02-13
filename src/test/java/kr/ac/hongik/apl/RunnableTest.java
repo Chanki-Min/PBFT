@@ -47,11 +47,12 @@ public class RunnableTest {
         Operation op = new GreetingOperation(client.getPublicKey());
         RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
 
+        System.err.println("Client: Request");
         client.request(requestMessage);
+        System.err.println("Client: try to get reply");
         Greeting ret = (Greeting) client.getReply();
 
 
         Assertions.assertEquals("Hello, World!", ret.toString());
-
     }
 }

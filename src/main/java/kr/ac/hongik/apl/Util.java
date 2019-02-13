@@ -29,19 +29,13 @@ public class Util {
             buffer.flip();
             dest.write(buffer);
             buffer.compact();
-            if (Replica.DEBUG)
-                System.err.println("src -> buffer");
         }
 
         buffer.flip();
 
         while (buffer.hasRemaining()) {
-            if (Replica.DEBUG)
-                System.err.println("buffer -> dest");
             dest.write(buffer);
         }
-        if (Replica.DEBUG)
-            System.err.println("Copy done!");
     }
 
     public static String hash(Serializable obj) {

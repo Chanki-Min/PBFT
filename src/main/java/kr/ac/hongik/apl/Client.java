@@ -22,7 +22,9 @@ public class Client extends Connector {
     }
 
     public void request(Message msg) {
-        addresses.stream().forEach(x -> this.send(x, msg));
+        addresses.stream().peek(x -> {
+            if (Replica.DEBUG) System.err.printf("client -> %s\n", x.getAddress());
+        }).forEach(x -> this.send(x, msg));
     }
 
     Result getReply() {
