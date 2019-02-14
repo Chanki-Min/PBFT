@@ -38,7 +38,7 @@ public class RunnableTest {
 
     @Test
     void requestTest() throws IOException {
-        InputStream in = getClass().getResourceAsStream("/loopback.properties");
+        InputStream in = getClass().getResourceAsStream("/replica.properties");
         Properties prop = new Properties();
         prop.load(in);
 

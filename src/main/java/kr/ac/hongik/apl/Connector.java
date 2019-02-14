@@ -111,7 +111,7 @@ abstract class Connector {
 			return channel;
 		} catch (IOException | NullPointerException e) {
 			//e.printStackTrace();
-			System.err.printf("%s from %s\n", e, this);
+			System.err.printf("%s from %s\n", e, address);
 			closeWithoutException(channel);
 			return null;
 		}
@@ -175,23 +175,20 @@ abstract class Connector {
 				ByteArrayOutputStream os = new ByteArrayOutputStream();
 				assert (key.isReadable());
 				fastCopy(channel, Channels.newChannel(os));
-				if (Replica.DEBUG)
-					System.err.println("Got data");
-
+				if (Replica.DEBUG) {
+					System.err.println(channel.getLocalAddress() + "@ Got data from " + channel.getRemoteAddress());
+				}
 				Serializable message = deserialize(os.toByteArray());
-				if (Replica.DEBUG)
-					System.err.println(message.getClass().getName());
 				if (message instanceof PublicKeyMessage) {
 					if (Replica.DEBUG) {
-						System.err.println("Got PublicKey");
-						System.err.println(message);
-					}
-					if (Replica.DEBUG) {
-						System.err.println(channel.getRemoteAddress());
+						System.err.println(channel.getLocalAddress() + "@ Got PublicKey from " + channel.getRemoteAddress());
 					}
 					this.publicKeyMap.put(
 							channel.getRemoteAddress(),
 							((PublicKeyMessage) message).publicKey);
+					if (Replica.DEBUG) {
+						System.err.println(channel.getLocalAddress() + "@ Number of PublicKeys : " + publicKeyMap.size());
+					}
 					continue;
 				}
 				return (Message) message;

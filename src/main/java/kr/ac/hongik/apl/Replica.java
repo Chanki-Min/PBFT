@@ -60,14 +60,23 @@ public class Replica extends Connector {
         Thread acceptanceThread = new Thread(() -> {
             while (true) {
                 try {
+                    if(DEBUG) System.err.println(this.myAddress.getAddress() + ":" + this.myAddress.getPort() + "@ Linstening....");
                     SocketChannel channel = listener.accept();
+                    if(DEBUG) System.err.println(this.myAddress.getAddress() + ":" + this.myAddress.getPort() + "@ Linstening Accepted from : " + channel.getRemoteAddress());
                     //TODO: 레플리카도 여기서 받을텐데, 아마 잘못하면 replica도 clients에 들어갈 듯..?
 
                     clients.add(channel);
                     channel.configureBlocking(false);
                     channel.register(this.selector, SelectionKey.OP_READ);
-
+                    if(DEBUG){
+                        System.err.print(this.myAddress.getAddress() + ":" + this.myAddress.getPort() + "@ Connected lists : ");
+                        for(int i = 0; i < clients.size(); i++) {
+                            System.err.print(clients.get(i).getRemoteAddress() + " ");
+                        }
+                        System.err.println();
+                    }
                     this.sendPublicKey(channel);
+
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -88,7 +97,7 @@ public class Replica extends Connector {
             String ip = args[0];
             int port = Integer.parseInt(args[1]);
             Properties properties = new Properties();
-            InputStream is = Replica.class.getResourceAsStream("/loopback.properties");
+            InputStream is = Replica.class.getResourceAsStream("/replica.properties");
             properties.load(new java.io.BufferedInputStream(is));
 
             Replica replica = new Replica(properties, ip, port);
