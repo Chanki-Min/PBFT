@@ -175,14 +175,18 @@ abstract class Connector {
 						SocketChannel channel = (SocketChannel) key.channel();
 						//ByteArrayOutputStream doubles its buffer when it is full
 						ByteBuffer intBuffer = ByteBuffer.allocate(4);
-						channel.read(intBuffer);
+						int n = channel.read(intBuffer);
+						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
+						if(length == 0)
+							continue;	//continue if stream read end-of-stream
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
 						int reads = channel.read(byteBuffer);
 						if(Replica.DEBUG){
-							System.err.printf("receive %d bytes\n", reads);
+							System.err.printf("Expected %d, receive %d bytes\n", length, reads);
 							assert reads == length;
+							assert length == byteBuffer.position();
 						}
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
