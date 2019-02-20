@@ -18,6 +18,7 @@ public class Util {
 
     public static void fastCopy(final ReadableByteChannel src, final WritableByteChannel dest) throws IOException {
         final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024);
+
         while (src.read(buffer) > 0) {
             //buffer.flip();
             dest.write(buffer);

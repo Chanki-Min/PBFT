@@ -4,6 +4,8 @@ package kr.ac.hongik.apl;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.*;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -118,7 +120,11 @@ abstract class Connector {
 			SocketChannel channel = it.next();
 			try{
                 if(channel.getRemoteAddress().equals(destination)) {
-                	fastCopy(Channels.newChannel(in), channel);
+                    ByteBuffer byteBuffer = ByteBuffer.allocate(4);
+                    byteBuffer.order(ByteOrder.BIG_ENDIAN);
+                    byteBuffer.putInt(bytes.length);
+                    channel.write(byteBuffer);
+                	//fastCopy(Channels.newChannel(in), channel);
 				}
 			} catch(IOException e) {
 				replicas.remove(channel);
@@ -166,8 +172,18 @@ abstract class Connector {
 					else if(key.isReadable()){
 						SocketChannel channel = (SocketChannel) key.channel();
 						//ByteArrayOutputStream doubles its buffer when it is full
-						ByteArrayOutputStream os = new ByteArrayOutputStream();
-						fastCopy(channel, Channels.newChannel(os));
+						//ByteArrayOutputStream os = new ByteArrayOutputStream();
+                        ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                        byteBuffer.order(ByteOrder.BIG_ENDIAN);
+                        //TODO: read variable length size buffer
+                        channel.read(byteBuffer);
+                        int length = byteBuffer.getInt();
+                        length -= (byteBuffer.position() - 4);
+                        while(length > 0) {
+
+						}
+                        // length -= remaining bytebuffer
+						//fastCopy(channel, Channels.newChannel(os));
 						if(Replica.DEBUG){
 							System.err.println("receive : " + os.toByteArray().length + "bytes");
 						}
