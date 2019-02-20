@@ -1,12 +1,15 @@
 package kr.ac.hongik.apl;
 
 
-import java.io.*;
+import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.*;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -34,11 +37,11 @@ abstract class Connector {
 		KeyPair keyPair = generateKeyPair();
 		this.privateKey = keyPair.getPrivate();
 		this.publicKey = keyPair.getPublic();
-        try {
-            this.selector = Selector.open();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+		try {
+			this.selector = Selector.open();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		parseProperties(prop);
 
 	}
@@ -46,7 +49,7 @@ abstract class Connector {
 	protected void connect()  {
 		//Connect to every replica
 		SocketChannel socketChannel = null;
-        for(int i = 0; i < this.replicaAddresses.size(); ++i) {
+		for (int i = 0; i < this.replicaAddresses.size(); ++i) {
 			try {
 				socketChannel = makeConnection(replicaAddresses.get(i));
 				this.replicas.put(i, socketChannel);
@@ -80,7 +83,7 @@ abstract class Connector {
 		}
 	}
 
-    protected abstract void sendHeaderMessage(SocketChannel channel) throws IOException;
+	protected abstract void sendHeaderMessage(SocketChannel channel) throws IOException;
 
 	private SocketChannel handshake(SocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
@@ -109,8 +112,7 @@ abstract class Connector {
 	 * @param message
 	 */
 	protected void send(SocketAddress destination, Message message) {
-		byte[] bytes = serialize(message);
-		InputStream in = new ByteArrayInputStream(bytes);
+		byte[] payload = serialize(message);
 
 		Iterator<SocketChannel> it = selector.selectedKeys()
 				.stream()
@@ -119,20 +121,20 @@ abstract class Connector {
 		while(it.hasNext()) {
 			SocketChannel channel = it.next();
 			try{
-                if(channel.getRemoteAddress().equals(destination)) {
-                    ByteBuffer byteBuffer = ByteBuffer.allocate(4);
-                    byteBuffer.order(ByteOrder.BIG_ENDIAN);
-                    byteBuffer.putInt(bytes.length);
-                    channel.write(byteBuffer);
-                	//fastCopy(Channels.newChannel(in), channel);
+				if (channel.getRemoteAddress().equals(destination)) {
+					ByteBuffer byteBuffer = ByteBuffer.allocate(4 + payload.length);
+					//default order: big endian
+					byteBuffer.putInt(payload.length);
+					byteBuffer.put(payload);
+					channel.write(byteBuffer);
 				}
 			} catch(IOException e) {
 				replicas.remove(channel);
 				closeWithoutException(channel);	//de-register a selector
-                /*
-                * 재전송을 안하는 이유:
-                * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
-                */
+				/*
+				 * 재전송을 안하는 이유:
+				 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
+				 */
 				//clients?
 			}
 		}
@@ -172,22 +174,17 @@ abstract class Connector {
 					else if(key.isReadable()){
 						SocketChannel channel = (SocketChannel) key.channel();
 						//ByteArrayOutputStream doubles its buffer when it is full
-						//ByteArrayOutputStream os = new ByteArrayOutputStream();
-                        ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-                        byteBuffer.order(ByteOrder.BIG_ENDIAN);
-                        //TODO: read variable length size buffer
-                        channel.read(byteBuffer);
-                        int length = byteBuffer.getInt();
-                        length -= (byteBuffer.position() - 4);
-                        while(length > 0) {
-
-						}
-                        // length -= remaining bytebuffer
-						//fastCopy(channel, Channels.newChannel(os));
+						ByteBuffer intBuffer = ByteBuffer.allocate(4);
+						channel.read(intBuffer);
+						int length = intBuffer.getInt();    //Default order: big endian
+						byte[] receivedBytes = new byte[length];
+						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
+						int reads = channel.read(byteBuffer);
 						if(Replica.DEBUG){
-							System.err.println("receive : " + os.toByteArray().length + "bytes");
+							System.err.printf("receive %d bytes\n", reads);
+							assert reads == length;
 						}
-						Serializable message = deserialize(os.toByteArray());
+						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage)message;
 							headerMessage.setChannel(channel);
