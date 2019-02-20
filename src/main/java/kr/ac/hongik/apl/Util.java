@@ -16,23 +16,16 @@ import java.util.stream.IntStream;
 
 public class Util {
 
-    public static void fastCopy(final InputStream src, final OutputStream dest) throws IOException {
-        final ReadableByteChannel inputChannel = Channels.newChannel(src);
-        final WritableByteChannel outputChannel = Channels.newChannel(dest);
-        fastCopy(inputChannel, outputChannel);
-    }
-
     public static void fastCopy(final ReadableByteChannel src, final WritableByteChannel dest) throws IOException {
         final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024);
-
         while (src.read(buffer) > 0) {
-            buffer.flip();
+            //buffer.flip();
             dest.write(buffer);
             buffer.compact();
+            if(Replica.DEBUG)
+                System.err.println("read " + buffer.toString());
         }
-
         buffer.flip();
-
         while (buffer.hasRemaining()) {
             dest.write(buffer);
         }

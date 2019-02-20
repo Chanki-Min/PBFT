@@ -1,10 +1,16 @@
 package kr.ac.hongik.apl;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Properties;
+
+import static kr.ac.hongik.apl.Util.fastCopy;
+import static kr.ac.hongik.apl.Util.serialize;
 
 public class Client extends Connector {
     private HashMap<Message, Integer> hashMap = new HashMap<>();
@@ -15,6 +21,14 @@ public class Client extends Connector {
         super.connect();
     }
 
+    @Override
+    protected void sendHeaderMessage(SocketChannel channel) throws IOException {
+        HeaderMessage headerMessage = new HeaderMessage(-1, this.publicKey, "client");
+        byte[] bytes = serialize(headerMessage);
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        fastCopy(Channels.newChannel(in), channel);
+    }
+
     //Empty method.
     @Override
     protected void acceptOp(SelectionKey key) {
@@ -22,7 +36,7 @@ public class Client extends Connector {
     }
 
     public void request(Message msg) {
-        this.addresses.stream().peek(x -> {
+        this.replicaAddresses.stream().peek(x -> {
             if (Replica.DEBUG) System.err.printf("client -> %s:%s\n", x.getAddress(), x.getPort());
         }).forEach(x -> this.send(x, msg));
     }
@@ -32,7 +46,7 @@ public class Client extends Connector {
         while (true) {
             replyMessage = (ReplyMessage) receive();
             // check client info
-            PublicKey publicKey = this.publicKeyMap.get(this.addresses.get(replyMessage.getReplicaNum()));
+            PublicKey publicKey = this.publicKeyMap.get(this.replicaAddresses.get(replyMessage.getReplicaNum()));
             if (replyMessage.verifySignature(publicKey)) {
                 Integer numOfValue = null;
                 if((numOfValue = hashMap.get(replyMessage)) == null){

@@ -4,15 +4,11 @@ package kr.ac.hongik.apl;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.channels.Channels;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static kr.ac.hongik.apl.Util.*;
 
@@ -22,8 +18,8 @@ import static kr.ac.hongik.apl.Util.*;
  */
 abstract class Connector {
 	//Invariant: replica index and its socket is matched!
-	protected List<InetSocketAddress> addresses;
-	protected List<SocketChannel> sockets;
+	protected List<InetSocketAddress> replicaAddresses = new ArrayList<>();
+	protected Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
 	protected Map<SocketAddress, PublicKey> publicKeyMap = new HashMap<>();
@@ -31,14 +27,6 @@ abstract class Connector {
 	protected PublicKey publicKey;
 
 	int numOfReplica;
-
-	static class PublicKeyMessage implements Message {
-		public PublicKey publicKey;
-
-		public PublicKeyMessage(PublicKey publicKey) {
-			this.publicKey = publicKey;
-		}
-	}
 
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();
@@ -49,28 +37,33 @@ abstract class Connector {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
 		parseProperties(prop);
 
 	}
 
-	protected void connect() {
+	protected void connect()  {
 		//Connect to every replica
-		this.sockets = this.addresses.stream()
-				.map(this::makeConnectionOrNull)
-				.collect(Collectors.toList());
+		SocketChannel socketChannel = null;
+        for(int i = 0; i < this.replicaAddresses.size(); ++i) {
+			try {
+				socketChannel = makeConnection(replicaAddresses.get(i));
+				this.replicas.put(i, socketChannel);
+			} catch(IOException e) {
+				closeWithoutException(socketChannel);
+				continue;
+			}
+		}
 	}
 
 	private void parseProperties(Properties prop) {
 		numOfReplica = Integer.parseInt(prop.getProperty("replica"));
 
-		addresses = new ArrayList<>();
 		for (int i = 0; i < numOfReplica; i++) {
 			String addressInString = prop.getProperty("replica" + i);
 			String[] parsedAddress = addressInString.split(":");
 
 			InetSocketAddress address = new InetSocketAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
-			addresses.add(address);
+			replicaAddresses.add(address);
 		}
 	}
 
@@ -85,17 +78,11 @@ abstract class Connector {
 		}
 	}
 
-    protected void sendPublicKey(SocketChannel channel) throws IOException {
-		byte[] bytes = serialize(new PublicKeyMessage(this.publicKey));
-		ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-		fastCopy(Channels.newChannel(in), channel);
-	}
+    protected abstract void sendHeaderMessage(SocketChannel channel) throws IOException;
 
 	private SocketChannel handshake(SocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
 		channel.configureBlocking(false);
-		//channel.socket().setReceiveBufferSize(Connector.BUFFER_SIZE);
-		//channel.socket().setSendBufferSize(Connector.BUFFER_SIZE);
 		channel.register(selector, SelectionKey.OP_READ);
 		return channel;
 	}
@@ -103,26 +90,18 @@ abstract class Connector {
 	/**
 	 * Try handshaking and send my public key
 	 */
-	private SocketChannel makeConnectionOrNull(SocketAddress address) {
-		SocketChannel channel = null;
-		try {
-			channel = handshake(address);
-			sendPublicKey(channel);
-			return channel;
-		} catch (IOException | NullPointerException e) {
-			//e.printStackTrace();
-			System.err.printf("%s from %s\n", e, address);
-			closeWithoutException(channel);
-			return null;
-		}
+	private SocketChannel makeConnection(SocketAddress address) throws IOException {
+		SocketChannel channel = handshake(address);
+		sendHeaderMessage(channel);
+		return channel;
 	}
 
 	/**
 	 * It is a exception free wrapper of send function.
-	 * It sends the data and also manage the wrong sockets
-	 * The endpoint object must be in the sockets list, or this function does nothing.
+	 * It sends the data and also manage the wrong replicas
+	 * The endpoint object must be in the replicas list, or this function does nothing.
 	 * <p>
-	 * Plus, the order of sockets are maintained while reconnecting
+	 * Plus, the order of replicas are maintained while reconnecting
 	 *
 	 * @param destination
 	 * @param message
@@ -131,19 +110,26 @@ abstract class Connector {
 		byte[] bytes = serialize(message);
 		InputStream in = new ByteArrayInputStream(bytes);
 
-		if (sockets == null) throw new AssertionError();
-		sockets = sockets.stream().map(channel -> {
-			try {
-				if (channel.getRemoteAddress().equals(destination)) {
-					fastCopy(Channels.newChannel(in), channel);
+		Iterator<SocketChannel> it = selector.selectedKeys()
+				.stream()
+				.map(x -> (SocketChannel) x.channel())
+				.iterator();
+		while(it.hasNext()) {
+			SocketChannel channel = it.next();
+			try{
+                if(channel.getRemoteAddress().equals(destination)) {
+                	fastCopy(Channels.newChannel(in), channel);
 				}
-				return channel;
-			} catch (IOException | NullPointerException e) {
-				//e.printStackTrace();
-				closeWithoutException(channel);
-				return makeConnectionOrNull(destination);
+			} catch(IOException e) {
+				replicas.remove(channel);
+				closeWithoutException(channel);	//de-register a selector
+                /*
+                * 재전송을 안하는 이유:
+                * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
+                */
+				//clients?
 			}
-		}).collect(Collectors.toList());
+		}
 	}
 
 	/**
@@ -159,39 +145,44 @@ abstract class Connector {
 	 * @return Message
 	 */
 	protected Message receive() {
-		//Selector must not hold acceptable or writable sockets
+		//Selector must not hold acceptable or writable replicas
 		//TODO: Consider closing the socket situation
 		while (true) {
 			try {
-				while (selector.select(50) == 0) ;
+				selector.select();
 				if (Replica.DEBUG)
 					System.err.println("Selected");
 				Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-				SelectionKey key = it.next();
-				//Invariant: every key must be readable
-				SocketChannel channel = (SocketChannel) key.channel();
-				it.remove();    //Remove the key from selected-keys set
-				//ByteArrayOutputStream doubles its buffer when it is full
-				ByteArrayOutputStream os = new ByteArrayOutputStream();
-				assert (key.isReadable());
-				fastCopy(channel, Channels.newChannel(os));
-				if (Replica.DEBUG) {
-					System.err.println(channel.getLocalAddress() + "@ Got data from " + channel.getRemoteAddress());
-				}
-				Serializable message = deserialize(os.toByteArray());
-				if (message instanceof PublicKeyMessage) {
-					if (Replica.DEBUG) {
-						System.err.println(channel.getLocalAddress() + "@ Got PublicKey from " + channel.getRemoteAddress());
+				while(it.hasNext()) {
+					SelectionKey key = it.next();
+					it.remove();    //Remove the key from selected-keys set
+					if(key.isAcceptable()){
+						ServerSocketChannel serverSocketChannel = (ServerSocketChannel)key.channel();
+						SocketChannel socketChannel = serverSocketChannel.accept();
+						socketChannel.configureBlocking(false);
+						socketChannel.register(selector, SelectionKey.OP_READ);
+						this.sendHeaderMessage(socketChannel);
 					}
-					this.publicKeyMap.put(
-							channel.getRemoteAddress(),
-							((PublicKeyMessage) message).publicKey);
-					if (Replica.DEBUG) {
-						System.err.println(channel.getLocalAddress() + "@ Number of PublicKeys : " + publicKeyMap.size());
+					else if(key.isReadable()){
+						SocketChannel channel = (SocketChannel) key.channel();
+						//ByteArrayOutputStream doubles its buffer when it is full
+						ByteArrayOutputStream os = new ByteArrayOutputStream();
+						fastCopy(channel, Channels.newChannel(os));
+						if(Replica.DEBUG){
+							System.err.println("receive : " + os.toByteArray().length + "bytes");
+						}
+						Serializable message = deserialize(os.toByteArray());
+						if (message instanceof HeaderMessage) {
+							HeaderMessage headerMessage = (HeaderMessage)message;
+							headerMessage.setChannel(channel);
+						}
+						return (Message) message;
 					}
-					continue;
+					else{
+						System.err.println(key.toString());
+					}
+
 				}
-				return (Message) message;
 			} catch (IOException e) {
 				e.printStackTrace();
 			}

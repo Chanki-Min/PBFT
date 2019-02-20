@@ -1,9 +1,11 @@
 package kr.ac.hongik.apl;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -15,6 +17,8 @@ import java.util.*;
 import java.util.function.Predicate;
 
 import static com.diffplug.common.base.Errors.rethrow;
+import static kr.ac.hongik.apl.Util.fastCopy;
+import static kr.ac.hongik.apl.Util.serialize;
 
 
 public class Replica extends Connector {
@@ -50,45 +54,13 @@ public class Replica extends Connector {
         this.myAddress = new InetSocketAddress(serverIp, serverPort);
         try {
             listener = ServerSocketChannel.open();
-            listener.socket().setReuseAddress(true);
-            listener.configureBlocking(true);
+            //listener.socket().setReuseAddress(true);
+            listener.configureBlocking(false);
             listener.bind(new InetSocketAddress(serverPort));
+            listener.register(this.selector, SelectionKey.OP_ACCEPT);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println(e);
         }
-
-        Thread acceptanceThread = new Thread(() -> {
-            while (true) {
-                try {
-                    if(DEBUG) System.err.println(this.myAddress.getAddress() + ":" + this.myAddress.getPort() + "@ Linstening....");
-                    SocketChannel channel = listener.accept();
-                    if(DEBUG) System.err.println(this.myAddress.getAddress() + ":" + this.myAddress.getPort() + "@ Linstening Accepted from : " + channel.getRemoteAddress());
-                    //TODO: 레플리카도 여기서 받을텐데, 아마 잘못하면 replica도 clients에 들어갈 듯..?
-
-                    clients.add(channel);
-                    channel.configureBlocking(false);
-                    channel.register(this.selector, SelectionKey.OP_READ);
-                    if(DEBUG){
-                        System.err.print(this.myAddress.getAddress() + ":" + this.myAddress.getPort() + "@ Connected lists : ");
-                        for(int i = 0; i < clients.size(); i++) {
-                            System.err.print(clients.get(i).getRemoteAddress() + " ");
-                        }
-                        System.err.println();
-                    }
-                    this.sendPublicKey(channel);
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        acceptanceThread.setDaemon(true);
-        acceptanceThread.start();
-
-		try {
-            Thread.sleep(3000);
-		} catch (InterruptedException e) {
-		}
         super.connect();
     }
 
@@ -125,7 +97,9 @@ public class Replica extends Connector {
         //Assume that every connection is established
         while (true) {
             Message message = super.receive();              //Blocking method
-            if (message instanceof RequestMessage) {
+            if (message instanceof HeaderMessage) {
+                handleHeaderMessage((HeaderMessage)message);
+            } else if (message instanceof RequestMessage) {
                 if (DEBUG) System.err.println("Got request message");
                 handleRequestMessage((RequestMessage) message);
             } else if (message instanceof PreprepareMessage) {
@@ -141,6 +115,27 @@ public class Replica extends Connector {
                 throw new UnsupportedOperationException("Invalid message");
         }
     }
+
+    private void handleHeaderMessage(HeaderMessage message) {
+        SocketChannel channel = message.getChannel();
+        try {
+            this.publicKeyMap.put(channel.getRemoteAddress(), message.getPublicKey());
+            switch (message.getType()) {
+                case "replica":
+                    this.replicas.put(message.getReplicaNum(), channel);
+                    break;
+                case "client":
+                    this.clients.add(channel);
+                    break;
+                default:
+                    System.err.printf("Invalid header message: %s\n", message);
+            }
+        } catch(IOException e) {
+            System.err.println(e);
+        }
+
+}
+
 
     private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
         String query = "SELECT MAX(E.seqNum) FROM Executed E";
@@ -202,7 +197,7 @@ public class Replica extends Connector {
     }
 
     private void handlePrepareMessage(PrepareMessage message) {
-        PublicKey publicKey = publicKeyMap.get(addresses.get(message.getReplicaNum()));
+        PublicKey publicKey = publicKeyMap.get(replicaAddresses.get(message.getReplicaNum()));
         if (message.isVerified(publicKey, this.primary, this::getWatermarks)) {
             logger.insertMessage(message);
         }
@@ -213,7 +208,7 @@ public class Replica extends Connector {
                     message.getSeqNum(),
                     message.getDigest(),
                     this.myNumber);
-            addresses.forEach(address -> send(address, commitMessage));
+            replicaAddresses.forEach(address -> send(address, commitMessage));
         }
     }
 
@@ -225,7 +220,7 @@ public class Replica extends Connector {
             broadcastToReplica(message);
         } else {
             //Relay to primary
-            super.send(addresses.get(primary), message);
+            super.send(replicaAddresses.get(primary), message);
         }
     }
 
@@ -241,7 +236,7 @@ public class Replica extends Connector {
                 message.getSeqNum(),
                 message.getDigest(),
                 this.myNumber);
-        addresses.forEach(address -> send(address, prepareMessage));
+        replicaAddresses.forEach(address -> send(address, prepareMessage));
     }
 
     private int getLatestSequenceNumber() throws SQLException {
@@ -261,13 +256,23 @@ public class Replica extends Connector {
             PreprepareMessage preprepareMessage = new PreprepareMessage(this.getPrivateKey(), this.primary, seqNum, message.getOperation());
             logger.insertMessage(preprepareMessage);
             //Broadcast messages
-            addresses.parallelStream().forEach(address -> send(address, preprepareMessage));
+            replicaAddresses.parallelStream().forEach(address -> send(address, preprepareMessage));
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
 
+    @Override
+    protected void sendHeaderMessage(SocketChannel channel) throws IOException {
+        HeaderMessage headerMessage = new HeaderMessage(this.myNumber, this.publicKey, "replica");
+        byte[] bytes = serialize(headerMessage);
+        if(this.DEBUG){
+            System.err.println("send " + bytes.length + "bytes");
+        }
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        fastCopy(Channels.newChannel(in), channel);
+    }
 
     @Override
     protected void acceptOp(SelectionKey key) {
