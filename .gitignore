@@ -6,3 +6,11 @@
 # Maven
 log/
 target/
+
+.classpath
+.project
+.settings/
+consensus_223.194.70.127_19030.db
+consensus_223.194.70.127_19031.db
+consensus_223.194.70.127_19032.db
+consensus_223.194.70.127_19033.db
