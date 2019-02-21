@@ -176,10 +176,17 @@ abstract class Connector {
 						//ByteArrayOutputStream doubles its buffer when it is full
 						ByteBuffer intBuffer = ByteBuffer.allocate(4);
 						int n = channel.read(intBuffer);
+						if(n != 4) {
+							if(Replica.DEBUG) {
+								System.err.println("read returns " + n);
+							}
+							continue;	//continue if stream read end-of-stream
+						}
 						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
-						if(length == 0)
-							continue;	//continue if stream read end-of-stream
+						if(length == 0) {
+							//continue;	//continue if stream read end-of-stream
+						}
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
 						int reads = channel.read(byteBuffer);

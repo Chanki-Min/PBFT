@@ -266,12 +266,7 @@ public class Replica extends Connector {
 	@Override
 	protected void sendHeaderMessage(SocketChannel channel) throws IOException {
 		HeaderMessage headerMessage = new HeaderMessage(this.myNumber, this.publicKey, "replica");
-		byte[] bytes = serialize(headerMessage);
-		if (DEBUG) {
-			System.err.println("send " + bytes.length + "bytes");
-		}
-		ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-		fastCopy(Channels.newChannel(in), channel);
+		send(channel.getRemoteAddress(), headerMessage);
 	}
 
 	@Override

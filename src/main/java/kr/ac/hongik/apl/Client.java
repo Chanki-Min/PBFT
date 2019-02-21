@@ -24,9 +24,7 @@ public class Client extends Connector {
     @Override
     protected void sendHeaderMessage(SocketChannel channel) throws IOException {
         HeaderMessage headerMessage = new HeaderMessage(-1, this.publicKey, "client");
-        byte[] bytes = serialize(headerMessage);
-        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-        fastCopy(Channels.newChannel(in), channel);
+		send(channel.getRemoteAddress(), headerMessage);
     }
 
     //Empty method.
