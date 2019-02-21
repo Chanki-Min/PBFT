@@ -54,6 +54,8 @@ abstract class Connector {
 				socketChannel = makeConnection(replicaAddresses.get(i));
 				this.replicas.put(i, socketChannel);
 			} catch(IOException e) {
+				if(Replica.DEBUG)
+					System.err.println(e);
 				closeWithoutException(socketChannel);
 				continue;
 			}
@@ -102,7 +104,11 @@ abstract class Connector {
 	 */
 	private SocketChannel makeConnection(SocketAddress address) throws IOException {
 		SocketChannel channel = handshake(address);
+		while(!channel.finishConnect());
+		if(Replica.DEBUG)
+			System.err.printf("new connection from %s\n", channel);
 		sendHeaderMessage(channel);
+
 		return channel;
 	}
 
@@ -119,22 +125,32 @@ abstract class Connector {
 	protected void send(SocketAddress destination, Message message) {
 		byte[] payload = serialize(message);
 
-		Iterator<SocketChannel> it = selector.selectedKeys()
-				.stream()
-				.map(x -> (SocketChannel) x.channel())
-				.iterator();
-		while(it.hasNext()) {
-			SocketChannel channel = it.next();
+		var keys = selector.keys();
+		for(var key : keys) {
+			SocketChannel channel = null;
+			if(key.channel() instanceof SocketChannel)
+				channel = (SocketChannel) key.channel();
+			else
+				continue;
+
 			try{
 				if (channel.getRemoteAddress().equals(destination)) {
+					if(Replica.DEBUG)
+						System.err.printf("Bingo! %s\n", channel);
 					ByteBuffer byteBuffer = ByteBuffer.allocate(4 + payload.length);
 					//default order: big endian
 					byteBuffer.putInt(payload.length);
 					byteBuffer.put(payload);
+					if(Replica.DEBUG)
+						System.err.printf("Buffer ready!\n");
 
 					channel.write(byteBuffer);
+					if(Replica.DEBUG)
+						System.err.printf("Write done!");
+					return;
 				}
 			} catch(IOException e) {
+				System.err.println(e);
 				reconnect(channel);
 			}
 		}
@@ -145,8 +161,8 @@ abstract class Connector {
 		replicas.remove(channel);
 		try {
 			int replicaNum = replicas.entrySet().stream()
-					.filter(x -> x.getValue().equals(channel))
-					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+				.filter(x -> x.getValue().equals(channel))
+				.findFirst().orElseThrow(NoSuchElementException::new).getKey();
 			closeWithoutException(channel);    //de-register a selector
 			var address = replicaAddresses.get(replicaNum);
 			try {
@@ -158,6 +174,8 @@ abstract class Connector {
 
 		} catch (NoSuchElementException e1) {
 			//client socket is failed. ignore reconnection
+			if(Replica.DEBUG)
+				System.err.println(e1);
 			closeWithoutException(channel);    //de-register a selector
 			return;
 		}
@@ -218,6 +236,8 @@ abstract class Connector {
 							closeWithoutException(channel);
 							continue;    //continue if the stream reads end-of-stream
 						}
+						if(Replica.DEBUG)
+							System.err.println("not eof!");
 						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
