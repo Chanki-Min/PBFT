@@ -130,33 +130,37 @@ abstract class Connector {
 					channel.write(byteBuffer);
 				}
 			} catch(IOException e) {
-				/* Broken connection: try reconnecting if that socket was connected to replica */
-				replicas.remove(channel);
-				try {
-					int replicaNum = replicas.entrySet().stream()
-							.filter(x -> x.getValue().equals(channel))
-							.findFirst().orElseThrow(NoSuchElementException::new).getKey();
-					closeWithoutException(channel);    //de-register a selector
-					var address = replicaAddresses.get(replicaNum);
-					try {
-						SocketChannel newChannel = makeConnection(address);
-						replicas.put(replicaNum, newChannel);
-					} catch (IOException e1) {
-						//pass
-					}
-
-				} catch (NoSuchElementException e1) {
-					//client socket is failed. ignore reconnection
-					closeWithoutException(channel);    //de-register a selector
-					return;
-				}
-				/*
-				 * 재전송을 안하는 이유:
-				 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
-				 */
-				//clients?
+				reconnect(channel);
 			}
 		}
+	}
+
+	private void reconnect(SocketChannel channel) {
+		/* Broken connection: try reconnecting if that socket was connected to replica */
+		replicas.remove(channel);
+		try {
+			int replicaNum = replicas.entrySet().stream()
+					.filter(x -> x.getValue().equals(channel))
+					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+			closeWithoutException(channel);    //de-register a selector
+			var address = replicaAddresses.get(replicaNum);
+			try {
+				SocketChannel newChannel = makeConnection(address);
+				replicas.put(replicaNum, newChannel);
+			} catch (IOException e1) {
+				//pass
+			}
+
+		} catch (NoSuchElementException e1) {
+			//client socket is failed. ignore reconnection
+			closeWithoutException(channel);    //de-register a selector
+			return;
+		}
+		/*
+		 * 재전송을 안하는 이유:
+		 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
+		 */
+		//clients?
 	}
 
 	/**
@@ -177,57 +181,59 @@ abstract class Connector {
 		while (true) {
 			try {
 				selector.select();
-				if (Replica.DEBUG)
-					System.err.println("Selected");
-				Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-				while(it.hasNext()) {
-					SelectionKey key = it.next();
-					it.remove();    //Remove the key from selected-keys set
-					if(key.isAcceptable()){
-						ServerSocketChannel serverSocketChannel = (ServerSocketChannel)key.channel();
-						SocketChannel socketChannel = serverSocketChannel.accept();
+			} catch (IOException e) {
+				e.printStackTrace();
+				continue;
+			}
+			if (Replica.DEBUG)
+				System.err.println("Selected");
+			Iterator<SelectionKey> it = selector.selectedKeys().iterator();
+			while (it.hasNext()) {
+				SelectionKey key = it.next();
+				it.remove();    //Remove the key from selected-keys set
+				if (key.isAcceptable()) {
+					ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
+					SocketChannel socketChannel = null;
+					try {
+						socketChannel = serverSocketChannel.accept();
 						socketChannel.configureBlocking(false);
 						socketChannel.register(selector, SelectionKey.OP_READ);
 						this.sendHeaderMessage(socketChannel);
+					} catch (IOException e) {
+						reconnect(socketChannel);
 					}
-					else if(key.isReadable()){
-						SocketChannel channel = (SocketChannel) key.channel();
-						//ByteArrayOutputStream doubles its buffer when it is full
-						ByteBuffer intBuffer = ByteBuffer.allocate(4);
+				} else if (key.isReadable()) {
+					SocketChannel channel = (SocketChannel) key.channel();
+					//ByteArrayOutputStream doubles its buffer when it is full
+					ByteBuffer intBuffer = ByteBuffer.allocate(4);
+					try {
 						int n = channel.read(intBuffer);
-						if(n != 4) {
-							if(Replica.DEBUG) {
-								System.err.println("read returns " + n);
-							}
-							continue;	//continue if stream read end-of-stream
+						if (n == -1) {
+							continue;    //continue if the stream reads end-of-stream
 						}
 						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
-						if(length == 0) {
-							//continue;	//continue if stream read end-of-stream
-						}
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
 						int reads = channel.read(byteBuffer);
-						if(Replica.DEBUG){
+						if (Replica.DEBUG) {
 							System.err.printf("Expected %d, receive %d bytes\n", length, reads);
 							assert reads == length;
 							assert length == byteBuffer.position();
 						}
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
-							HeaderMessage headerMessage = (HeaderMessage)message;
+							HeaderMessage headerMessage = (HeaderMessage) message;
 							headerMessage.setChannel(channel);
 						}
 						return (Message) message;
+					} catch (IOException e) {
+						reconnect(channel);
 					}
-					else{
-						System.err.println(key.toString());
-					}
-
+				} else {
+					System.err.printf("Not acceptable and also not readable: %s\n", key);
 				}
-			} catch (IOException e) {
-				e.printStackTrace();
+
 			}
 		}
 	}
