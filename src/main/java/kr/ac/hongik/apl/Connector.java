@@ -126,11 +126,30 @@ abstract class Connector {
 					//default order: big endian
 					byteBuffer.putInt(payload.length);
 					byteBuffer.put(payload);
+
 					channel.write(byteBuffer);
 				}
 			} catch(IOException e) {
+				/* Broken connection: try reconnecting if that socket was connected to replica */
 				replicas.remove(channel);
-				closeWithoutException(channel);	//de-register a selector
+				try {
+					int replicaNum = replicas.entrySet().stream()
+							.filter(x -> x.getValue().equals(channel))
+							.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+					closeWithoutException(channel);    //de-register a selector
+					var address = replicaAddresses.get(replicaNum);
+					try {
+						SocketChannel newChannel = makeConnection(address);
+						replicas.put(replicaNum, newChannel);
+					} catch (IOException e1) {
+						//pass
+					}
+
+				} catch (NoSuchElementException e1) {
+					//client socket is failed. ignore reconnection
+					closeWithoutException(channel);    //de-register a selector
+					return;
+				}
 				/*
 				 * 재전송을 안하는 이유:
 				 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
