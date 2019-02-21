@@ -73,8 +73,13 @@ abstract class Connector {
 	}
 
 	private void closeWithoutException(SocketChannel socketChannel) {
+		if (Replica.DEBUG)
+			System.err.println("close " + socketChannel);
 		try {
 			socketChannel.close();
+			SelectionKey key = socketChannel.keyFor(selector);
+			key.cancel();
+			assert !selector.keys().contains(socketChannel);
 		} catch (IOException e) {
 			//e.printStackTrace();
 			System.err.println(e);
@@ -185,8 +190,6 @@ abstract class Connector {
 				e.printStackTrace();
 				continue;
 			}
-			if (Replica.DEBUG)
-				System.err.println("Selected");
 			Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 			while (it.hasNext()) {
 				SelectionKey key = it.next();
@@ -209,6 +212,10 @@ abstract class Connector {
 					try {
 						int n = channel.read(intBuffer);
 						if (n == -1) {
+							/* Get end of file */
+							if (Replica.DEBUG)
+								System.err.println("eof from " + channel);
+							closeWithoutException(channel);
 							continue;    //continue if the stream reads end-of-stream
 						}
 						intBuffer.flip();
