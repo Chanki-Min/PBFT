@@ -110,7 +110,7 @@ public class Logger {
     Operation getOperation(CommitMessage message) {
         String baseQuery = new StringBuilder()
                 .append("SELECT P.operation ")
-                .append("FROM Preprepares P ")
+                .append("FROM Preprepares AS P ")
                 .append("WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?")
                 .toString();
         try (var pstmt = getPreparedStatement(baseQuery)) {
@@ -166,6 +166,13 @@ public class Logger {
     private void insertCommitMessage(CommitMessage message) {
         String baseQuery = "INSERT INTO Commits VALUES ( ?, ?, ?, ? )";
         try {
+            if(Replica.DEBUG){
+                System.err.printf("viewNum : %d, seqNum : %d, digest : %s, replica : %d\n",
+                        message.getViewNum(),
+                        message.getSeqNum(),
+                        message.getDigest(),
+                        message.getReplicaNum());
+            }
             PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
             preparedStatement.setInt(1, message.getViewNum());
@@ -175,6 +182,8 @@ public class Logger {
 
             preparedStatement.execute();
         } catch (SQLException e) {
+            if(e.getErrorCode() == CONSTRAINT_ERROR)
+                return;
             e.printStackTrace();
         }
     }

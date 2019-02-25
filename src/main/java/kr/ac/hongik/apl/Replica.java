@@ -1,24 +1,23 @@
 package kr.ac.hongik.apl;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.nio.channels.Channels;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.PublicKey;
+import java.security.*;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
-import static kr.ac.hongik.apl.Util.fastCopy;
-import static kr.ac.hongik.apl.Util.serialize;
+import static kr.ac.hongik.apl.Util.sign;
+import static kr.ac.hongik.apl.Util.verify;
 
 
 public class Replica extends Connector {
@@ -98,6 +97,7 @@ public class Replica extends Connector {
 		while (true) {
 			Message message = super.receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
+				if (DEBUG) System.err.println("Got Header message");
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
 				if (DEBUG) System.err.println("Got request message");
@@ -118,20 +118,17 @@ public class Replica extends Connector {
 
 	private void handleHeaderMessage(HeaderMessage message) {
 		SocketChannel channel = message.getChannel();
-		try {
-			this.publicKeyMap.put(channel.getRemoteAddress(), message.getPublicKey());
-			switch (message.getType()) {
-				case "replica":
-					this.replicas.put(message.getReplicaNum(), channel);
-					break;
-				case "client":
-					this.clients.add(channel);
-					break;
-				default:
-					System.err.printf("Invalid header message: %s\n", message);
-			}
-		} catch (IOException e) {
-			System.err.println(e);
+		this.publicKeyMap.put(channel, message.getPublicKey());
+
+		switch (message.getType()) {
+			case "replica":
+				this.replicas.put(message.getReplicaNum(), channel);
+				break;
+			case "client":
+				this.clients.add(channel);
+				break;
+			default:
+				System.err.printf("Invalid header message: %s\n", message);
 		}
 
 	}
@@ -161,6 +158,8 @@ public class Replica extends Connector {
 		Predicate<CommitMessage> committed = (x) -> x.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
 
+		logger.insertMessage(cmsg);
+
 		if (committed.test(cmsg)) {
 			priorityQueue.add(cmsg);
 			try {
@@ -176,10 +175,8 @@ public class Replica extends Connector {
 						ret);
 
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
-				SocketAddress destination = getAddressByClientInfo(replyMessage.getClientInfo());
+				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 
-				if (Replica.DEBUG)
-					System.err.println("Send to client");
 				send(destination, replyMessage);
 				//TODO: Close connection
 				//TODO: Delete client's public key
@@ -190,53 +187,107 @@ public class Replica extends Connector {
 		}
 	}
 
-	private SocketAddress getAddressByClientInfo(PublicKey key) {
+	private SocketChannel getChannelFromClientInfo(PublicKey key) {
 		return publicKeyMap.entrySet().stream()
 				.filter(x -> x.getValue().equals(key))
 				.findFirst().get().getKey();
 	}
 
 	private void handlePrepareMessage(PrepareMessage message) {
-		PublicKey publicKey = publicKeyMap.get(replicaAddresses.get(message.getReplicaNum()));
+		PublicKey publicKey = publicKeyMap.get(this.replicas.get(message.getReplicaNum()));
 		if (message.isVerified(publicKey, this.primary, this::getWatermarks)) {
 			logger.insertMessage(message);
 		}
+		if(Replica.DEBUG){
+			System.err.println("Get into handlePrepareMessage");
+		}
+		try(var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ?")) {
+			pstmt.setInt(1, message.getSeqNum());
+			pstmt.setInt(2, this.myNumber);
+			try(var ret = pstmt.executeQuery()) {
+				if(ret.next()) {
+					var i = ret.getInt(1);
+					if(i > 0)
+						return;
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return;
+		}
+
 		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
+			if(Replica.DEBUG){
+				System.err.println("isPrepared Passed");
+			}
 			CommitMessage commitMessage = new CommitMessage(
 					this.getPrivateKey(),
 					message.getViewNum(),
 					message.getSeqNum(),
 					message.getDigest(),
 					this.myNumber);
-			replicaAddresses.forEach(address -> send(address, commitMessage));
+			if (Replica.DEBUG && this.myNumber != commitMessage.getReplicaNum()) {
+				//TODO: fix error!
+                System.err.printf("replica: %d, written: %d, port: %d\n", this.myNumber, message.getReplicaNum(), this.myAddress.getPort());
+                throw new AssertionError();
+			}
+			if(Replica.DEBUG){
+				System.err.println(this.myAddress + " : " + commitMessage.getReplicaNum()+ " : "+ this.myNumber);
+			}
+
+			logger.insertMessage(commitMessage);
+
+            replicas.values().forEach(channel -> send(channel, commitMessage));
 		}
 	}
 
 	private void handleRequestMessage(RequestMessage message) {
-		if (this.primary == this.myNumber
-				&& message.isFirstSent(rethrow().wrap(logger::getPreparedStatement))) {
+		try {
+			if (this.logger.findMessage(message)) {
+				return;
+			}
+		} catch (SQLException e) {
+			return;
+		}
+		if (!publicKeyMap.containsValue(message.getClientInfo())) throw new AssertionError();
+		Supplier<Boolean> check = () ->
+                message.verify(message.getClientInfo()) &&
+				message.isFirstSent(rethrow().wrap(logger::getPreparedStatement));
+
+
+		if (this.primary == this.myNumber && check.get()) {
 			logger.insertMessage(message);
 			//Enter broadcast phase
 			broadcastToReplica(message);
 		} else {
 			//Relay to primary
-			super.send(replicaAddresses.get(primary), message);
+			super.send(replicas.get(primary), message);
 		}
 	}
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
-		PublicKey publicKey = publicKeyMap.get(message.getClientInfo());
-
-		if (message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement))) {
-			logger.insertMessage(message);
+		SocketChannel primaryChannel = this.replicas.get(this.primary);
+		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
+		if(Replica.DEBUG && this.primary == this.myNumber) {
+			if (!this.getPublicKey().equals(publicKey)) throw new AssertionError();
 		}
-		PrepareMessage prepareMessage = new PrepareMessage(
-				this.getPrivateKey(),
-				message.getViewNum(),
-				message.getSeqNum(),
-				message.getDigest(),
-				this.myNumber);
-		replicaAddresses.forEach(address -> send(address, prepareMessage));
+		Supplier<Boolean> check;
+        if(Replica.DEBUG){
+			check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
+		} else {
+			check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
+		}
+		if (check.get()) {
+			logger.insertMessage(message);
+			PrepareMessage prepareMessage = new PrepareMessage(
+					this.getPrivateKey(),
+					message.getViewNum(),
+					message.getSeqNum(),
+					message.getDigest(),
+					this.myNumber);
+			replicas.values().forEach(channel -> send(channel, prepareMessage));
+		}
+
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
@@ -253,10 +304,23 @@ public class Replica extends Connector {
 	private void broadcastToReplica(RequestMessage message) {
 		try {
 			int seqNum = getLatestSequenceNumber() + 1;
-			PreprepareMessage preprepareMessage = new PreprepareMessage(this.getPrivateKey(), this.primary, seqNum, message.getOperation());
+			PreprepareMessage preprepareMessage = new PreprepareMessage(
+					this.getPrivateKey(),
+					this.primary,
+					seqNum,
+					message.getOperation()
+			);
 			logger.insertMessage(preprepareMessage);
+
+			var sig = Util.sign(this.getPrivateKey(), preprepareMessage.getData());
+			//TODO(Technical Debt): 왜 같은 시그니처를 같다고 하지 못하는지 모르겠지만, 임시로 해결함
+			if (!sig.equals(preprepareMessage.getSignature())) {
+				preprepareMessage.setSignature(sig);
+			}
+
+
 			//Broadcast messages
-			replicaAddresses.parallelStream().forEach(address -> send(address, preprepareMessage));
+			replicas.values().forEach(channel -> send(channel, preprepareMessage));
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
@@ -264,9 +328,9 @@ public class Replica extends Connector {
 
 
 	@Override
-	protected void sendHeaderMessage(SocketChannel channel) throws IOException {
-		HeaderMessage headerMessage = new HeaderMessage(this.myNumber, this.publicKey, "replica");
-		send(channel.getRemoteAddress(), headerMessage);
+	protected void sendHeaderMessage(SocketChannel channel) {
+		HeaderMessage headerMessage = new HeaderMessage(this.myNumber, this.getPublicKey(), "replica");
+		send(channel, headerMessage);
 	}
 
 	@Override

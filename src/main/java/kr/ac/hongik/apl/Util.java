@@ -15,6 +15,7 @@ import java.util.Formatter;
 import java.util.stream.IntStream;
 
 public class Util {
+    static final String ALGORITHM = "SHA1withRSA";
 
     public static void fastCopy(final ReadableByteChannel src, final WritableByteChannel dest) throws IOException {
         final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024);
@@ -87,11 +88,15 @@ public class Util {
      * @throws SignatureException
      * @throws NoSuchProviderException
      */
-    public static byte[] sign(PrivateKey key, Serializable message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchProviderException {
-        Signature signature = Signature.getInstance("SHA1withRSA");
-        signature.initSign(key);
-        signature.update(serialize(message));
-        return signature.sign();
+    public static byte[] sign(PrivateKey key, Serializable message)  {
+    	try {
+            Signature signature = Signature.getInstance(ALGORITHM);
+            signature.initSign(key);
+            signature.update(serialize(message));
+            return signature.sign();
+        } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -102,13 +107,13 @@ public class Util {
      */
     public static boolean verify(PublicKey key, Serializable message, byte[] digitalSignature) {
         try {
-            Signature signature = Signature.getInstance("SHA1withRSA");
+            Signature signature = Signature.getInstance(ALGORITHM);
             signature.initVerify(key);
             signature.update(serialize(message));
             return signature.verify(digitalSignature);
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
             e.printStackTrace();
+            return false;
         }
-        return false;
     }
 }

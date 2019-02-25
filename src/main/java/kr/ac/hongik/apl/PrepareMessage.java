@@ -22,11 +22,7 @@ public class PrepareMessage implements Message {
 
     public PrepareMessage(PrivateKey privateKey, int viewNum, int seqNum, String digest, int replicaNum) {
         this.data = new Data(viewNum, seqNum, digest, replicaNum);
-        try {
-            this.signature = sign(privateKey, this.data);
-        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
-            e.printStackTrace();
-        }
+        this.signature = sign(privateKey, this.data);
     }
 
     static public PrepareMessage fromCommitMessage(CommitMessage commitMessage) {
@@ -81,14 +77,13 @@ public class PrepareMessage implements Message {
         //Check for the pre-prepare message that matches to this prepare message
         baseQuery = new StringBuilder()
                 .append("SELECT COUNT(*) ")
-                .append("FROM Preprepares P")
+                .append("FROM Preprepares AS P ")
                 .append("WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?")
                 .toString();
         try (var pstmt = prepareStatement.apply(baseQuery)) {
             pstmt.setInt(1, this.getViewNum());
             pstmt.setInt(2, this.getSeqNum());
             pstmt.setString(3, this.getDigest());
-
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
                 checklist[0] = ret.getInt(1) == 1;
@@ -123,7 +118,9 @@ public class PrepareMessage implements Message {
 
         //Checks for i'th replica verify its prepare message
         checklist[2] = matchedPrepareMessages.stream().anyMatch(x -> x == replicaNum);
-
+        if(Replica.DEBUG){
+            System.err.println(checklist[0] + " " + checklist[1] + " " + checklist[2]);
+        }
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }

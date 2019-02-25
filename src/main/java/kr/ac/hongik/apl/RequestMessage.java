@@ -20,11 +20,11 @@ public class RequestMessage implements Message {
     public RequestMessage(PrivateKey privateKey, Operation operation) {
 
         this.operation = operation;
-        try {
-            this.signature = sign(privateKey, this.operation);
-        } catch (NoSuchProviderException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
-            e.printStackTrace();
-        }
+        this.signature = sign(privateKey, this.operation);
+    }
+
+    boolean verify(PublicKey publicKey) {
+        return Util.verify(publicKey, this.operation, this.signature);
     }
 
     boolean isFirstSent(Function<String, PreparedStatement> prepareStatement) {
@@ -34,11 +34,11 @@ public class RequestMessage implements Message {
             pstmt.setString(1, getEncoder().encodeToString(serialize(this.getClientInfo())));
             pstmt.setString(2, getEncoder().encodeToString(serialize(this.getOperation())));
             var ret = pstmt.executeQuery();
-            List<Long> timestamps = new ArrayList<>();
-            while (ret.next()) {
-                timestamps.add(ret.getLong(1));
+            while(ret.next()){
+                if(this.getTime() == ret.getLong(1))
+                    return false;
             }
-            return !timestamps.stream().anyMatch(prevTimestamp -> prevTimestamp < this.getTime());
+            return true;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;

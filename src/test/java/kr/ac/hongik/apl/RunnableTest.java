@@ -9,30 +9,8 @@ import java.security.PublicKey;
 import java.time.Instant;
 import java.util.Properties;
 
-class Greeting implements Result {
-    public String greeting;
+import static kr.ac.hongik.apl.Util.verify;
 
-    public Greeting(String greeting) {
-        this.greeting = greeting;
-    }
-
-    @Override
-    public String toString() {
-        return this.greeting;
-    }
-}
-
-class GreetingOperation extends Operation {
-
-    protected GreetingOperation(PublicKey clientInfo) {
-        super(clientInfo, Instant.now().getEpochSecond());
-    }
-
-    @Override
-    Result execute() {
-        return new Greeting("Hello, World!");
-    }
-}
 
 public class RunnableTest {
 
@@ -46,11 +24,17 @@ public class RunnableTest {
         Client client = new Client(prop);
         Operation op = new GreetingOperation(client.getPublicKey());
         RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
-
+        boolean check = verify(client.getPublicKey(), requestMessage.getOperation(), requestMessage.getSignature());
+        if(check){
+            System.err.println("Before broadcast PrePrepare, Verify");
+        }
+        else{
+            System.err.println("Before bradcast PrePrepare, Not Verify");
+        }
         System.err.println("Client: Request");
         client.request(requestMessage);
         System.err.println("Client: try to get reply");
-        Greeting ret = (Greeting) client.getReply();
+        var ret =  client.getReply();
 
 
         Assertions.assertEquals("Hello, World!", ret.toString());

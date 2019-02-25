@@ -15,11 +15,7 @@ public class CommitMessage implements Message {
 
     public CommitMessage(PrivateKey privateKey, int viewNum, int seqNum, String digest, int replicaNum) {
         this.data = new Data(viewNum, seqNum, digest, replicaNum);
-        try {
-            this.signature = sign(privateKey, this.data);
-        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
-            e.printStackTrace();
-        }
+        this.signature = sign(privateKey, this.data);
     }
 
     public byte[] getSignature() {
@@ -49,23 +45,24 @@ public class CommitMessage implements Message {
         checklist[0] = prepareMessage.isPrepared(prepareStatement, maxFaulty, replicaNum);
         //And got 2f+1 same commit messages
         String baseQuery = new StringBuilder()
-                .append("SELECT DISTINCT count(*) ")
-                .append("FROM Commits C")
-                .append("WHERE C.seqNum = ? AND C.replica = ?")
+                .append("SELECT DISTINCT count(C.replica) ")
+                .append("FROM Commits C ")
+                .append("WHERE C.seqNum = ?")
                 .toString();
         try (var pstmt = prepareStatement.apply(baseQuery)) {
             pstmt.setInt(1, this.getSeqNum());
-            pstmt.setInt(2, replicaNum);
 
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
-                checklist[1] = ret.getInt(1) > maxFaulty * 2;
+                var sameMessages = ret.getInt(1);
+                checklist[1] = sameMessages > maxFaulty * 2;
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
+
         return Arrays.stream(checklist).allMatch(x -> x);
     }
 

@@ -13,11 +13,7 @@ class ReplyMessage implements Message {
     public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
 
         this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
-        try {
-            this.signature = sign(privateKey, this.data);
-        } catch (NoSuchProviderException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
-            e.printStackTrace();
-        }
+        this.signature = sign(privateKey, this.data);
     }
 
     public int getViewNum(){

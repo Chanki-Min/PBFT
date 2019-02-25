@@ -27,7 +27,7 @@ abstract class Connector {
 	protected Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
-	protected Map<SocketAddress, PublicKey> publicKeyMap = new HashMap<>();
+	protected Map<SocketChannel, PublicKey> publicKeyMap = new HashMap<>();
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
 
@@ -47,19 +47,19 @@ abstract class Connector {
 	}
 
 	protected void connect()  {
-		//Connect to every replica
-		SocketChannel socketChannel = null;
-		for (int i = 0; i < this.replicaAddresses.size(); ++i) {
-			try {
-				socketChannel = makeConnection(replicaAddresses.get(i));
-				this.replicas.put(i, socketChannel);
-			} catch(IOException e) {
-				if(Replica.DEBUG)
+			//Connect to every replica
+			SocketChannel socketChannel = null;
+			for (int i = 0; i < this.replicaAddresses.size(); ++i) {
+				try {
+					socketChannel = makeConnection(replicaAddresses.get(i));
+					this.replicas.put(i, socketChannel);
+					socketChannel = null;
+				} catch(IOException e) {
 					System.err.println(e);
-				closeWithoutException(socketChannel);
-				continue;
+					closeWithoutException(socketChannel);
+					continue;
+				}
 			}
-		}
 	}
 
 	private void parseProperties(Properties prop) {
@@ -75,9 +75,10 @@ abstract class Connector {
 	}
 
 	private void closeWithoutException(SocketChannel socketChannel) {
-		if (Replica.DEBUG)
-			System.err.println("close " + socketChannel);
 		try {
+			if(Replica.DEBUG){
+				System.err.printf("close %s\n", socketChannel);
+			}
 			socketChannel.close();
 			SelectionKey key = socketChannel.keyFor(selector);
 			key.cancel();
@@ -94,6 +95,7 @@ abstract class Connector {
 
 	private SocketChannel handshake(SocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
+		while(!channel.finishConnect());
 		channel.configureBlocking(false);
 		channel.register(selector, SelectionKey.OP_READ);
 		return channel;
@@ -104,9 +106,6 @@ abstract class Connector {
 	 */
 	private SocketChannel makeConnection(SocketAddress address) throws IOException {
 		SocketChannel channel = handshake(address);
-		while(!channel.finishConnect());
-		if(Replica.DEBUG)
-			System.err.printf("new connection from %s\n", channel);
 		sendHeaderMessage(channel);
 
 		return channel;
@@ -119,40 +118,26 @@ abstract class Connector {
 	 * <p>
 	 * Plus, the order of replicas are maintained while reconnecting
 	 *
-	 * @param destination
+	 * @param channel
 	 * @param message
 	 */
-	protected void send(SocketAddress destination, Message message) {
+	protected void send(SocketChannel channel, Message message) {
 		byte[] payload = serialize(message);
 
-		var keys = selector.keys();
-		for(var key : keys) {
-			SocketChannel channel = null;
-			if(key.channel() instanceof SocketChannel)
-				channel = (SocketChannel) key.channel();
-			else
-				continue;
-
-			try{
-				if (channel.getRemoteAddress().equals(destination)) {
-					if(Replica.DEBUG)
-						System.err.printf("Bingo! %s\n", channel);
-					ByteBuffer byteBuffer = ByteBuffer.allocate(4 + payload.length);
-					//default order: big endian
-					byteBuffer.putInt(payload.length);
-					byteBuffer.put(payload);
-					if(Replica.DEBUG)
-						System.err.printf("Buffer ready!\n");
-
-					channel.write(byteBuffer);
-					if(Replica.DEBUG)
-						System.err.printf("Write done!");
-					return;
-				}
-			} catch(IOException e) {
-				System.err.println(e);
-				reconnect(channel);
+		try {
+			ByteBuffer byteBuffer = ByteBuffer.allocate(4 + payload.length);
+			//default order: big endian
+			byteBuffer.putInt(payload.length);
+			byteBuffer.put(payload);
+			byteBuffer.flip();
+			while (byteBuffer.hasRemaining()) {
+				int n = channel.write(byteBuffer);
 			}
+			return;
+
+		} catch(IOException e) {
+			System.err.println(e);
+			reconnect(channel);
 		}
 	}
 
@@ -174,8 +159,7 @@ abstract class Connector {
 
 		} catch (NoSuchElementException e1) {
 			//client socket is failed. ignore reconnection
-			if(Replica.DEBUG)
-				System.err.println(e1);
+			System.err.println(e1);
 			closeWithoutException(channel);    //de-register a selector
 			return;
 		}
@@ -202,6 +186,9 @@ abstract class Connector {
 		//Selector must not hold acceptable or writable replicas
 		//TODO: Consider closing the socket situation
 		while (true) {
+			if(Replica.DEBUG){
+				System.err.println("receive function");
+			}
 			try {
 				selector.select();
 			} catch (IOException e) {
@@ -213,6 +200,9 @@ abstract class Connector {
 				SelectionKey key = it.next();
 				it.remove();    //Remove the key from selected-keys set
 				if (key.isAcceptable()) {
+					if(Replica.DEBUG){
+						System.err.println("Channel Acceptable");
+					}
 					ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
 					SocketChannel socketChannel = null;
 					try {
@@ -224,6 +214,9 @@ abstract class Connector {
 						reconnect(socketChannel);
 					}
 				} else if (key.isReadable()) {
+					if(Replica.DEBUG){
+						System.err.println("Channel Readable");
+					}
 					SocketChannel channel = (SocketChannel) key.channel();
 					//ByteArrayOutputStream doubles its buffer when it is full
 					ByteBuffer intBuffer = ByteBuffer.allocate(4);
@@ -231,23 +224,17 @@ abstract class Connector {
 						int n = channel.read(intBuffer);
 						if (n == -1) {
 							/* Get end of file */
-							if (Replica.DEBUG)
-								System.err.println("eof from " + channel);
+							if(Replica.DEBUG){
+								System.out.printf("eof from %s\n", channel);
+							}
 							closeWithoutException(channel);
 							continue;    //continue if the stream reads end-of-stream
 						}
-						if(Replica.DEBUG)
-							System.err.println("not eof!");
 						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
 						int reads = channel.read(byteBuffer);
-						if (Replica.DEBUG) {
-							System.err.printf("Expected %d, receive %d bytes\n", length, reads);
-							assert reads == length;
-							assert length == byteBuffer.position();
-						}
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage) message;
