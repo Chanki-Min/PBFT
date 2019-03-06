@@ -7,7 +7,7 @@ import static kr.ac.hongik.apl.Util.sign;
 
 class ReplyMessage implements Message {
 
-    private Data data;
+    private final Data data;
     private byte[] signature;
 
     public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
@@ -40,11 +40,21 @@ class ReplyMessage implements Message {
         return this.signature;
     }
 
+    public ReplyMessage setSignature(byte[] signature) {
+        this.signature = signature;
+        return this;
+    }
+
+    public Data getData() {
+        return this.data;
+    }
+
+
     public boolean verifySignature(PublicKey publicKey) {
         return Util.verify(publicKey, this.data, this.signature);
     }
 
-    private class Data implements Serializable {
+    private static class Data implements Serializable {
         private int viewNum;
         private long time;
         private PublicKey clientInfo;

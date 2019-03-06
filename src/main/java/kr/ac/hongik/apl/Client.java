@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Properties;
 
 public class Client extends Connector {
-    private HashMap<Message, Integer> hashMap = new HashMap<>();
+    private HashMap<Object, Integer> replies = new HashMap<>();
 
 
     public Client(Properties prop){
@@ -50,19 +50,21 @@ public class Client extends Connector {
             }
             replyMessage = (ReplyMessage) message;
             // check client info
-            PublicKey publicKey = this.publicKeyMap.get(this.replicaAddresses.get(replyMessage.getReplicaNum()));
+            PublicKey publicKey = this.publicKeyMap.get(this.replicas.get(replyMessage.getReplicaNum()));
             if (replyMessage.verifySignature(publicKey)) {
-                Integer numOfValue = null;
-                if((numOfValue = hashMap.get(replyMessage)) == null){
-                    hashMap.put(replyMessage, 1);
-                }
-                else if(numOfValue < numOfReplica - 1){
-                    hashMap.put(replyMessage, ++numOfValue);
-                }
-                else{
-                    hashMap.remove(replyMessage);
+                /*
+                 * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
+                 * Timestamp값을 이용하여 여러 요청들을 구분한다.
+                 */
+                var uniqueKey = replyMessage.getTime();
+                Integer numOfValue = replies.getOrDefault(uniqueKey, 0);
+				replies.put(uniqueKey, numOfValue + 1);
+                if(replies.get(uniqueKey) > this.getMaximumFaulty()) {
+                    //replies.remove(replyMessage);
                     return replyMessage.getResult();
                 }
+            } else {
+                System.err.println("Message not verified");
             }
         }
     }

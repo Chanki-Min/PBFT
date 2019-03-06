@@ -174,6 +174,14 @@ public class Replica extends Connector {
 						this.myNumber,
 						ret);
 
+
+				//TODO (Technical Debt): PrePrepare과 동일한 문제
+				var sig = Util.sign(this.getPrivateKey(), replyMessage.getData());
+				if(!sig.equals(replyMessage.getSignature())) {
+					replyMessage.setSignature(sig);
+				}
+				if (!replyMessage.verifySignature(this.getPublicKey())) throw new AssertionError();
+
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 
@@ -227,7 +235,6 @@ public class Replica extends Connector {
 					message.getDigest(),
 					this.myNumber);
 			if (Replica.DEBUG && this.myNumber != commitMessage.getReplicaNum()) {
-				//TODO: fix error!
                 System.err.printf("replica: %d, written: %d, port: %d\n", this.myNumber, message.getReplicaNum(), this.myAddress.getPort());
                 throw new AssertionError();
 			}
@@ -271,12 +278,7 @@ public class Replica extends Connector {
 		if(Replica.DEBUG && this.primary == this.myNumber) {
 			if (!this.getPublicKey().equals(publicKey)) throw new AssertionError();
 		}
-		Supplier<Boolean> check;
-        if(Replica.DEBUG){
-			check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
-		} else {
-			check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
-		}
+		Supplier<Boolean> check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
 		if (check.get()) {
 			logger.insertMessage(message);
 			PrepareMessage prepareMessage = new PrepareMessage(
