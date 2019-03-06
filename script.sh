@@ -1,6 +1,7 @@
 #!/bin/bash
 
 scp -r src/* apl@223.194.70.127:~/PBFT/src/
+scp -r pom.xml apl@223.194.70.127:~/PBFT/
 
 ssh -f  apl@223.194.70.127 '\
 	cd PBFT
