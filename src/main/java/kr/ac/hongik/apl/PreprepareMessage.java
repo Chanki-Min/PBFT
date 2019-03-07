@@ -20,6 +20,12 @@ public class PreprepareMessage implements Message {
     private final Data data;
     private byte[] signature;
 
+    public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
+        Data data = new Data(viewNum, seqNum, operation);
+        var sig = sign(privateKey, data);
+        return new PreprepareMessage(data, sig, operation);
+    }
+
     /**
      * @param privateKey for digital signature
      * @param viewNum    current view number represents current leader.
@@ -31,6 +37,12 @@ public class PreprepareMessage implements Message {
         this.operation = operation;
         this.data = new Data(viewNum, seqNum, this.operation);
         this.signature = sign(privateKey, this.getData());
+    }
+
+    PreprepareMessage(Data data, byte[] signature, Operation operation) {
+        this.data = data;
+        this.signature = signature;
+        this.operation = operation;
     }
 
     private boolean checkUniqueTuple(Function<String, PreparedStatement> prepareStatement) {

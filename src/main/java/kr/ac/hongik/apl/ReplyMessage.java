@@ -10,10 +10,23 @@ class ReplyMessage implements Message {
     private final Data data;
     private byte[] signature;
 
+    public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,
+                                            PublicKey clientInfo, int replicaNum, Result result) {
+        Data data = new Data(viewNum, timestamp, clientInfo, replicaNum, result);
+        byte[] signature = sign(privateKey, data);
+
+        return new ReplyMessage(data, signature);
+    }
+
     public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
 
         this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
         this.signature = sign(privateKey, this.data);
+    }
+
+    public ReplyMessage(Data data, byte[] signature) {
+        this.data = data;
+        this.signature = signature;
     }
 
     public int getViewNum(){

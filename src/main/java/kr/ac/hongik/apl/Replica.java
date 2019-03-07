@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
+import static kr.ac.hongik.apl.PreprepareMessage.*;
+import static kr.ac.hongik.apl.ReplyMessage.*;
 import static kr.ac.hongik.apl.Util.sign;
 import static kr.ac.hongik.apl.Util.verify;
 
@@ -169,21 +171,11 @@ public class Replica extends Connector {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
 				Result ret = operation.execute();
-				ReplyMessage replyMessage = new ReplyMessage(
-						getPrivateKey(),
-						cmsg.getViewNum(),
-						operation.getTimestamp(),
-						operation.getClientInfo(),
-						this.myNumber,
-						ret);
 
-
-				//TODO (Technical Debt): PrePrepare과 동일한 문제
-				var sig = Util.sign(this.getPrivateKey(), replyMessage.getData());
-				if(!sig.equals(replyMessage.getSignature())) {
-					replyMessage.setSignature(sig);
-				}
-				if (!replyMessage.verifySignature(this.getPublicKey())) throw new AssertionError();
+				var viewNum = cmsg.getViewNum();
+				var timestamp = operation.getTimestamp();
+				var clientInfo = operation.getClientInfo();
+				ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp, clientInfo, myNumber, ret);
 
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
@@ -195,8 +187,6 @@ public class Replica extends Connector {
 					}
 				}
 				send(destination, replyMessage);
-				//TODO: Close connection
-				//TODO: Delete client's public key
 				//TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
 			} catch (NoSuchElementException e) {
 				return;
@@ -315,20 +305,10 @@ public class Replica extends Connector {
 	private void broadcastToReplica(RequestMessage message) {
 		try {
 			int seqNum = getLatestSequenceNumber() + 1;
-			PreprepareMessage preprepareMessage = new PreprepareMessage(
-					this.getPrivateKey(),
-					this.primary,
-					seqNum,
-					message.getOperation()
-			);
+
+			Operation operation = message.getOperation();
+			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), primary, seqNum, operation);
 			logger.insertMessage(preprepareMessage);
-
-			var sig = Util.sign(this.getPrivateKey(), preprepareMessage.getData());
-			//TODO(Technical Debt): 왜 같은 시그니처를 같다고 하지 못하는지 모르겠지만, 임시로 해결함
-			if (!sig.equals(preprepareMessage.getSignature())) {
-				preprepareMessage.setSignature(sig);
-			}
-
 
 			//Broadcast messages
 			replicas.values().forEach(channel -> send(channel, preprepareMessage));
