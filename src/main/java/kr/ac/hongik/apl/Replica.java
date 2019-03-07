@@ -13,13 +13,10 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.PreprepareMessage.*;
 import static kr.ac.hongik.apl.ReplyMessage.*;
-import static kr.ac.hongik.apl.Util.sign;
-import static kr.ac.hongik.apl.Util.verify;
 
 
 public class Replica extends Connector {
@@ -135,7 +132,6 @@ public class Replica extends Connector {
 
 	}
 
-
 	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
 		String query = "SELECT MAX(E.seqNum) FROM Executed E";
 		try (var pstmt = logger.getPreparedStatement(query)) {
@@ -143,8 +139,14 @@ public class Replica extends Connector {
 				ret.next();
 				int soFarMaxSeqNum = ret.getInt(1);
 				var first = priorityQueue.peek();
+				if(Replica.DEBUG){
+					System.err.println("soFarMaxSeqNum == " + soFarMaxSeqNum + " first.getSeqNum() == " + first.getSeqNum());
+				}
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
+					if(Replica.DEBUG){
+						System.err.println("size of PQ : " + priorityQueue.size());
+					}
 					return first;
 				}
 				throw new NoSuchElementException();
@@ -166,7 +168,21 @@ public class Replica extends Connector {
 			if(Replica.DEBUG){
 				System.err.println("committed.test() passed");
 			}
+			/*
+			 * @TODO : 커밋 메시지 3개가 모여 합의를 이루고 client1에게 reply 한다.
+			 * 			이후 4번째 커밋 메시지가 도착하고 이미 합의를 이뤘음에도 불구하고
+			 * 			priorityQueue에 메시지를 삽입하게 된다.
+			 * 			또 다른 client2에게서 커밋 메시지 3개가 도착하면 역시 priorityQueue에 삽입하는데
+			 * 			이전 client에게 보내려던 4번쨰 커밋 메시지가 PQ에 담겨있어서
+			 * 			늦게 온 client2에게 보내려는 메시지를 PQ에서 뽑으면 client1의 4번째 커밋 메시지가
+			 * 			pop하게 되므로 client2에게 reply를 보낼 수 없게 된다.
+			 * 			3번째 커밋 메시지로 합의가 될 경우 4번째 메시지는 PQ에 넣지 않고 무시하도록
+			 * 			코드 수정이 필요하다.
+			 */
 			priorityQueue.add(cmsg);
+			if(Replica.DEBUG){
+				System.err.println("cmsg seqNum : " + cmsg.getSeqNum() + " PQ size : " + priorityQueue.size());
+			}
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
@@ -189,6 +205,7 @@ public class Replica extends Connector {
 				send(destination, replyMessage);
 				//TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
 			} catch (NoSuchElementException e) {
+			    e.getStackTrace();
 				return;
 			}
 		}

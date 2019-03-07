@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Util.verify;
 
 
@@ -22,17 +23,9 @@ public class RunnableTest {
         Properties prop = new Properties();
         prop.load(in);
 
-
         Client client = new Client(prop);
         Operation op = new GreetingOperation(client.getPublicKey());
         RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
-        boolean check = verify(client.getPublicKey(), requestMessage.getOperation(), requestMessage.getSignature());
-        if(check){
-            System.err.println("Before broadcast PrePrepare, Verify");
-        }
-        else{
-            System.err.println("Before bradcast PrePrepare, Not Verify");
-        }
         System.err.println("Client: Request");
         client.request(requestMessage);
         System.err.println("Client: try to get reply");
@@ -54,6 +47,7 @@ public class RunnableTest {
             Thread thread = new Thread(new CountlessClientTest(prop, i));
             thread.start();
             clientThreadList.add(thread);
+            sleep(10000);
         }
 
         for(int i = 0; i < clientThreadList.size(); i++){

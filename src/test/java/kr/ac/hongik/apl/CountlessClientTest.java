@@ -23,10 +23,10 @@ public class CountlessClientTest extends Thread{
 
     @Override
     public void run(){
-        System.err.println("Client" + this.clientNum + " start ");
+        System.err.printf("Client %d start", this.clientNum);
         this.client.request(this.requestMessage);
         var ret = this.client.getReply();
-        System.err.println("client" + this.clientNum + " end");
+        System.err.printf("client %d end\n", this.clientNum);
         Assertions.assertEquals("Hello, World!", ret.toString());
     }
 }
