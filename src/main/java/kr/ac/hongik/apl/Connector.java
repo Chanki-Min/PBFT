@@ -47,19 +47,19 @@ abstract class Connector {
 	}
 
 	protected void connect()  {
-			//Connect to every replica
-			SocketChannel socketChannel = null;
-			for (int i = 0; i < this.replicaAddresses.size(); ++i) {
-				try {
-					socketChannel = makeConnection(replicaAddresses.get(i));
-					this.replicas.put(i, socketChannel);
-					socketChannel = null;
-				} catch(IOException e) {
-					System.err.println(e);
-					closeWithoutException(socketChannel);
-					continue;
-				}
+		//Connect to every replica
+		SocketChannel socketChannel = null;
+		for (int i = 0; i < this.replicaAddresses.size(); ++i) {
+			try {
+				socketChannel = makeConnection(replicaAddresses.get(i));
+				this.replicas.put(i, socketChannel);
+				socketChannel = null;
+			} catch(IOException e) {
+				System.err.println(e);
+				closeWithoutException(socketChannel);
+				continue;
 			}
+		}
 	}
 
 	private void parseProperties(Properties prop) {
@@ -186,9 +186,6 @@ abstract class Connector {
 		//Selector must not hold acceptable or writable replicas
 		//TODO: Consider closing the socket situation
 		while (true) {
-			if(Replica.DEBUG){
-				System.err.println("receive function");
-			}
 			try {
 				selector.select();
 			} catch (IOException e) {
@@ -200,9 +197,6 @@ abstract class Connector {
 				SelectionKey key = it.next();
 				it.remove();    //Remove the key from selected-keys set
 				if (key.isAcceptable()) {
-					if(Replica.DEBUG){
-						System.err.println("Channel Acceptable");
-					}
 					ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
 					SocketChannel socketChannel = null;
 					try {
@@ -214,9 +208,6 @@ abstract class Connector {
 						reconnect(socketChannel);
 					}
 				} else if (key.isReadable()) {
-					if(Replica.DEBUG){
-						System.err.println("Channel Readable");
-					}
 					SocketChannel channel = (SocketChannel) key.channel();
 					//ByteArrayOutputStream doubles its buffer when it is full
 					ByteBuffer intBuffer = ByteBuffer.allocate(4);

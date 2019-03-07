@@ -161,6 +161,9 @@ public class Replica extends Connector {
 		logger.insertMessage(cmsg);
 
 		if (committed.test(cmsg)) {
+			if(Replica.DEBUG){
+				System.err.println("committed.test() passed");
+			}
 			priorityQueue.add(cmsg);
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
@@ -184,7 +187,13 @@ public class Replica extends Connector {
 
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
-
+				if(Replica.DEBUG){
+					try {
+						System.err.println("send result to " + destination.getRemoteAddress());
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
 				send(destination, replyMessage);
 				//TODO: Close connection
 				//TODO: Delete client's public key

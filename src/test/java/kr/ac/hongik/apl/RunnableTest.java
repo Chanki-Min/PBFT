@@ -38,31 +38,27 @@ public class RunnableTest {
         System.err.println("Client: try to get reply");
         var ret =  client.getReply();
 
-
         Assertions.assertEquals("Hello, World!", ret.toString());
     }
 
     @Test
-    void countlessRequest() throws IOException {
+    void countlessRequest() throws IOException, InterruptedException {
         // request countless RequestMessages
         InputStream in = getClass().getResourceAsStream("/replica.properties");
         Properties prop = new Properties();
         prop.load(in);
 
-
-        Client client = new Client(prop);
-        for(int i = 0; i < 10; i++){
-            Operation op = new GreetingOperation(client.getPublicKey());
-            RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
-            System.err.println("Client: Request " + i);
-            client.request(requestMessage);
-        }
-        System.err.println("Client: try to get reply");
-        while(true) {
-            var ret = client.getReply();
-            Assertions.assertEquals("Hello, World!", ret.toString());
+        int maxClientNum = 2;
+        List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
+        for(int i = 0; i < maxClientNum; i++){
+            Thread thread = new Thread(new CountlessClientTest(prop, i));
+            thread.start();
+            clientThreadList.add(thread);
         }
 
+        for(int i = 0; i < clientThreadList.size(); i++){
+            clientThreadList.get(i).join();
+        }
     }
 
     @Test
