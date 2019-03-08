@@ -22,8 +22,8 @@ public class HashTree implements Serializable {
 			return siblings.get(0);
 
 		List<Node> parents = new ArrayList<>();
-		try {
-			for (int i = 0; i < siblings.size(); i += 2) {
+		for (int i = 0; i < siblings.size(); i += 2) {
+			try {
 				String leftHash = siblings.get(i).getHash(),
 						rightHash = siblings.get(i + 1).getHash(),
 						parentsHash = hash(leftHash.concat(rightHash));
@@ -31,9 +31,12 @@ public class HashTree implements Serializable {
 				parent.left = siblings.get(i);
 				parent.right = siblings.get(i + 1);
 				parents.add(parent);
+			} catch (IndexOutOfBoundsException e) {
+				Node parent = new Node(siblings.get(i).getHash());
+				parent.left = siblings.get(i);
+				parent.right = null;
+				parents.add(parent);
 			}
-		} catch (IndexOutOfBoundsException e) {
-			throw new IllegalArgumentException("List size must be 2^n");
 		}
 
 		return buildTree(parents);
