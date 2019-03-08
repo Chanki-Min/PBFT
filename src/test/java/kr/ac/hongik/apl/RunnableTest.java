@@ -58,8 +58,28 @@ public class RunnableTest {
     }
 
     @Test
-    void runThreeReplicas(){
+    void oneClientManyOperations() throws IOException, InterruptedException {
         //run only 3 Replicas. Expected to make agreement only with 3 Replicas
+        InputStream in = getClass().getResourceAsStream("/replica.properties");
+        Properties prop = new Properties();
+        prop.load(in);
+
+        Client client = new Client(prop);
+        System.err.println("Client: Request");
+        Integer repeatTime = 10;
+        for(int i = 0; i < repeatTime; i++) {
+            Operation op = new GreetingOperation(client.getPublicKey());
+            RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
+            client.request(requestMessage);
+            sleep(1000);
+        }
+        System.err.println("Client: try to get reply");
+        for(int i = 0; i < repeatTime; i++) {
+            var ret = client.getReply();
+            System.err.println(ret.toString());
+            Assertions.assertEquals("Hello, World!", ret.toString());
+        }
+
 
     }
 
