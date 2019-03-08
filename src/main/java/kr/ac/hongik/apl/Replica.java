@@ -6,7 +6,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.*;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -15,8 +15,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static com.diffplug.common.base.Errors.rethrow;
-import static kr.ac.hongik.apl.PreprepareMessage.*;
-import static kr.ac.hongik.apl.ReplyMessage.*;
+import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
+import static kr.ac.hongik.apl.ReplyMessage.makeReplyMsg;
 
 
 public class Replica extends Connector {
@@ -158,6 +158,23 @@ public class Replica extends Connector {
 		}
 	}
 
+
+	boolean isAlreadyExecuted(int sequenceNumber) {
+		String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			pstmt.setInt(1, sequenceNumber);
+			try (var ret = pstmt.executeQuery()) {
+				if (ret.next())
+					return ret.getInt(1) > 0;
+				else
+					return false;
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
+
+	}
+
 	private void handleCommitMessage(CommitMessage cmsg) {
 		Predicate<CommitMessage> committed = (x) -> x.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
@@ -168,17 +185,17 @@ public class Replica extends Connector {
 			if(Replica.DEBUG){
 				System.err.println("committed.test() passed");
 			}
-			/*
-			 * @TODO : 커밋 메시지 3개가 모여 합의를 이루고 client1에게 reply 한다.
-			 * 			이후 4번째 커밋 메시지가 도착하고 이미 합의를 이뤘음에도 불구하고
-			 * 			priorityQueue에 메시지를 삽입하게 된다.
-			 * 			또 다른 client2에게서 커밋 메시지 3개가 도착하면 역시 priorityQueue에 삽입하는데
-			 * 			이전 client에게 보내려던 4번쨰 커밋 메시지가 PQ에 담겨있어서
-			 * 			늦게 온 client2에게 보내려는 메시지를 PQ에서 뽑으면 client1의 4번째 커밋 메시지가
-			 * 			pop하게 되므로 client2에게 reply를 보낼 수 없게 된다.
-			 * 			3번째 커밋 메시지로 합의가 될 경우 4번째 메시지는 PQ에 넣지 않고 무시하도록
-			 * 			코드 수정이 필요하다.
+
+			/**
+			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
+			 * 이를 이용하여 합의 여부를 감지한다.
+			 * 이미 합의가 이루어져서 reply가 되었다면, 더 이상 진행하지 않고 함수를 종료한다.
+			 *
+			 * 단, 추후 checkpoint phase를 추가할 시, 로직에 있어서 수정이 필요할 수 있다.
 			 */
+			if (isAlreadyExecuted(cmsg.getSeqNum()))
+				return;
+
 			priorityQueue.add(cmsg);
 			if(Replica.DEBUG){
 				System.err.println("cmsg seqNum : " + cmsg.getSeqNum() + " PQ size : " + priorityQueue.size());
@@ -203,7 +220,6 @@ public class Replica extends Connector {
 					}
 				}
 				send(destination, replyMessage);
-				//TODO: When sequence number == highWatermark, go to checkpoint phase and update a new lowWatermark
 			} catch (NoSuchElementException e) {
 			    e.getStackTrace();
 				return;

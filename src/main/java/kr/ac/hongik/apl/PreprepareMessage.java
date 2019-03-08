@@ -1,17 +1,15 @@
 package kr.ac.hongik.apl;
 
 import java.io.Serializable;
-import java.nio.channels.SocketChannel;
-import java.security.*;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static kr.ac.hongik.apl.Util.*;
 
@@ -77,8 +75,6 @@ public class PreprepareMessage implements Message {
                        Supplier<int[]> watermarkGetter,
                        Function<String, PreparedStatement> prepareStatement) {
         Boolean[] checklist = new Boolean[4];
-
-        //TODO: 항상 false 뜸 ㅠ
 
         checklist[0] = verify(publicKey, this.data, this.signature);
 
