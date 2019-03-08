@@ -2,6 +2,7 @@ package kr.ac.hongik.apl;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -10,14 +11,18 @@ import static kr.ac.hongik.apl.Util.hash;
 public class HashTree implements Serializable {
 	Node root = null;
 
-	public HashTree(List<String> hashList) {
-		List<Node> leafs = hashList.stream()
+	public HashTree(List<Serializable> objectList) {
+		this(objectList.stream().map(Util::hash).toArray(String[]::new));
+	}
+
+	public HashTree(String[] hashList) {
+		List<Node> leafs = Arrays.stream(hashList)
 				.map(Node::new)
 				.collect(Collectors.toList());
 		this.root = buildTree(leafs);
 	}
 
-	Node buildTree(List<Node> siblings) {
+	private Node buildTree(List<Node> siblings) {
 		if (siblings.size() == 1)
 			return siblings.get(0);
 
@@ -43,9 +48,9 @@ public class HashTree implements Serializable {
 	}
 
 	public boolean verifyFrom(List<Serializable> objectList) {
-		List<String> newHashList = objectList.stream()
+		String[] newHashList = objectList.stream()
 				.map(Util::hash)
-				.collect(Collectors.toList());
+				.toArray(String[]::new);
 		HashTree newTree = new HashTree(newHashList);
 		return this.root.getHash().equals(newTree.root.getHash());
 	}
