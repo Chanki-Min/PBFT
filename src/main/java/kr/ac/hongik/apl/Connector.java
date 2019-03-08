@@ -76,9 +76,6 @@ abstract class Connector {
 
 	private void closeWithoutException(SocketChannel socketChannel) {
 		try {
-			if(Replica.DEBUG){
-				System.err.printf("close %s\n", socketChannel);
-			}
 			socketChannel.close();
 			SelectionKey key = socketChannel.keyFor(selector);
 			key.cancel();
@@ -159,7 +156,7 @@ abstract class Connector {
 
 		} catch (NoSuchElementException e1) {
 			//client socket is failed. ignore reconnection
-			System.err.println(e1);
+			System.err.println("Do not reconnecto to clinet");
 			closeWithoutException(channel);    //de-register a selector
 			return;
 		}
@@ -215,9 +212,6 @@ abstract class Connector {
 						int n = channel.read(intBuffer);
 						if (n == -1) {
 							/* Get end of file */
-							if(Replica.DEBUG){
-								System.out.printf("eof from %s\n", channel);
-							}
 							closeWithoutException(channel);
 							continue;    //continue if the stream reads end-of-stream
 						}

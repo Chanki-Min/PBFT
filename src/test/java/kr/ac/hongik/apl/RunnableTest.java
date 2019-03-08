@@ -45,13 +45,15 @@ public class RunnableTest {
         List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
         for(int i = 0; i < maxClientNum; i++){
             Thread thread = new Thread(new CountlessClientTest(prop, i));
-            thread.start();
             clientThreadList.add(thread);
-            sleep(10000);
         }
 
-        for(int i = 0; i < clientThreadList.size(); i++){
-            clientThreadList.get(i).join();
+        for(var i : clientThreadList){
+            i.start();
+        }
+
+        for(var i : clientThreadList){
+           i.join();
         }
     }
 

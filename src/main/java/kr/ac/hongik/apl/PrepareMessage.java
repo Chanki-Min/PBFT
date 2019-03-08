@@ -118,9 +118,6 @@ public class PrepareMessage implements Message {
 
         //Checks for i'th replica verify its prepare message
         checklist[2] = matchedPrepareMessages.stream().anyMatch(x -> x == replicaNum);
-        if(Replica.DEBUG){
-            System.err.println(checklist[0] + " " + checklist[1] + " " + checklist[2]);
-        }
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }

@@ -96,19 +96,14 @@ public class Replica extends Connector {
 		while (true) {
 			Message message = super.receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
-				if (DEBUG) System.err.println("Got Header message");
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
-				if (DEBUG) System.err.println("Got request message");
 				handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				if (DEBUG) System.err.println("Got PrePrepare message");
 				handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
-				if (DEBUG) System.err.println("Got Prepare message");
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
-				if (DEBUG) System.err.println("Got Commit message");
 				handleCommitMessage((CommitMessage) message);
 			} else
 				throw new UnsupportedOperationException("Invalid message");
@@ -118,6 +113,7 @@ public class Replica extends Connector {
 	private void handleHeaderMessage(HeaderMessage message) {
 		SocketChannel channel = message.getChannel();
 		this.publicKeyMap.put(channel, message.getPublicKey());
+		if (!publicKeyMap.containsValue(message.getPublicKey())) throw new AssertionError();
 
 		switch (message.getType()) {
 			case "replica":
@@ -139,14 +135,8 @@ public class Replica extends Connector {
 				ret.next();
 				int soFarMaxSeqNum = ret.getInt(1);
 				var first = priorityQueue.peek();
-				if(Replica.DEBUG){
-					System.err.println("soFarMaxSeqNum == " + soFarMaxSeqNum + " first.getSeqNum() == " + first.getSeqNum());
-				}
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
-					if(Replica.DEBUG){
-						System.err.println("size of PQ : " + priorityQueue.size());
-					}
 					return first;
 				}
 				throw new NoSuchElementException();
@@ -182,9 +172,6 @@ public class Replica extends Connector {
 		logger.insertMessage(cmsg);
 
 		if (committed.test(cmsg)) {
-			if(Replica.DEBUG){
-				System.err.println("committed.test() passed");
-			}
 
 			/**
 			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
@@ -197,9 +184,6 @@ public class Replica extends Connector {
 				return;
 
 			priorityQueue.add(cmsg);
-			if(Replica.DEBUG){
-				System.err.println("cmsg seqNum : " + cmsg.getSeqNum() + " PQ size : " + priorityQueue.size());
-			}
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
@@ -212,16 +196,9 @@ public class Replica extends Connector {
 
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
-				if(Replica.DEBUG){
-					try {
-						System.err.println("send result to " + destination.getRemoteAddress());
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
 				send(destination, replyMessage);
 			} catch (NoSuchElementException e) {
-			    e.getStackTrace();
+                System.err.println("my error: " + e);
 				return;
 			}
 		}
@@ -237,9 +214,6 @@ public class Replica extends Connector {
 		PublicKey publicKey = publicKeyMap.get(this.replicas.get(message.getReplicaNum()));
 		if (message.isVerified(publicKey, this.primary, this::getWatermarks)) {
 			logger.insertMessage(message);
-		}
-		if(Replica.DEBUG){
-			System.err.println("Get into handlePrepareMessage");
 		}
 		try(var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ?")) {
 			pstmt.setInt(1, message.getSeqNum());
@@ -257,22 +231,12 @@ public class Replica extends Connector {
 		}
 
 		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
-			if(Replica.DEBUG){
-				System.err.println("isPrepared Passed");
-			}
 			CommitMessage commitMessage = new CommitMessage(
 					this.getPrivateKey(),
 					message.getViewNum(),
 					message.getSeqNum(),
 					message.getDigest(),
 					this.myNumber);
-			if (Replica.DEBUG && this.myNumber != commitMessage.getReplicaNum()) {
-                System.err.printf("replica: %d, written: %d, port: %d\n", this.myNumber, message.getReplicaNum(), this.myAddress.getPort());
-                throw new AssertionError();
-			}
-			if(Replica.DEBUG){
-				System.err.println(this.myAddress + " : " + commitMessage.getReplicaNum()+ " : "+ this.myNumber);
-			}
 
 			logger.insertMessage(commitMessage);
 
@@ -307,9 +271,6 @@ public class Replica extends Connector {
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		SocketChannel primaryChannel = this.replicas.get(this.primary);
 		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
-		if(Replica.DEBUG && this.primary == this.myNumber) {
-			if (!this.getPublicKey().equals(publicKey)) throw new AssertionError();
-		}
 		Supplier<Boolean> check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
 		if (check.get()) {
 			logger.insertMessage(message);

@@ -156,7 +156,6 @@ public class Logger {
             pstmt.setInt(1, seqNum);
             String clientBase64 = getEncoder().encodeToString(serialize(message));
             pstmt.setString(2, clientBase64);
-
             pstmt.execute();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -166,20 +165,11 @@ public class Logger {
     private void insertCommitMessage(CommitMessage message) {
         String baseQuery = "INSERT INTO Commits VALUES ( ?, ?, ?, ? )";
         try {
-            if(Replica.DEBUG){
-                System.err.printf("viewNum : %d, seqNum : %d, digest : %s, replica : %d\n",
-                        message.getViewNum(),
-                        message.getSeqNum(),
-                        message.getDigest(),
-                        message.getReplicaNum());
-            }
             PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
-
             preparedStatement.setInt(1, message.getViewNum());
             preparedStatement.setInt(2, message.getSeqNum());
             preparedStatement.setString(3, message.getDigest());
             preparedStatement.setInt(4, message.getReplicaNum());
-
             preparedStatement.execute();
         } catch (SQLException e) {
             if(e.getErrorCode() == CONSTRAINT_ERROR)

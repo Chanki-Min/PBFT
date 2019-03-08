@@ -85,12 +85,6 @@ public class PreprepareMessage implements Message {
         int[] watermarks = watermarkGetter.get();
         checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() <= watermarks[1]);
 
-        if(Replica.DEBUG){
-            Arrays.stream(checklist).forEach(x -> System.err.print(x + " "));
-            System.err.println();
-        }
-
-
         return Arrays.stream(checklist).allMatch(x -> x);
     }
 
