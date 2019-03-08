@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions;
 import java.io.IOException;
 import java.net.*;
 import java.nio.channels.SocketChannel;
+import java.time.Instant;
 import java.util.Properties;
 
 
@@ -23,10 +24,12 @@ public class CountlessClientTest extends Thread{
 
     @Override
     public void run(){
-        System.err.printf("Client %d start", this.clientNum);
+        var beg = Instant.now().toEpochMilli();
+        System.err.printf("Client %d start\n", this.clientNum);
         this.client.request(this.requestMessage);
         var ret = this.client.getReply();
-        System.err.printf("client %d end\n", this.clientNum);
+        var end = Instant.now().toEpochMilli();
+        System.err.printf("client %d end, %d milli seconds\n", this.clientNum, (int) (end - beg));
         Assertions.assertEquals("Hello, World!", ret.toString());
     }
 }

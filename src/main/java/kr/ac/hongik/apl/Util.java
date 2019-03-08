@@ -24,8 +24,6 @@ public class Util {
             //buffer.flip();
             dest.write(buffer);
             buffer.compact();
-            if(Replica.DEBUG)
-                System.err.println("read " + buffer.toString());
         }
         buffer.flip();
         while (buffer.hasRemaining()) {

@@ -29,9 +29,6 @@ public class Client extends Connector {
     }
 
     public void request(RequestMessage msg) {
-        if(Replica.DEBUG){
-            System.err.println(" Time : " + msg.getTime());
-        }
         this.replicas.values().forEach(channel -> this.send(channel, msg));
     }
 
@@ -64,9 +61,6 @@ public class Client extends Connector {
 				replies.put(uniqueKey, numOfValue + 1);
                 if(replies.get(uniqueKey) > this.getMaximumFaulty()) {
                     //replies.remove(replyMessage);
-                    if(Replica.DEBUG){
-                        System.err.printf("consensus made! Time : %d ", replyMessage.getTime());
-                    }
                     return replyMessage.getResult();
                 }
             } else {

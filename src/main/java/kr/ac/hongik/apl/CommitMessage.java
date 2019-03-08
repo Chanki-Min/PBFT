@@ -55,9 +55,6 @@ public class CommitMessage implements Message {
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
                 var sameMessages = ret.getInt(1);
-                if(Replica.DEBUG){
-                    System.err.println("sameMessages : " + sameMessages);
-                }
                 checklist[1] = sameMessages > maxFaulty * 2;
             }
 
