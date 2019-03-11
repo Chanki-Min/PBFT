@@ -107,6 +107,7 @@ public class Logger {
         return conn.prepareStatement(baseQuery);
     }
 
+
     Operation getOperation(CommitMessage message) {
         String baseQuery = new StringBuilder()
                 .append("SELECT P.operation ")

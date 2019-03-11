@@ -51,7 +51,10 @@ public class Util {
     }
 
     public static byte[] serialize(Serializable message) {
-        return SerializationUtils.serialize(message);
+        if (message instanceof String)
+            return ((String) message).getBytes();
+        else
+            return SerializationUtils.serialize(message);
     }
 
     public static Serializable deserialize(byte[] bytes) {

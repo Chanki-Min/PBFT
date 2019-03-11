@@ -1,6 +1,6 @@
 package kr.ac.hongik.apl;
 
-public class BlockPayload {
+public class BlockPayload implements Message {
     private final String artHash;
     private final String seller;
     private final String buyer;
@@ -15,8 +15,14 @@ public class BlockPayload {
         this.duration = duration;
     }
 
+
     public String getArtHash() {
         return this.artHash;
+    }
+
+    @Override
+    public String toString() {
+        return Util.serialize(this).toString();
     }
 
     public String getSeller() {
@@ -34,4 +40,6 @@ public class BlockPayload {
     public long getDuration() {
         return duration;
     }
+
+
 }
