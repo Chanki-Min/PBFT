@@ -2,33 +2,31 @@ package kr.ac.hongik.apl;
 
 import org.apache.commons.lang3.SerializationUtils;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
+import java.net.InetSocketAddress;
 import java.security.*;
+import java.util.ArrayList;
 import java.util.Formatter;
+import java.util.List;
+import java.util.Properties;
 import java.util.stream.IntStream;
 
 public class Util {
     static final String ALGORITHM = "SHA1withRSA";
 
-    public static void fastCopy(final ReadableByteChannel src, final WritableByteChannel dest) throws IOException {
-        final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024);
 
-        while (src.read(buffer) > 0) {
-            //buffer.flip();
-            dest.write(buffer);
-            buffer.compact();
+    public static List<InetSocketAddress> parseProperties(Properties prop) {
+        List<InetSocketAddress> replicaAddresses = new ArrayList<>();
+        var numOfReplica = Integer.parseInt(prop.getProperty("replica"));
+
+        for (int i = 0; i < numOfReplica; i++) {
+            String addressInString = prop.getProperty("replica" + i);
+            String[] parsedAddress = addressInString.split(":");
+
+            InetSocketAddress address = new InetSocketAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
+            replicaAddresses.add(address);
         }
-        buffer.flip();
-        while (buffer.hasRemaining()) {
-            dest.write(buffer);
-        }
+        return replicaAddresses;
     }
 
     public static String hash(Serializable obj) {
@@ -67,13 +65,13 @@ public class Util {
      * @return KeyPair object
      * @throws NoSuchAlgorithmException
      */
-	public static KeyPair generateKeyPair() {
-		KeyPairGenerator generator = null;
-		try {
-			generator = KeyPairGenerator.getInstance("RSA");
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}
+    public static KeyPair generateKeyPair() {
+        KeyPairGenerator generator = null;
+        try {
+            generator = KeyPairGenerator.getInstance("RSA");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
         return generator.generateKeyPair();
     }
 
@@ -87,7 +85,7 @@ public class Util {
      * @throws NoSuchProviderException
      */
     public static byte[] sign(PrivateKey key, Serializable message)  {
-    	try {
+        try {
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initSign(key);
             signature.update(serialize(message));

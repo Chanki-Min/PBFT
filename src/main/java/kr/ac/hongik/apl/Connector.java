@@ -23,7 +23,7 @@ import static kr.ac.hongik.apl.Util.*;
  */
 abstract class Connector {
 	//Invariant: replica index and its socket is matched!
-	protected List<InetSocketAddress> replicaAddresses = new ArrayList<>();
+	protected List<InetSocketAddress> replicaAddresses;
 	protected Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
@@ -42,8 +42,7 @@ abstract class Connector {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		parseProperties(prop);
-
+		replicaAddresses = Util.parseProperties(prop);
 	}
 
 	protected void connect()  {
