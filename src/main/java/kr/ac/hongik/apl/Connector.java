@@ -23,7 +23,7 @@ import static kr.ac.hongik.apl.Util.*;
  */
 abstract class Connector {
 	//Invariant: replica index and its socket is matched!
-	protected List<InetSocketAddress> replicaAddresses = new ArrayList<>();
+	protected List<InetSocketAddress> replicaAddresses;
 	protected Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
@@ -42,8 +42,7 @@ abstract class Connector {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		parseProperties(prop);
-
+		replicaAddresses = Util.parseProperties(prop);
 	}
 
 	protected void connect()  {
@@ -218,8 +217,6 @@ abstract class Connector {
 						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
-						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
-						int reads = channel.read(byteBuffer);
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage) message;
