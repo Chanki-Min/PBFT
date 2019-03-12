@@ -12,12 +12,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /* TODO 구매 시나리오를 따라서 구현할 예정 */
 public class Management extends Operation {
     private final List<InetSocketAddress> replicaAddresses;
     private final BlockPayload blockPayload;
     private Function<String, PreparedStatement> sqlAccessor = null;
+    private Integer replicaNumber = null;
 
     protected Management(PublicKey clientInfo, Properties replicasInfo, BlockPayload blockPayload) {
         super(clientInfo, Instant.now().getEpochSecond());
@@ -61,15 +63,15 @@ public class Management extends Operation {
         }
     }
 
-    private void insertTuple(String header, BlockPayload payload) {
+    private void insertBlock(String header, BlockPayload payload) {
         //TODO: fill
     }
 
-    private void insertCert(final String payloadHash, final byte[] certPiece) {
+    private void insertCert(final String root, final byte[] certPiece) {
         String query = "CREATE TABLE IF NOT EXISTS Certs " +
-                "(payload TEXT," +
+                "(root TEXT," +
                 "piece TEXT," +
-                "PRIMARY KEY(payload)";
+                "PRIMARY KEY(root)";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.execute();
         } catch (SQLException e) {
@@ -78,7 +80,7 @@ public class Management extends Operation {
 
         query = "INSERT INTO Certs VALUES (?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
-            pstmt.setString(1, Util.hash(payloadHash));
+            pstmt.setString(1, root);
             pstmt.setBytes(1, certPiece);
 
             pstmt.execute();
@@ -88,6 +90,9 @@ public class Management extends Operation {
 
     }
 
+    /**
+     * @return (cert piece, cert piece, merkle tree root)
+     */
     @Override
     Result execute() {
 
@@ -97,7 +102,7 @@ public class Management extends Operation {
 
         String header = Util.hash(prevHash + blockPayload);
 
-        insertTuple(header, blockPayload);
+        insertBlock(header, blockPayload);
 
         //2. Split the certs and the replica store each pieces.
 
@@ -107,13 +112,16 @@ public class Management extends Operation {
         final Scheme scheme = new Scheme(new SecureRandom(), n, n - 1);
         final Map<Integer, byte[]> pieces = scheme.split(header.getBytes());
 
-        //TODO: Find my number and store its piece
-        String payloadHash = Util.hash(blockPayload);
-        byte[] myPiece = null;
+        HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
+        String root = hashTree.root.getHash();
 
-        insertCert(payloadHash, myPiece);
+        byte[] myPiece = pieces.get(replicaNumber);
 
-        //TODO: return buyer and seller's pieces
+        insertCert(root, myPiece);
+
+        Object[] residual = pieces.values().stream().skip(replicaAddresses.size()).toArray();
+        Object[] ret = {residual[0], residual[1], root};
+        //TODO: Change the return type to Object if possible
         return null;
     }
 
@@ -122,12 +130,15 @@ public class Management extends Operation {
     }
 
     /**
-     * @param sqlAccessor If the replica identify that this message is Management instance, then the replica insert the sql preparedStatement function.
+     * @param sqlAccessor If the replica identify that this message is Management instance,
+     *                    then the replica insert the sql preparedStatement function.
      */
     public void setSqlAccessor(Function<String, PreparedStatement> sqlAccessor) {
         this.sqlAccessor = sqlAccessor;
     }
 
 
-
+    public void setReplicaNumber(Integer replicaNumber) {
+        this.replicaNumber = replicaNumber;
+    }
 }
