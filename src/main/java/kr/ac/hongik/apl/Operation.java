@@ -12,7 +12,7 @@ abstract class Operation implements Serializable {
         this.timestamp = timestamp;
     }
 
-    abstract Result execute();
+    abstract Object execute();
 
     PublicKey getClientInfo() {
         return this.clientInfo;

@@ -187,7 +187,7 @@ public class Replica extends Connector {
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
-				Result ret = operation.execute();
+				Object ret = operation.execute();
 
 				var viewNum = cmsg.getViewNum();
 				var timestamp = operation.getTimestamp();

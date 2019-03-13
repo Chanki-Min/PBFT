@@ -40,7 +40,7 @@ public class Client extends Connector {
         this.replicas.put(header.getReplicaNum(), channel);
     }
 
-    Result getReply() {
+    Object getReply() {
         ReplyMessage replyMessage;
         while (true) {
             Message message = receive();

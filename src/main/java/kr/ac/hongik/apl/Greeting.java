@@ -1,6 +1,8 @@
 package kr.ac.hongik.apl;
 
-public class Greeting implements Result {
+import java.io.Serializable;
+
+public class Greeting implements Serializable {
     public String greeting;
 
     public Greeting(String greeting) {

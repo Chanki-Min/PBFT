@@ -1,7 +1,8 @@
 package kr.ac.hongik.apl;
 
 import java.io.Serializable;
-import java.security.*;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 import static kr.ac.hongik.apl.Util.sign;
 
@@ -10,18 +11,18 @@ class ReplyMessage implements Message {
     private final Data data;
     private byte[] signature;
 
+    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Object result) {
+
+        this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
+        this.signature = sign(privateKey, this.data);
+    }
+
     public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,
-                                            PublicKey clientInfo, int replicaNum, Result result) {
+                                            PublicKey clientInfo, int replicaNum, Object result) {
         Data data = new Data(viewNum, timestamp, clientInfo, replicaNum, result);
         byte[] signature = sign(privateKey, data);
 
         return new ReplyMessage(data, signature);
-    }
-
-    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
-
-        this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
-        this.signature = sign(privateKey, this.data);
     }
 
     public ReplyMessage(Data data, byte[] signature) {
@@ -45,7 +46,7 @@ class ReplyMessage implements Message {
         return this.data.replicaNum;
     }
 
-    public Result getResult() {
+    public Object getResult() {
         return this.data.result;
     }
 
@@ -72,9 +73,9 @@ class ReplyMessage implements Message {
         private long time;
         private PublicKey clientInfo;
         private int replicaNum;
-        private Result result;
+        private Object result;
 
-        private Data(int viewNum, long time, PublicKey clientInfo, int replicaNum, Result result) {
+        private Data(int viewNum, long time, PublicKey clientInfo, int replicaNum, Object result) {
             this.viewNum = viewNum;
             this.time = time;
             this.clientInfo = clientInfo;

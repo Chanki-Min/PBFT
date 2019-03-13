@@ -19,7 +19,7 @@ class SampleOperation extends Operation {
     }
 
     @Override
-    Result execute() {
+    Object execute() {
         return null;
     }
 }

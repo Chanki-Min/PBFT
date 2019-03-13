@@ -1,6 +1,0 @@
-package kr.ac.hongik.apl;
-
-import java.io.Serializable;
-
-public interface Result extends Serializable {
-}

@@ -94,7 +94,7 @@ public class Management extends Operation {
      * @return (cert piece, cert piece, merkle tree root)
      */
     @Override
-    Result execute() {
+    Object execute() {
 
         createTableIfNotExists();
 
