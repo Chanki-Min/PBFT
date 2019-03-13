@@ -1,11 +1,10 @@
 package kr.ac.hongik.apl;
 
 
-import java.security.*;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Base64.getEncoder;
@@ -21,6 +20,16 @@ public class RequestMessage implements Message {
 
         this.operation = operation;
         this.signature = sign(privateKey, this.operation);
+    }
+
+    private RequestMessage(Operation operation, byte[] signature) {
+        this.operation = operation;
+        this.signature = signature;
+    }
+
+    public static RequestMessage makeRequestMsg(PrivateKey privateKey, Operation operation) {
+        byte[] signature = sign(privateKey, operation);
+        return new RequestMessage(operation, signature);
     }
 
     boolean verify(PublicKey publicKey) {

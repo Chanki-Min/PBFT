@@ -5,9 +5,9 @@ public class BlockPayload implements Message {
     private final String seller;
     private final String buyer;
     private final long price;
-    private final long duration;  //as timestamp
+    private final Long duration;  //as timestamp
 
-    public BlockPayload(String artHash, String seller, String buyer, long price, long duration) {
+    public BlockPayload(String artHash, String seller, String buyer, long price, Long duration) {
         this.artHash = artHash;
         this.seller = seller;
         this.buyer = buyer;
@@ -37,7 +37,7 @@ public class BlockPayload implements Message {
         return price;
     }
 
-    public long getDuration() {
+    public Long getDuration() {
         return duration;
     }
 

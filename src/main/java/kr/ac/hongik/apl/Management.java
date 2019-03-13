@@ -20,18 +20,35 @@ public class Management extends Operation {
     private Function<String, PreparedStatement> sqlAccessor = null;
     private Integer replicaNumber = null;
 
+    final static int ALREADY_EXISTS = 1;
+
     protected Management(PublicKey clientInfo, Properties replicasInfo, BlockPayload blockPayload) {
         super(clientInfo, Instant.now().getEpochSecond());
         replicaAddresses = Util.parseProperties(replicasInfo);
         this.blockPayload = blockPayload;
     }
 
-    private PreparedStatement getPreparedStatement(String query) throws SQLException {
+    private PreparedStatement getPreparedStatement(String query) {
         return sqlAccessor.apply(query);
     }
 
     private void createTableIfNotExists() {
-        String query = "CREATE TABLE  Blocks" +
+        boolean exists = false;
+        String query = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Blocks'";
+        try (var pstmt = getPreparedStatement(query)) {
+            try (var ret = pstmt.executeQuery()) {
+                if (ret.next())
+                    exists = ret.getBoolean(1);
+                else
+                    exists = false;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+        if (exists)
+            return;
+        query = "CREATE TABLE  Blocks" +
                 "(header TEXT, " +
                 "work TEXT NOT NULL, " +
                 "seller TEXT NOT NULL, " +
@@ -47,25 +64,27 @@ public class Management extends Operation {
 
             query = "INSERT INTO Blocks VALUES(?, ?, ?, ?, ?, ?, ?)";
             try (var pstmt1 = getPreparedStatement(query)) {
-                pstmt1.setString(1, "null");
-                pstmt1.setString(2, "null");
-                pstmt1.setString(3, "null");
-                pstmt1.setString(4, "null");
+                pstmt1.setString(1, "first");
+                pstmt1.setString(2, "first");
+                pstmt1.setString(3, "first");
+                pstmt1.setString(4, "first");
                 pstmt1.setLong(5, -1);
                 pstmt1.setLong(6, 0);
                 pstmt1.setLong(7, 0);
 
                 pstmt1.execute();
             }
-        } catch (SQLException e) {
+        } catch (SQLException | RuntimeException e) {
+            if (e instanceof SQLException)
+                System.err.println("ERROR CODE: " + ((SQLException) e).getErrorCode());
             e.printStackTrace();
         }
     }
 
     private String getLatestheader() {
         String query = "SELECT B.header " +
-                "FROM Blocks " +
-                "WHERE B.txnTime = (SELECT MAX(B1.txnTime " +
+                "FROM Blocks B " +
+                "WHERE B.txnTime = (SELECT MAX(B1.txnTime) " +
                 "                   FROM Blocks B1 )";
         try (var pstmt = getPreparedStatement(query)) {
             try (var ret = pstmt.executeQuery()) {
@@ -99,7 +118,7 @@ public class Management extends Operation {
         String query = "CREATE TABLE IF NOT EXISTS Certs " +
                 "(root TEXT," +
                 "piece TEXT," +
-                "PRIMARY KEY(root)";
+                "PRIMARY KEY(root))";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.execute();
         } catch (SQLException e) {

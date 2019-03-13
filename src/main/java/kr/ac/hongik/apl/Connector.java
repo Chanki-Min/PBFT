@@ -216,6 +216,8 @@ abstract class Connector {
 						intBuffer.flip();
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
+						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
+						channel.read(byteBuffer);
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage) message;
