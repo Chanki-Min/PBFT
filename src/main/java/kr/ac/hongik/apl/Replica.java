@@ -187,6 +187,11 @@ public class Replica extends Connector {
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
+				if (operation instanceof Management) {
+					Management mngmt = (Management) operation;
+					mngmt.setReplicaNumber(this.myNumber);
+					mngmt.setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+				}
 				Object ret = operation.execute();
 
 				var viewNum = cmsg.getViewNum();
@@ -198,7 +203,6 @@ public class Replica extends Connector {
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 				send(destination, replyMessage);
 			} catch (NoSuchElementException e) {
-                System.err.println("my error: " + e);
 				return;
 			}
 		}

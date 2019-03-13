@@ -63,8 +63,22 @@ public class Management extends Operation {
         }
     }
 
-    private void insertBlock(String header, BlockPayload payload) {
-        //TODO: fill
+    private void insertBlock(String header, BlockPayload payload, long txnTime) {
+        String query = "INSERT INTO Blocks " +
+                "VALUES(?, ?, ?, ?, ?, ?, ?)";
+        try (var pstmt = getPreparedStatement(query)) {
+            pstmt.setString(1, header);
+            pstmt.setString(2, payload.getArtHash());
+            pstmt.setString(3, payload.getSeller());
+            pstmt.setString(4, payload.getBuyer());
+            pstmt.setLong(5, payload.getPrice());
+            pstmt.setLong(6, txnTime);
+            pstmt.setLong(7, payload.getDuration());
+
+            pstmt.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     private void insertCert(final String root, final byte[] certPiece) {
@@ -102,7 +116,7 @@ public class Management extends Operation {
 
         String header = Util.hash(prevHash + blockPayload);
 
-        insertBlock(header, blockPayload);
+        insertBlock(header, blockPayload, this.getTimestamp());
 
         //2. Split the certs and the replica store each pieces.
 
@@ -120,9 +134,7 @@ public class Management extends Operation {
         insertCert(root, myPiece);
 
         Object[] residual = pieces.values().stream().skip(replicaAddresses.size()).toArray();
-        Object[] ret = {residual[0], residual[1], root};
-        //TODO: Change the return type to Object if possible
-        return null;
+        return new Object[]{residual[0], residual[1], root};
     }
 
     public boolean validate(String payloadHash, byte[] CertPiece) {
