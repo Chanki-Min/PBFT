@@ -180,7 +180,6 @@ abstract class Connector {
 	 */
 	protected Message receive() {
 		//Selector must not hold acceptable or writable replicas
-		//TODO: Consider closing the socket situation
 		while (true) {
 			try {
 				selector.select();

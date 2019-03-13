@@ -14,7 +14,6 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/* TODO 구매 시나리오를 따라서 구현할 예정 */
 public class Management extends Operation {
     private final List<InetSocketAddress> replicaAddresses;
     private final BlockPayload blockPayload;
@@ -32,7 +31,7 @@ public class Management extends Operation {
     }
 
     private void createTableIfNotExists() {
-        String query = "CREATE TABLE IF NOT EXISTS Blocks" +
+        String query = "CREATE TABLE  Blocks" +
                 "(header TEXT, " +
                 "work TEXT NOT NULL, " +
                 "seller TEXT NOT NULL, " +
@@ -43,6 +42,21 @@ public class Management extends Operation {
                 "PRIMARY KEY(header))";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.execute();
+
+            /******         CREATE FIRST BLOCK          ********/
+
+            query = "INSERT INTO Blocks VALUES(?, ?, ?, ?, ?, ?, ?)";
+            try (var pstmt1 = getPreparedStatement(query)) {
+                pstmt1.setString(1, "null");
+                pstmt1.setString(2, "null");
+                pstmt1.setString(3, "null");
+                pstmt1.setString(4, "null");
+                pstmt1.setLong(5, -1);
+                pstmt1.setLong(6, 0);
+                pstmt1.setLong(7, 0);
+
+                pstmt1.execute();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -137,9 +151,6 @@ public class Management extends Operation {
         return new Object[]{residual[0], residual[1], root};
     }
 
-    public boolean validate(String payloadHash, byte[] CertPiece) {
-        return false;
-    }
 
     /**
      * @param sqlAccessor If the replica identify that this message is Management instance,
