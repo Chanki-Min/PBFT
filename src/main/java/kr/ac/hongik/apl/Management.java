@@ -15,172 +15,172 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Management extends Operation {
-    private final List<InetSocketAddress> replicaAddresses;
-    private final BlockPayload blockPayload;
-    private Function<String, PreparedStatement> sqlAccessor = null;
-    private Integer replicaNumber = null;
+	private final List<InetSocketAddress> replicaAddresses;
+	private final BlockPayload blockPayload;
+	private Function<String, PreparedStatement> sqlAccessor = null;
+	private Integer replicaNumber = null;
 
-    final static int ALREADY_EXISTS = 1;
+	protected Management(PublicKey clientInfo, Properties replicasInfo, BlockPayload blockPayload) {
+		super(clientInfo, Instant.now().getEpochSecond());
+		replicaAddresses = Util.parseProperties(replicasInfo);
+		this.blockPayload = blockPayload;
+	}
 
-    protected Management(PublicKey clientInfo, Properties replicasInfo, BlockPayload blockPayload) {
-        super(clientInfo, Instant.now().getEpochSecond());
-        replicaAddresses = Util.parseProperties(replicasInfo);
-        this.blockPayload = blockPayload;
-    }
+	/**
+	 * @param sqlAccessor If the replica identify that this message is Management instance,
+	 *                    then the replica insert the sql preparedStatement function.
+	 */
+	public void setSqlAccessor(Function<String, PreparedStatement> sqlAccessor) {
+		this.sqlAccessor = sqlAccessor;
+	}
 
-    private PreparedStatement getPreparedStatement(String query) {
-        return sqlAccessor.apply(query);
-    }
+	public void setReplicaNumber(Integer replicaNumber) {
+		this.replicaNumber = replicaNumber;
+	}
 
-    private void createTableIfNotExists() {
-        boolean exists = false;
-        String query = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Blocks'";
-        try (var pstmt = getPreparedStatement(query)) {
-            try (var ret = pstmt.executeQuery()) {
-                if (ret.next())
-                    exists = ret.getBoolean(1);
-                else
-                    exists = false;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return;
-        }
-        if (exists)
-            return;
-        query = "CREATE TABLE  Blocks" +
-                "(header TEXT, " +
-                "work TEXT NOT NULL, " +
-                "seller TEXT NOT NULL, " +
-                "buyer TEXT NOT NULL, " +
-                "price INT NOT NULL, " +
-                "txnTime INT NOT NULL, " +
-                "duration INT, " +
-                "PRIMARY KEY(header))";
-        try (var pstmt = getPreparedStatement(query)) {
-            pstmt.execute();
+	/**
+	 * @return ({ certNumber, certPiece }, { certNumber, certPiece }, merkle tree root)
+	 */
+	@Override
+	Object execute() {
 
-            /******         CREATE FIRST BLOCK          ********/
+		createTableIfNotExists();
 
-            query = "INSERT INTO Blocks VALUES(?, ?, ?, ?, ?, ?, ?)";
-            try (var pstmt1 = getPreparedStatement(query)) {
-                pstmt1.setString(1, "first");
-                pstmt1.setString(2, "first");
-                pstmt1.setString(3, "first");
-                pstmt1.setString(4, "first");
-                pstmt1.setLong(5, -1);
-                pstmt1.setLong(6, 0);
-                pstmt1.setLong(7, 0);
+		String prevHash = getLatestheader();
 
-                pstmt1.execute();
-            }
-        } catch (SQLException | RuntimeException e) {
-            if (e instanceof SQLException)
-                System.err.println("ERROR CODE: " + ((SQLException) e).getErrorCode());
-            e.printStackTrace();
-        }
-    }
+		String header = Util.hash(prevHash + blockPayload);
 
-    private String getLatestheader() {
-        String query = "SELECT B.header " +
-                "FROM Blocks B " +
-                "WHERE B.txnTime = (SELECT MAX(B1.txnTime) " +
-                "                   FROM Blocks B1 )";
-        try (var pstmt = getPreparedStatement(query)) {
-            try (var ret = pstmt.executeQuery()) {
-                ret.next();
-                return ret.getString(1);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
+		insertBlock(header, blockPayload, this.getTimestamp());
 
-    private void insertBlock(String header, BlockPayload payload, long txnTime) {
-        String query = "INSERT INTO Blocks " +
-                "VALUES(?, ?, ?, ?, ?, ?, ?)";
-        try (var pstmt = getPreparedStatement(query)) {
-            pstmt.setString(1, header);
-            pstmt.setString(2, payload.getArtHash());
-            pstmt.setString(3, payload.getSeller());
-            pstmt.setString(4, payload.getBuyer());
-            pstmt.setLong(5, payload.getPrice());
-            pstmt.setLong(6, txnTime);
-            pstmt.setLong(7, payload.getDuration());
+		//2. Split the certs and the replica store each pieces.
 
-            pstmt.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
+		int n = replicaAddresses.size() + 2;    //Replicas + seller + buyer
 
-    private void insertCert(final String root, final byte[] certPiece) {
-        String query = "CREATE TABLE IF NOT EXISTS Certs " +
-                "(root TEXT," +
-                "piece TEXT," +
-                "PRIMARY KEY(root))";
-        try (var pstmt = getPreparedStatement(query)) {
-            pstmt.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+		//Assume that no one lost the piece
+		final Scheme scheme = new Scheme(new SecureRandom(), n, n - 1);
+		final Map<Integer, byte[]> pieces = scheme.split(header.getBytes());
 
-        query = "INSERT INTO Certs VALUES (?, ?)";
-        try (var pstmt = getPreparedStatement(query)) {
-            pstmt.setString(1, root);
-            pstmt.setBytes(1, certPiece);
+		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
+		String root = hashTree.root.getHash();
 
-            pstmt.execute();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+		//Caution Scheme.split is 1-indexed!
+		byte[] myPiece = pieces.get(replicaNumber + 1);
 
-    }
+		insertCert(root, myPiece);
 
-    /**
-     * @return (cert piece, cert piece, merkle tree root)
-     */
-    @Override
-    Object execute() {
+		return new Object[]{n - 2, pieces.get(n - 1), n - 1, pieces.get(n), root};
+	}
 
-        createTableIfNotExists();
+	private boolean checkIfExists() {
+		String query = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Blocks'";
+		try (var pstmt = getPreparedStatement(query)) {
+			try (var ret = pstmt.executeQuery()) {
+				if (ret.next())
+					return ret.getBoolean(1);
+				else
+					return false;
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
 
-        String prevHash = getLatestheader();
+	private void createTableIfNotExists() {
+		if (checkIfExists())
+			return;
 
-        String header = Util.hash(prevHash + blockPayload);
+		String query = "CREATE TABLE  Blocks" +
+				"(header TEXT, " +
+				"work TEXT NOT NULL, " +
+				"seller TEXT NOT NULL, " +
+				"buyer TEXT NOT NULL, " +
+				"price INT NOT NULL, " +
+				"txnTime INT NOT NULL, " +
+				"duration INT, " +
+				"PRIMARY KEY(header))";
+		try (var pstmt = getPreparedStatement(query)) {
+			pstmt.execute();
 
-        insertBlock(header, blockPayload, this.getTimestamp());
+			/******         CREATE FIRST BLOCK          ********/
 
-        //2. Split the certs and the replica store each pieces.
+			query = "INSERT INTO Blocks VALUES(?, ?, ?, ?, ?, ?, ?)";
+			try (var pstmt1 = getPreparedStatement(query)) {
+				pstmt1.setString(1, "first");
+				pstmt1.setString(2, "first");
+				pstmt1.setString(3, "first");
+				pstmt1.setString(4, "first");
+				pstmt1.setLong(5, -1);
+				pstmt1.setLong(6, 0);
+				pstmt1.setLong(7, 0);
 
-        int n = replicaAddresses.size() + 2;    //Replicas + seller + buyer
+				pstmt1.execute();
+			}
+		} catch (SQLException | RuntimeException e) {
+			if (e instanceof SQLException)
+				System.err.println("ERROR CODE: " + ((SQLException) e).getErrorCode());
+			e.printStackTrace();
+		}
+	}
 
-        //Assume that no one lost the piece
-        final Scheme scheme = new Scheme(new SecureRandom(), n, n - 1);
-        final Map<Integer, byte[]> pieces = scheme.split(header.getBytes());
+	private String getLatestheader() {
+		String query = "SELECT B.header " +
+				"FROM Blocks B " +
+				"WHERE B.txnTime = (SELECT MAX(B1.txnTime) " +
+				"                   FROM Blocks B1 )";
+		try (var pstmt = getPreparedStatement(query)) {
+			try (var ret = pstmt.executeQuery()) {
+				ret.next();
+				return ret.getString(1);
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-        HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
-        String root = hashTree.root.getHash();
+	private void insertBlock(String header, BlockPayload payload, long txnTime) {
+		String query = "INSERT INTO Blocks " +
+				"VALUES(?, ?, ?, ?, ?, ?, ?)";
+		try (var pstmt = getPreparedStatement(query)) {
+			pstmt.setString(1, header);
+			pstmt.setString(2, payload.getArtHash());
+			pstmt.setString(3, payload.getSeller());
+			pstmt.setString(4, payload.getBuyer());
+			pstmt.setLong(5, payload.getPrice());
+			pstmt.setLong(6, txnTime);
+			pstmt.setLong(7, payload.getDuration());
 
-        byte[] myPiece = pieces.get(replicaNumber);
+			pstmt.execute();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
 
-        insertCert(root, myPiece);
+	private void insertCert(final String root, final byte[] certPiece) {
+		String query = "CREATE TABLE IF NOT EXISTS Certs " +
+				"(root TEXT," +
+				"piece TEXT," +
+				"PRIMARY KEY(root))";
+		try (var pstmt = getPreparedStatement(query)) {
+			pstmt.execute();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 
-        Object[] residual = pieces.values().stream().skip(replicaAddresses.size()).toArray();
-        return new Object[]{residual[0], residual[1], root};
-    }
+		query = "INSERT INTO Certs VALUES (?, ?)";
+		try (var pstmt = getPreparedStatement(query)) {
+			pstmt.setString(1, root);
+			pstmt.setBytes(1, certPiece);
 
+			pstmt.execute();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 
-    /**
-     * @param sqlAccessor If the replica identify that this message is Management instance,
-     *                    then the replica insert the sql preparedStatement function.
-     */
-    public void setSqlAccessor(Function<String, PreparedStatement> sqlAccessor) {
-        this.sqlAccessor = sqlAccessor;
-    }
+	}
 
+	private PreparedStatement getPreparedStatement(String query) {
+		return sqlAccessor.apply(query);
+	}
 
-    public void setReplicaNumber(Integer replicaNumber) {
-        this.replicaNumber = replicaNumber;
-    }
 }
