@@ -10,11 +10,18 @@ class ReplyMessage implements Message {
 
     private final Data data;
     private byte[] signature;
+    private boolean isDistributed = false;
 
     public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Object result) {
 
         this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
         this.signature = sign(privateKey, this.data);
+    }
+
+    public ReplyMessage(Data data, byte[] signature, boolean isDistributed) {
+        this.data = data;
+        this.signature = signature;
+        this.isDistributed = isDistributed;
     }
 
     public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,
@@ -28,6 +35,14 @@ class ReplyMessage implements Message {
     public ReplyMessage(Data data, byte[] signature) {
         this.data = data;
         this.signature = signature;
+    }
+
+    public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,
+                                            PublicKey clientInfo, int replicaNum, Object result, boolean isDistributed) {
+        Data data = new Data(viewNum, timestamp, clientInfo, replicaNum, result);
+        byte[] signature = sign(privateKey, data);
+
+        return new ReplyMessage(data, signature, isDistributed);
     }
 
     public int getViewNum(){
@@ -66,6 +81,10 @@ class ReplyMessage implements Message {
 
     public boolean verifySignature(PublicKey publicKey) {
         return Util.verify(publicKey, this.data, this.signature);
+    }
+
+    public boolean isDistributed() {
+        return isDistributed;
     }
 
     private static class Data implements Serializable {

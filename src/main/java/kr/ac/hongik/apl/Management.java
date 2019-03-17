@@ -54,10 +54,11 @@ public class Management extends Operation {
 
 		//2. Split the certs and the replica store each pieces.
 
-		int n = replicaAddresses.size() + 2;    //Replicas + seller + buyer
+		final int n = replicaAddresses.size() + 2;    //Replicas + seller + buyer
+		final int f = replicaAddresses.size() / 3;
 
 		//Assume that no one lost the piece
-		final Scheme scheme = new Scheme(new SecureRandom(), n, n - 1);
+		final Scheme scheme = new Scheme(new SecureRandom(), n, n - f + 1);
 		final Map<Integer, byte[]> pieces = scheme.split(header.getBytes());
 
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
