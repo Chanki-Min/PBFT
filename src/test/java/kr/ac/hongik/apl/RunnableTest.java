@@ -5,14 +5,11 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.PublicKey;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
 import static java.lang.Thread.sleep;
-import static kr.ac.hongik.apl.Util.verify;
 
 
 public class RunnableTest {
@@ -41,7 +38,7 @@ public class RunnableTest {
         Properties prop = new Properties();
         prop.load(in);
 
-        int maxClientNum = 2;
+        int maxClientNum = 20;
         List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
         for(int i = 0; i < maxClientNum; i++){
             Thread thread = new Thread(new CountlessClientTest(prop, i));
@@ -66,7 +63,7 @@ public class RunnableTest {
 
         Client client = new Client(prop);
         System.err.println("Client: Request");
-        Integer repeatTime = 10;
+        Integer repeatTime = 5;
         for(int i = 0; i < repeatTime; i++) {
             Operation op = new GreetingOperation(client.getPublicKey());
             RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);

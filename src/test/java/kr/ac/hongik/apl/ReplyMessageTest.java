@@ -26,7 +26,8 @@ class ReplyMessageTest {
         long timestamp = Instant.now().getEpochSecond();
         Object result = new ReplyResult(clientInfo, timestamp);
         PrivateKey privateKey = keyPair.getPrivate();
-        ReplyMessage replyMessage = new ReplyMessage(privateKey, 0, 0, clientInfo, 0, result);
+        ReplyMessage replyMessage = ReplyMessage.makeReplyMsg(privateKey, 0, 0,
+                clientInfo, 0, result, false);
         System.out.println("ReplyMessage Class Unit Test Success");
     }
 }

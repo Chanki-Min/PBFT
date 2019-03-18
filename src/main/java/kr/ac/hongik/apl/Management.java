@@ -20,6 +20,10 @@ public class Management extends Operation {
 	private Function<String, PreparedStatement> sqlAccessor = null;
 	private Integer replicaNumber = null;
 
+	protected Management(PublicKey clientInfo, Properties replicasInfo, String artHash, String seller, String buyer, long price, long duration) {
+		this(clientInfo, replicasInfo, new BlockPayload(artHash, seller, buyer, price, duration));
+	}
+
 	protected Management(PublicKey clientInfo, Properties replicasInfo, BlockPayload blockPayload) {
 		super(clientInfo, Instant.now().getEpochSecond());
 		replicaAddresses = Util.parseProperties(replicasInfo);
@@ -62,7 +66,14 @@ public class Management extends Operation {
 		final Map<Integer, byte[]> pieces = scheme.split(header.getBytes());
 
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
-		String root = hashTree.root.getHash();
+		final String root = hashTree.root.getHash();
+		if (Replica.DEBUG) {
+			System.err.println("HEADER: " + header);
+
+			Scheme scheme1 = new Scheme(new SecureRandom(), n, n - f + 1);
+			byte[] ret = scheme1.join(pieces);
+			assert new String(ret).equals(header);
+		}
 
 		//Caution Scheme.split is 1-indexed!
 		byte[] myPiece = pieces.get(replicaNumber + 1);
@@ -91,7 +102,7 @@ public class Management extends Operation {
 		if (checkIfExists())
 			return;
 
-		String query = "CREATE TABLE  Blocks" +
+		String query = "CREATE TABLE Blocks" +
 				"(header TEXT, " +
 				"work TEXT NOT NULL, " +
 				"seller TEXT NOT NULL, " +
@@ -99,6 +110,7 @@ public class Management extends Operation {
 				"price INT NOT NULL, " +
 				"txnTime INT NOT NULL, " +
 				"duration INT, " +
+
 				"PRIMARY KEY(header))";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.execute();
@@ -176,6 +188,7 @@ public class Management extends Operation {
 			pstmt.setObject(3, scheme);
 
 			pstmt.execute();
+
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}

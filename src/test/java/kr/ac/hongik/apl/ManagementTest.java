@@ -12,7 +12,7 @@ import static kr.ac.hongik.apl.RequestMessage.makeRequestMsg;
 class ManagementTest {
 
 	@Test
-	void creationTest() throws IOException, InterruptedException {
+	void creationTest() throws IOException {
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);

@@ -22,7 +22,7 @@ public class BlockPayload implements Message {
 
     @Override
     public String toString() {
-        return Util.serialize(this).toString();
+        return artHash + seller + buyer + price + duration;
     }
 
     public String getSeller() {

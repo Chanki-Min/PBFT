@@ -12,29 +12,10 @@ class ReplyMessage implements Message {
     private byte[] signature;
     private boolean isDistributed = false;
 
-    public ReplyMessage(PrivateKey privateKey, int viewNum, long time, PublicKey clientInfo, int replicaNum, Object result) {
-
-        this.data = new Data(viewNum, time, clientInfo, replicaNum, result);
-        this.signature = sign(privateKey, this.data);
-    }
-
     public ReplyMessage(Data data, byte[] signature, boolean isDistributed) {
         this.data = data;
         this.signature = signature;
         this.isDistributed = isDistributed;
-    }
-
-    public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,
-                                            PublicKey clientInfo, int replicaNum, Object result) {
-        Data data = new Data(viewNum, timestamp, clientInfo, replicaNum, result);
-        byte[] signature = sign(privateKey, data);
-
-        return new ReplyMessage(data, signature);
-    }
-
-    public ReplyMessage(Data data, byte[] signature) {
-        this.data = data;
-        this.signature = signature;
     }
 
     public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,

@@ -7,7 +7,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Properties;
 import java.util.function.Function;
 
 public class Validation extends Operation {
@@ -15,7 +14,7 @@ public class Validation extends Operation {
 	private final String artHash;
 	private Function<String, PreparedStatement> sqlAccessor = null;
 
-	protected Validation(PublicKey clientInfo, Properties prop, String root, Map<Integer, byte[]> pieces, String artHash) {
+	protected Validation(PublicKey clientInfo, String root, Map<Integer, byte[]> pieces, String artHash) {
 		super(clientInfo, Instant.now().getEpochSecond());
 		this.artHash = artHash;
 		this.cert = reassemble(pieces, root);

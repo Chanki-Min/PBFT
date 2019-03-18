@@ -31,7 +31,6 @@ public class Replica extends Connector {
 
 	private ServerSocketChannel listener;
 	private List<SocketChannel> clients;
-	private InetSocketAddress myAddress;
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
 
 	private Logger logger;
@@ -49,7 +48,6 @@ public class Replica extends Connector {
 		this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
 		this.lowWatermark = 0;
 
-		this.myAddress = new InetSocketAddress(serverIp, serverPort);
 		try {
 			listener = ServerSocketChannel.open();
 			//listener.socket().setReuseAddress(true);
@@ -191,13 +189,19 @@ public class Replica extends Connector {
 					Management mngmt = (Management) operation;
 					mngmt.setReplicaNumber(this.myNumber);
 					mngmt.setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+				} else if (operation instanceof Collector) {
+					((Collector) operation).setReplicaNumber(myNumber);
+					((Collector) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+				} else if (operation instanceof Validation) {
+					((Validation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
 				}
 				Object ret = operation.execute();
 
 				var viewNum = cmsg.getViewNum();
 				var timestamp = operation.getTimestamp();
 				var clientInfo = operation.getClientInfo();
-				ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp, clientInfo, myNumber, ret);
+				ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
+						clientInfo, myNumber, ret, operation.isDistributed());
 
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());

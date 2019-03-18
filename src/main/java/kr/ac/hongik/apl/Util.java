@@ -5,15 +5,26 @@ import org.apache.commons.lang3.SerializationUtils;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.security.*;
-import java.util.ArrayList;
-import java.util.Formatter;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class Util {
     static final String ALGORITHM = "SHA1withRSA";
 
+    public static Map<Integer, byte[]> toMap(List<Object> retrieved, int myNumber, byte[] myPiece) {
+        Map<Integer, byte[]> ret = new HashMap<>();
+
+        List<Object[]> input = retrieved.stream().map(x -> (Object[]) x).collect(Collectors.toList());
+
+        ret.put(myNumber, myPiece);
+
+        for (var i : input) {
+            ret.put((Integer) i[0], (byte[]) i[1]);
+        }
+
+        return ret;
+    }
 
     public static List<InetSocketAddress> parseProperties(Properties prop) {
         List<InetSocketAddress> replicaAddresses = new ArrayList<>();

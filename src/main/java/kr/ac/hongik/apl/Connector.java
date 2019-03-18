@@ -54,22 +54,10 @@ abstract class Connector {
 				this.replicas.put(i, socketChannel);
 				socketChannel = null;
 			} catch(IOException e) {
-				System.err.println(e);
+				// System.err.println(e);
 				closeWithoutException(socketChannel);
 				continue;
 			}
-		}
-	}
-
-	private void parseProperties(Properties prop) {
-		numOfReplica = Integer.parseInt(prop.getProperty("replica"));
-
-		for (int i = 0; i < numOfReplica; i++) {
-			String addressInString = prop.getProperty("replica" + i);
-			String[] parsedAddress = addressInString.split(":");
-
-			InetSocketAddress address = new InetSocketAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
-			replicaAddresses.add(address);
 		}
 	}
 
@@ -79,11 +67,8 @@ abstract class Connector {
 			SelectionKey key = socketChannel.keyFor(selector);
 			key.cancel();
 			assert !selector.keys().contains(socketChannel);
-		} catch (IOException e) {
-			//e.printStackTrace();
-			System.err.println(e);
-		} catch (NullPointerException e) {
-			//Ignore error message
+		} catch (IOException | NullPointerException e) {
+			//Ignore exception
 		}
 	}
 
@@ -132,7 +117,7 @@ abstract class Connector {
 			return;
 
 		} catch(IOException e) {
-			System.err.println(e);
+			//System.err.println(e);
 			reconnect(channel);
 		}
 	}
@@ -155,7 +140,6 @@ abstract class Connector {
 
 		} catch (NoSuchElementException e1) {
 			//client socket is failed. ignore reconnection
-			System.err.println("Do not reconnecto to clinet");
 			closeWithoutException(channel);    //de-register a selector
 			return;
 		}
