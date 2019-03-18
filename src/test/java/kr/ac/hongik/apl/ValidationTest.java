@@ -31,12 +31,13 @@ class ValidationTest {
 
 		Collector collector = new Collector(client.getPublicKey(), root);
 		client.request(makeRequestMsg(client.getPrivateKey(), collector));
-		Object t = client.getReply();
-		System.err.println(t.getClass().getName());
-		List<Object> prePieces = (List<Object>) t;
+		List<Object> prePieces = (List<Object>) client.getReply();
 
 		//toMap 이용해서 키 조합
 		Map<Integer, byte[]> pieces = Util.toMap(prePieces, (Integer) tmp[0], (byte[]) tmp[1]);
+		pieces.put((Integer) tmp[2], (byte[]) tmp[3]);
+		String header = new String(pieces.values().stream().reduce(Util::concat).get());
+		System.err.println(header);
 
 		//validation
 		Validation validation = new Validation(client.getPublicKey(), root, pieces, artHash);

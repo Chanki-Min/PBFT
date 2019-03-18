@@ -10,12 +10,14 @@ class ReplyMessage implements Message {
 
     private final Data data;
     private byte[] signature;
-    private boolean isDistributed = false;
+    private final boolean isDistributed;
 
     public ReplyMessage(Data data, byte[] signature, boolean isDistributed) {
         this.data = data;
         this.signature = signature;
         this.isDistributed = isDistributed;
+        if (Replica.DEBUG && isDistributed)
+            System.err.println("Distributed request!");
     }
 
     public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,

@@ -31,6 +31,6 @@ abstract class Operation implements Serializable {
     }
 
     public boolean isDistributed() {
-        return isDistributed;
+        return this.isDistributed;
     }
 }

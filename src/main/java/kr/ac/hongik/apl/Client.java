@@ -12,6 +12,7 @@ import java.util.Properties;
 public class Client extends Connector {
     private HashMap<Long, Integer> replies = new HashMap<>();
     private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
+	private List<Long> ignoreList = new ArrayList<>();
 
 
     public Client(Properties prop){
@@ -57,6 +58,9 @@ public class Client extends Connector {
             if (replyMessage.verifySignature(publicKey)) {
                 long uniqueKey = replyMessage.getTime();
                 if (replyMessage.isDistributed()) {
+					if (Replica.DEBUG) {
+						System.err.println("DISTRIBUTED!!!!!");
+					}
                     /******    각 레플리카가 각기 다른 메시지를 전달할 경우, 2f + 1개의 메시지를 수집한다.    ******/
                     List<Object> replyMsgs = distributedReplies.getOrDefault(uniqueKey, new ArrayList<>());
                     distributedReplies.put(uniqueKey, replyMsgs);
@@ -65,9 +69,15 @@ public class Client extends Connector {
 
                     if (replyMsgs.size() > 2 * getMaximumFaulty()) {
                         distributedReplies.remove(uniqueKey);
-                        return replyMsgs;
+						if (!ignoreList.contains(uniqueKey)) {
+							ignoreList.add(uniqueKey);
+							return replyMsgs;
+						}
                     }
                 } else {
+					if (Replica.DEBUG) {
+						System.err.println("Message from " + replyMessage.getTime());
+					}
                     /*
                      * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
                      * Timestamp값을 이용하여 여러 요청들을 구분한다.
@@ -75,8 +85,11 @@ public class Client extends Connector {
                     Integer numOfValue = replies.getOrDefault(uniqueKey, 0);
                     replies.put(uniqueKey, numOfValue + 1);
                     if (replies.get(uniqueKey) > this.getMaximumFaulty()) {
-                        //replies.remove(replyMessage);
-                        return replyMessage.getResult();
+						replies.remove(uniqueKey);
+						if (!ignoreList.contains(uniqueKey)) {
+							ignoreList.add(uniqueKey);
+							return replyMessage.getResult();
+						}
                     } else {
                         System.err.println("Message not verified");
                     }

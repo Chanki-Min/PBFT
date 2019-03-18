@@ -260,7 +260,7 @@ public class Replica extends Connector {
 		} catch (SQLException e) {
 			return;
 		}
-		if (!publicKeyMap.containsValue(message.getClientInfo())) throw new AssertionError();
+		if (!publicKeyMap.containsValue(message.getClientInfo())) return;
 		Supplier<Boolean> check = () ->
                 message.verify(message.getClientInfo()) &&
 				message.isFirstSent(rethrow().wrap(logger::getPreparedStatement));

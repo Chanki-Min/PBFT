@@ -15,7 +15,7 @@ public class Util {
     static final String ALGORITHM = "SHA1withRSA";
 
     public static Map<Integer, byte[]> toMap(List<Object> retrieved, int myNumber, byte[] myPiece) {
-        Map<Integer, byte[]> ret = new HashMap<>();
+        Map<Integer, byte[]> ret = new TreeMap<>();
 
         List<Object[]> input = retrieved.stream().map(x -> (Object[]) x).collect(Collectors.toList());
 

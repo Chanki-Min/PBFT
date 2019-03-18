@@ -63,9 +63,6 @@ public class Management extends Operation {
 
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
 		final String root = hashTree.root.getHash();
-		if (Replica.DEBUG) {
-			System.err.println("HEADER: " + header + "\nROOT: " + root);
-		}
 
 		//Caution Scheme.split is 1-indexed!
 		byte[] myPiece = pieces.get(replicaNumber + 1);

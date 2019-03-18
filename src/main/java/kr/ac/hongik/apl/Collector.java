@@ -20,6 +20,8 @@ public class Collector extends Operation {
 
 	@Override
 	public Object execute() {
+		if (Replica.DEBUG)
+			System.err.println("Execution time!");
 		String query = "SELECT C.piece FROM Certs C WHERE C.root = ?";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setString(1, root);
