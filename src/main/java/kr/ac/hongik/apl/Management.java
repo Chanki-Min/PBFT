@@ -1,10 +1,7 @@
 package kr.ac.hongik.apl;
 
-import com.codahale.shamir.Scheme;
-
 import java.net.InetSocketAddress;
 import java.security.PublicKey;
-import java.security.SecureRandom;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -62,23 +59,18 @@ public class Management extends Operation {
 		final int f = replicaAddresses.size() / 3;
 
 		//Assume that no one lost the piece
-		final Scheme scheme = new Scheme(new SecureRandom(), n, n - f + 1);
-		final Map<Integer, byte[]> pieces = scheme.split(header.getBytes());
+		final Map<Integer, byte[]> pieces = Util.split(header, n);
 
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
 		final String root = hashTree.root.getHash();
 		if (Replica.DEBUG) {
-			System.err.println("HEADER: " + header);
-
-			Scheme scheme1 = new Scheme(new SecureRandom(), n, n - f + 1);
-			byte[] ret = scheme1.join(pieces);
-			assert new String(ret).equals(header);
+			System.err.println("HEADER: " + header + "\nROOT: " + root);
 		}
 
 		//Caution Scheme.split is 1-indexed!
 		byte[] myPiece = pieces.get(replicaNumber + 1);
 
-		insertCert(root, myPiece, scheme);
+		insertCert(root, myPiece);
 
 		return new Object[]{n - 2, pieces.get(n - 1), n - 1, pieces.get(n), root};
 	}
@@ -169,11 +161,10 @@ public class Management extends Operation {
 		}
 	}
 
-	private void insertCert(final String root, final byte[] certPiece, final Scheme scheme) {
+	private void insertCert(final String root, final byte[] certPiece) {
 		String query = "CREATE TABLE IF NOT EXISTS Certs " +
 				"(root TEXT," +
 				"piece TEXT," +
-				"scheme OBJECT," +
 				"PRIMARY KEY(root))";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.execute();
@@ -181,11 +172,10 @@ public class Management extends Operation {
 			e.printStackTrace();
 		}
 
-		query = "INSERT INTO Certs VALUES (?, ?, ?)";
+		query = "INSERT INTO Certs VALUES (?, ?)";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setString(1, root);
 			pstmt.setBytes(2, certPiece);
-			pstmt.setObject(3, scheme);
 
 			pstmt.execute();
 

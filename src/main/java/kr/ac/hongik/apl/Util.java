@@ -2,6 +2,8 @@ package kr.ac.hongik.apl;
 
 import org.apache.commons.lang3.SerializationUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.security.*;
@@ -24,6 +26,34 @@ public class Util {
         }
 
         return ret;
+    }
+
+    public static Map<Integer, byte[]> split(String data, int n) {
+        Map<Integer, byte[]> ret = new HashMap<>();
+        final int size = data.length() / n;
+
+        for (int i = 0; i < n; ++i) {
+            byte[] value;
+            try {
+                value = data.substring(i * size, size).getBytes();
+            } catch (IndexOutOfBoundsException e) {
+                value = data.substring(i * size).getBytes();
+            }
+            ret.put(i + 1, value);
+        }
+
+        return ret;
+    }
+
+    public static byte[] concat(byte[] lhs, byte[] rhs) {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try {
+            bos.write(lhs);
+            bos.write(rhs);
+            return bos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static List<InetSocketAddress> parseProperties(Properties prop) {

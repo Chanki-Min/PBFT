@@ -1,7 +1,5 @@
 package kr.ac.hongik.apl;
 
-import com.codahale.shamir.Scheme;
-
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -21,22 +19,9 @@ public class Validation extends Operation {
 	}
 
 	private String reassemble(Map<Integer, byte[]> pieces, String root) {
-		String query = "SELECT C.scheme " +
-				"FROM Certs C " +
-				"WHERE C.root = ?";
-		Scheme scheme;
-		try (var pstmt = getPreparedStatement(query)) {
-			pstmt.setString(1, root);
-			try (var ret = pstmt.executeQuery()) {
-				ret.next();
-				scheme = (Scheme) ret.getObject(1);
-			}
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-		byte[] rootInBytes = scheme.join(pieces);
 
-		return new String(rootInBytes);
+		byte[] assembled = pieces.values().stream().reduce(Util::concat).get();
+		return new String(assembled);
 	}
 
 	private PreparedStatement getPreparedStatement(String query) {
