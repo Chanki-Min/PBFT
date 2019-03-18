@@ -42,7 +42,7 @@ public class Management extends Operation {
 	 * @return ({ certNumber, certPiece }, { certNumber, certPiece }, merkle tree root)
 	 */
 	@Override
-	Object execute() {
+	public Object execute() {
 
 		createTableIfNotExists();
 
@@ -67,7 +67,7 @@ public class Management extends Operation {
 		//Caution Scheme.split is 1-indexed!
 		byte[] myPiece = pieces.get(replicaNumber + 1);
 
-		insertCert(root, myPiece);
+		insertCert(root, myPiece, scheme);
 
 		return new Object[]{n - 2, pieces.get(n - 1), n - 1, pieces.get(n), root};
 	}
@@ -157,10 +157,11 @@ public class Management extends Operation {
 		}
 	}
 
-	private void insertCert(final String root, final byte[] certPiece) {
+	private void insertCert(final String root, final byte[] certPiece, final Scheme scheme) {
 		String query = "CREATE TABLE IF NOT EXISTS Certs " +
 				"(root TEXT," +
 				"piece TEXT," +
+				"scheme OBJECT," +
 				"PRIMARY KEY(root))";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.execute();
@@ -168,10 +169,11 @@ public class Management extends Operation {
 			e.printStackTrace();
 		}
 
-		query = "INSERT INTO Certs VALUES (?, ?)";
+		query = "INSERT INTO Certs VALUES (?, ?, ?)";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setString(1, root);
-			pstmt.setBytes(1, certPiece);
+			pstmt.setBytes(2, certPiece);
+			pstmt.setObject(3, scheme);
 
 			pstmt.execute();
 		} catch (SQLException e) {

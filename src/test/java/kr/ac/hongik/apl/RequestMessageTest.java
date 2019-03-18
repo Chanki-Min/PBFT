@@ -17,7 +17,7 @@ class RequestOperation extends Operation {
     }
 
     @Override
-    Object execute() {
+	public Object execute() {
         return null;
     }
 }

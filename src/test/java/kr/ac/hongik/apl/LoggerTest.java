@@ -19,7 +19,7 @@ class SampleOperation extends Operation {
     }
 
     @Override
-    Object execute() {
+	public Object execute() {
         return null;
     }
 }
@@ -56,7 +56,7 @@ class LoggerTest {
     }
 
     @Test
-    void insertMessage() throws NoSuchAlgorithmException {
+	void insertMessage() {
         Logger logger = new Logger();
 
         try {
