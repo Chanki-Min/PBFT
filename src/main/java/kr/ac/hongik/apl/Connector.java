@@ -31,7 +31,6 @@ abstract class Connector {
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
 
-	int numOfReplica;
 
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();
@@ -233,7 +232,7 @@ abstract class Connector {
 	}
 
 	final int getMaximumFaulty() {
-		return this.numOfReplica / 3;
+		return this.replicaAddresses.size() / 3;
 	}
 
 }

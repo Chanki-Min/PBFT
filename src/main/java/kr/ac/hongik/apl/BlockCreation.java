@@ -1,42 +1,30 @@
 package kr.ac.hongik.apl;
 
-import java.net.InetSocketAddress;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
-public class Management extends Operation {
-	private final List<InetSocketAddress> replicaAddresses;
+public class BlockCreation extends Operation {
 	private final BlockPayload blockPayload;
 	private Function<String, PreparedStatement> sqlAccessor = null;
-	private Integer replicaNumber = null;
 
-	protected Management(PublicKey clientInfo, Properties replicasInfo, String artHash, String seller, String buyer, long price, long duration) {
-		this(clientInfo, replicasInfo, new BlockPayload(artHash, seller, buyer, price, duration));
+	protected BlockCreation(PublicKey clientInfo, String artHash, String seller, String buyer, long price, long duration) {
+		this(clientInfo, new BlockPayload(artHash, seller, buyer, price, duration));
 	}
 
-	protected Management(PublicKey clientInfo, Properties replicasInfo, BlockPayload blockPayload) {
-		super(clientInfo, Instant.now().getEpochSecond());
-		replicaAddresses = Util.parseProperties(replicasInfo);
+	protected BlockCreation(PublicKey clientInfo, BlockPayload blockPayload) {
+		super(clientInfo, Instant.now().getEpochSecond(), false);
 		this.blockPayload = blockPayload;
 	}
 
 	/**
-	 * @param sqlAccessor If the replica identify that this message is Management instance,
+	 * @param sqlAccessor If the replica identify that this message is BlockCreation instance,
 	 *                    then the replica insert the sql preparedStatement function.
 	 */
 	public void setSqlAccessor(Function<String, PreparedStatement> sqlAccessor) {
 		this.sqlAccessor = sqlAccessor;
-	}
-
-	public void setReplicaNumber(Integer replicaNumber) {
-		this.replicaNumber = replicaNumber;
 	}
 
 	/**
@@ -53,38 +41,8 @@ public class Management extends Operation {
 
 		insertBlock(header, blockPayload, this.getTimestamp());
 
-		//2. Split the certs and the replica store each pieces.
+		return header;
 
-		final int n = replicaAddresses.size() + 2;    //Replicas + seller + buyer
-		final int f = replicaAddresses.size() / 3;
-
-		//Assume that no one lost the piece
-		final Map<Integer, byte[]> pieces = Util.split(header, n);
-
-		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
-		final String root = hashTree.root.getHash();
-
-		//Caution Scheme.split is 1-indexed!
-		byte[] myPiece = pieces.get(replicaNumber + 1);
-
-		insertCert(root, myPiece);
-
-		return new Object[]{n - 2, pieces.get(n - 1), n - 1, pieces.get(n), root};
-	}
-
-	private boolean checkIfExists() {
-		String query = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Blocks'";
-		try (var pstmt = getPreparedStatement(query)) {
-			try (var ret = pstmt.executeQuery()) {
-				if (ret.next())
-					return ret.getBoolean(1);
-				else
-					return false;
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-			return false;
-		}
 	}
 
 	private void createTableIfNotExists() {
@@ -125,6 +83,21 @@ public class Management extends Operation {
 		}
 	}
 
+	private boolean checkIfExists() {
+		String query = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Blocks'";
+		try (var pstmt = getPreparedStatement(query)) {
+			try (var ret = pstmt.executeQuery()) {
+				if (ret.next())
+					return ret.getBoolean(1);
+				else
+					return false;
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
 	private String getLatestheader() {
 		String query = "SELECT B.header " +
 				"FROM Blocks B " +
@@ -158,32 +131,9 @@ public class Management extends Operation {
 		}
 	}
 
-	private void insertCert(final String root, final byte[] certPiece) {
-		String query = "CREATE TABLE IF NOT EXISTS Certs " +
-				"(root TEXT," +
-				"piece TEXT," +
-				"PRIMARY KEY(root))";
-		try (var pstmt = getPreparedStatement(query)) {
-			pstmt.execute();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-
-		query = "INSERT INTO Certs VALUES (?, ?)";
-		try (var pstmt = getPreparedStatement(query)) {
-			pstmt.setString(1, root);
-			pstmt.setBytes(2, certPiece);
-
-			pstmt.execute();
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-
-	}
-
 	private PreparedStatement getPreparedStatement(String query) {
 		return sqlAccessor.apply(query);
 	}
+
 
 }

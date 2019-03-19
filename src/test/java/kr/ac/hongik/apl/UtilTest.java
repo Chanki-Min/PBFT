@@ -80,7 +80,7 @@ class UtilTest {
     @Test
     void mySplitTest() {
         String expected = "hello, guys!";
-        var splitted = Util.split(expected, 3);
+        var splitted = Util.split(expected, 3, 1);
         Assertions.assertEquals(expected, new String(splitted.values().stream().reduce(Util::concat).get()));
     }
 

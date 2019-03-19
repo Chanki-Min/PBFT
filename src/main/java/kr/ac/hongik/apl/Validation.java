@@ -4,24 +4,17 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
-import java.util.Map;
 import java.util.function.Function;
 
 public class Validation extends Operation {
-	private final String cert;
+	private final String header;
 	private final String artHash;
 	private Function<String, PreparedStatement> sqlAccessor = null;
 
-	protected Validation(PublicKey clientInfo, String root, Map<Integer, byte[]> pieces, String artHash) {
+	protected Validation(PublicKey clientInfo, String header, String artHash) {
 		super(clientInfo, Instant.now().getEpochSecond());
 		this.artHash = artHash;
-		this.cert = reassemble(pieces, root);
-	}
-
-	private String reassemble(Map<Integer, byte[]> pieces, String root) {
-
-		byte[] assembled = pieces.values().stream().reduce(Util::concat).get();
-		return new String(assembled);
+		this.header = header;
 	}
 
 	private PreparedStatement getPreparedStatement(String query) {
@@ -36,7 +29,8 @@ public class Validation extends Operation {
 				"					FROM Blocks B1 " +
 				"					WHERE B1.work = ?)";
 		try (var pstmt = getPreparedStatement(query)) {
-			pstmt.setString(1, cert);
+			pstmt.setString(1, header);
+			pstmt.setString(2, artHash);
 			try (var ret = pstmt.executeQuery()) {
 				ret.next();
 				return ret.getBoolean(1);

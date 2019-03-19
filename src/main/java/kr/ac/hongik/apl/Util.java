@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+import com.codahale.shamir.Scheme;
 import org.apache.commons.lang3.SerializationUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -28,21 +29,9 @@ public class Util {
         return ret;
     }
 
-    public static Map<Integer, byte[]> split(String data, int n) {
-        Map<Integer, byte[]> ret = new HashMap<>();
-        final int size = data.length() / n;
-
-        for (int i = 0; i < n; ++i) {
-            byte[] value;
-            try {
-                value = data.substring(i * size, size).getBytes();
-            } catch (IndexOutOfBoundsException e) {
-                value = data.substring(i * size).getBytes();
-            }
-            ret.put(i + 1, value);
-        }
-
-        return ret;
+    public static Map<Integer, byte[]> split(String data, int n, int f) {
+        Scheme scheme = new Scheme(new SecureRandom(), n, n - f + 1);
+        return scheme.split(data.getBytes());
     }
 
     public static byte[] concat(byte[] lhs, byte[] rhs) {

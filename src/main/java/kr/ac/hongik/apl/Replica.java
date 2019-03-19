@@ -185,10 +185,11 @@ public class Replica extends Connector {
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
-				if (operation instanceof Management) {
-					Management mngmt = (Management) operation;
-					mngmt.setReplicaNumber(this.myNumber);
-					mngmt.setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+				if (operation instanceof BlockCreation) {
+					((BlockCreation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+				} else if (operation instanceof CertCreation) {
+					((CertCreation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+					((CertCreation) operation).setReplicaNumber(myNumber);
 				} else if (operation instanceof Collector) {
 					((Collector) operation).setReplicaNumber(myNumber);
 					((Collector) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
@@ -196,6 +197,9 @@ public class Replica extends Connector {
 					((Validation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
 				}
 				Object ret = operation.execute();
+
+				if (Replica.DEBUG)
+					System.err.printf("Execute #%d\n", cmsg.getSeqNum());
 
 				var viewNum = cmsg.getViewNum();
 				var timestamp = operation.getTimestamp();
@@ -266,10 +270,13 @@ public class Replica extends Connector {
 				message.isFirstSent(rethrow().wrap(logger::getPreparedStatement));
 
 
-		if (this.primary == this.myNumber && check.get()) {
-			logger.insertMessage(message);
-			//Enter broadcast phase
-			broadcastToReplica(message);
+		if (this.primary == this.myNumber) {
+			if (message.isFirstSent(rethrow().wrap(logger::getPreparedStatement)) &&
+					message.verify(message.getClientInfo())) {
+				logger.insertMessage(message);
+				//Enter broadcast phase
+				broadcastToReplica(message);
+			}
 		} else {
 			//Relay to primary
 			super.send(replicas.get(primary), message);
