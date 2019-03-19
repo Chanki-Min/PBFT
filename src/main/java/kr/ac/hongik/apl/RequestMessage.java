@@ -29,7 +29,7 @@ public class RequestMessage implements Message {
 
     public static RequestMessage makeRequestMsg(PrivateKey privateKey, Operation operation) {
 		byte[] signature;
-		if (operation instanceof CertCreation)
+        if (operation instanceof CertStorage)
 			signature = sign(privateKey, operation.toString());
 		else
 			signature = sign(privateKey, operation);
@@ -37,7 +37,7 @@ public class RequestMessage implements Message {
     }
 
     boolean verify(PublicKey publicKey) {
-		if (this.operation instanceof CertCreation)
+        if (this.operation instanceof CertStorage)
 			return Util.verify(publicKey, this.operation.toString(), this.signature);
 		else
 			return Util.verify(publicKey, this.operation, this.signature);

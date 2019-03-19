@@ -187,9 +187,9 @@ public class Replica extends Connector {
 				var operation = logger.getOperation(rightNextCommitMsg);
 				if (operation instanceof BlockCreation) {
 					((BlockCreation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
-				} else if (operation instanceof CertCreation) {
-					((CertCreation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
-					((CertCreation) operation).setReplicaNumber(myNumber);
+				} else if (operation instanceof CertStorage) {
+					((CertStorage) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
+					((CertStorage) operation).setReplicaNumber(myNumber);
 				} else if (operation instanceof Collector) {
 					((Collector) operation).setReplicaNumber(myNumber);
 					((Collector) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));

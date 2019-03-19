@@ -33,8 +33,8 @@ class ValidationTest {
 		Map<Integer, byte[]> pieces = Util.split(header, n, f);
 
 		client = new Client(prop);
-		CertCreation certCreation = new CertCreation(client.getPublicKey(), pieces);
-		client.request(makeRequestMsg(client.getPrivateKey(), certCreation));
+		CertStorage certStorage = new CertStorage(client.getPublicKey(), pieces);
+		client.request(makeRequestMsg(client.getPrivateKey(), certStorage));
 		List<Object> roots = (List<Object>) client.getReply();
 		String root = (String) roots.get(0);
 

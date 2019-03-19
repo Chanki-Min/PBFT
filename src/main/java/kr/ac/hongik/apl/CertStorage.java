@@ -8,12 +8,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class CertCreation extends Operation {
+public class CertStorage extends Operation {
 	private final Map<Integer, byte[]> pieces;
 	private Function<String, PreparedStatement> sqlAccessor = null;
 	private Integer replicaNumber = null;
 
-	protected CertCreation(PublicKey clientInfo, Map<Integer, byte[]> pieces) {
+	protected CertStorage(PublicKey clientInfo, Map<Integer, byte[]> pieces) {
 		super(clientInfo, Instant.now().getEpochSecond(), true);
 		this.pieces = pieces;
 	}

@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-class CertCreationTest {
+class CertStorageTest {
 
 	@Test
 	void serializeTest() throws IOException {
@@ -20,13 +20,13 @@ class CertCreationTest {
 		Client client = new Client(prop);
 		Map<Integer, byte[]> m = new HashMap<>();
 		m.put(1, "hi".getBytes());
-		CertCreation certCreation = new CertCreation(client.getPublicKey(), m);
+		CertStorage certStorage = new CertStorage(client.getPublicKey(), m);
 
-		var tmp = Util.serialize(certCreation);
+		var tmp = Util.serialize(certStorage);
 
 		var actual = Util.deserialize(tmp);
 
-		Assertions.assertEquals(certCreation, actual);
+		Assertions.assertEquals(certStorage, actual);
 	}
 
 	@Test
@@ -40,7 +40,7 @@ class CertCreationTest {
 		Map<Integer, byte[]> m = new HashMap<>();
 		m.put(1, "hi".getBytes());
 
-		CertCreation expected = new CertCreation(client.getPublicKey(), m);
+		CertStorage expected = new CertStorage(client.getPublicKey(), m);
 
 		var signed = Util.sign(client.getPrivateKey(), expected);
 
