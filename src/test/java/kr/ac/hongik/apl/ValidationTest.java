@@ -15,12 +15,12 @@ import static kr.ac.hongik.apl.RequestMessage.makeRequestMsg;
 
 class ValidationTest {
 	@Test
-	void validationTest() throws IOException {
+	void validationTest() throws IOException, InterruptedException {
 		/****** Create some blocks to test ******/
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
-		var replicas = Util.parseProperties(prop);
 		prop.load(in);
+		var replicas = Util.parseProperties(prop);
 		String artHash = "art1";
 
 		Client client = new Client(prop);
@@ -33,7 +33,7 @@ class ValidationTest {
 		Map<Integer, byte[]> pieces = Util.split(header, n, f);
 
 		client = new Client(prop);
-		CertCreation certCreation = new CertCreation(client.getPublicKey(), prop, pieces);
+		CertCreation certCreation = new CertCreation(client.getPublicKey(), pieces);
 		client.request(makeRequestMsg(client.getPrivateKey(), certCreation));
 		List<Object> roots = (List<Object>) client.getReply();
 		String root = (String) roots.get(0);

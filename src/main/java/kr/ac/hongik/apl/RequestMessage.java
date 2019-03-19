@@ -28,12 +28,19 @@ public class RequestMessage implements Message {
     }
 
     public static RequestMessage makeRequestMsg(PrivateKey privateKey, Operation operation) {
-        byte[] signature = sign(privateKey, operation);
+		byte[] signature;
+		if (operation instanceof CertCreation)
+			signature = sign(privateKey, operation.toString());
+		else
+			signature = sign(privateKey, operation);
         return new RequestMessage(operation, signature);
     }
 
     boolean verify(PublicKey publicKey) {
-        return Util.verify(publicKey, this.operation, this.signature);
+		if (this.operation instanceof CertCreation)
+			return Util.verify(publicKey, this.operation.toString(), this.signature);
+		else
+			return Util.verify(publicKey, this.operation, this.signature);
     }
 
     boolean isFirstSent(Function<String, PreparedStatement> prepareStatement) {

@@ -20,7 +20,8 @@ public class BlockPayload implements Message {
         return this.artHash;
     }
 
-    @Override
+
+	@Override
     public String toString() {
         return artHash + seller + buyer + price + duration;
     }

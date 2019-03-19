@@ -1,36 +1,37 @@
 package kr.ac.hongik.apl;
 
-import java.net.InetSocketAddress;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class CertCreation extends Operation {
 	private final Map<Integer, byte[]> pieces;
-	private final List<InetSocketAddress> replicaAddresses;
 	private Function<String, PreparedStatement> sqlAccessor = null;
 	private Integer replicaNumber = null;
 
-	protected CertCreation(PublicKey clientInfo, Properties replicasInfo, Map<Integer, byte[]> pieces) {
+	protected CertCreation(PublicKey clientInfo, Map<Integer, byte[]> pieces) {
 		super(clientInfo, Instant.now().getEpochSecond(), true);
-		replicaAddresses = Util.parseProperties(replicasInfo);
 		this.pieces = pieces;
+	}
+
+	@Override
+	public String toString() {
+		String ret = "";
+		for (var k : pieces.keySet())
+			ret += k.toString();
+		for (var v : pieces.values())
+			ret += new String(v);
+		return ret;
 	}
 
 	@Override
 	public Object execute() {
 		if (Replica.DEBUG) {
 			System.err.println("Cert: execution");
-		}
-		byte[][] input = new byte[pieces.size()][];
-		for (int i = 0; i < pieces.size(); ++i) {
-			input[i] = pieces.get(i + 1);
 		}
 
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));

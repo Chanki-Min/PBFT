@@ -41,6 +41,7 @@ public class Validation extends Operation {
 		}
 	}
 
+
 	public void setSqlAccessor(Function<String, PreparedStatement> sqlAccessor) {
 		this.sqlAccessor = sqlAccessor;
 	}

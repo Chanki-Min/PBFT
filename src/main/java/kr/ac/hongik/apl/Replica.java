@@ -271,6 +271,8 @@ public class Replica extends Connector {
 
 
 		if (this.primary == this.myNumber) {
+			if (Replica.DEBUG)
+				System.err.println(this.myNumber + "\t" + message.getOperation().toString());
 			if (message.isFirstSent(rethrow().wrap(logger::getPreparedStatement)) &&
 					message.verify(message.getClientInfo())) {
 				logger.insertMessage(message);
