@@ -66,9 +66,9 @@ class BlockCreationTest {
 		client.request(makeRequestMsg(client.getPrivateKey(), blockCreation));
 		String header = (String) client.getReply();
 
-		int n = replicas.size() + 2;
+		int n = replicas.size();
 		int f = replicas.size() / 3;
-		Map<Integer, byte[]> pieces = Util.split(header, n, f);
+		Map<Integer, byte[]> pieces = Util.split(header, n + 2, n - f + 1);
 
 		client = new Client(prop);
 		CertStorage certStorage = new CertStorage(client.getPublicKey(), pieces);
@@ -82,7 +82,7 @@ class BlockCreationTest {
 		client.request(makeRequestMsg(client.getPrivateKey(), blockCreation1));
 		String header1 = (String) client.getReply();
 
-		Map<Integer, byte[]> pieces1 = Util.split(header, n, f);
+		Map<Integer, byte[]> pieces1 = Util.split(header, n + 2, n - f + 1);
 
 		client = new Client(prop);
 		CertStorage certStorage1 = new CertStorage(client.getPublicKey(), pieces1);

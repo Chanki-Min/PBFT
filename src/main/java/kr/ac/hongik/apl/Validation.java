@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+import javax.print.DocFlavor;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -23,17 +24,18 @@ public class Validation extends Operation {
 
 	@Override
 	public Object execute() {
-		var query = "SELECT B.header = ? " +
+		var query = "SELECT B.header " +
 				"FROM Blocks B " +
 				"WHERE B.txnTime = (SELECT MAX(B1.txnTime) " +
 				"					FROM Blocks B1 " +
 				"					WHERE B1.work = ?)";
 		try (var pstmt = getPreparedStatement(query)) {
-			pstmt.setString(1, header);
-			pstmt.setString(2, artHash);
+			//pstmt.setString(1, header);
+			pstmt.setString(1, artHash);
 			try (var ret = pstmt.executeQuery()) {
 				ret.next();
-				return ret.getBoolean(1);
+				var hdr = ret.getString(1);
+				return header.equals(hdr);
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();

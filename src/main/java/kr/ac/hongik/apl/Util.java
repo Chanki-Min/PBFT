@@ -29,8 +29,8 @@ public class Util {
         return ret;
     }
 
-    public static Map<Integer, byte[]> split(String data, int n, int f) {
-        Scheme scheme = new Scheme(new SecureRandom(), n, n - f + 1);
+    public static Map<Integer, byte[]> split(String data, int n, int k) {
+        Scheme scheme = new Scheme(new SecureRandom(), n, k);
         return scheme.split(data.getBytes());
     }
 
