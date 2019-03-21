@@ -15,7 +15,7 @@ import static kr.ac.hongik.apl.RequestMessage.makeRequestMsg;
 
 class ValidationTest {
 	@Test
-	void validationTest() throws IOException, InterruptedException {
+	void validationTest() throws IOException {
 		/****** Create some blocks to test ******/
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
@@ -44,6 +44,7 @@ class ValidationTest {
 		int buyerPieceNumber = replicas.size() + 1;
 		byte[] buyerCertPiece = pieces.get(buyerPieceNumber);
 
+		client = new Client(prop);
 		Collector collector = new Collector(client.getPublicKey(), root);
 		client.request(makeRequestMsg(client.getPrivateKey(), collector));
 		List<Object> prePieces = (List<Object>) client.getReply();
@@ -55,6 +56,7 @@ class ValidationTest {
 		String newHeader = new String(newScheme.join(pieces));
 
 		//validation
+		client = new Client(prop);
 		Validation validation = new Validation(client.getPublicKey(), header, artHash);
 		client.request(makeRequestMsg(client.getPrivateKey(), validation));
 

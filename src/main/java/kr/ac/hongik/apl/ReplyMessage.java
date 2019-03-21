@@ -16,8 +16,6 @@ class ReplyMessage implements Message {
         this.data = data;
         this.signature = signature;
         this.isDistributed = isDistributed;
-        if (Replica.DEBUG && isDistributed)
-            System.err.println("Distributed request!");
     }
 
     public static ReplyMessage makeReplyMsg(PrivateKey privateKey, int viewNum, long timestamp,

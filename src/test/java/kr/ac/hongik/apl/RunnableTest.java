@@ -13,7 +13,6 @@ import static java.lang.Thread.sleep;
 
 
 public class RunnableTest {
-
     @Test
     void requestTest() throws IOException {
         InputStream in = getClass().getResourceAsStream("/replica.properties");

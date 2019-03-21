@@ -198,8 +198,7 @@ public class Replica extends Connector {
 				}
 				Object ret = operation.execute();
 
-				if (Replica.DEBUG)
-					System.err.printf("Execute #%d\n", cmsg.getSeqNum());
+				System.err.printf("Execute #%d\n", cmsg.getSeqNum());
 
 				var viewNum = cmsg.getViewNum();
 				var timestamp = operation.getTimestamp();
@@ -271,10 +270,7 @@ public class Replica extends Connector {
 
 
 		if (this.primary == this.myNumber) {
-			if (Replica.DEBUG)
-				System.err.println(this.myNumber + "\t" + message.getOperation().toString());
-			if (message.isFirstSent(rethrow().wrap(logger::getPreparedStatement)) &&
-					message.verify(message.getClientInfo())) {
+			if (check.get()) {
 				logger.insertMessage(message);
 				//Enter broadcast phase
 				broadcastToReplica(message);

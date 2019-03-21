@@ -30,10 +30,6 @@ public class CertStorage extends Operation {
 
 	@Override
 	public Object execute() {
-		if (Replica.DEBUG) {
-			System.err.println("Cert: execution");
-		}
-
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
 		String root = hashTree.root.getHash();
 		byte[] myPiece = pieces.get(replicaNumber + 1);
