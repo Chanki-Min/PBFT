@@ -21,7 +21,7 @@ public class RunnableTest {
 
         Client client = new Client(prop);
         Operation op = new GreetingOperation(client.getPublicKey());
-        RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
+		RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
         System.err.println("Client: Request");
         client.request(requestMessage);
         System.err.println("Client: try to get reply");
@@ -65,7 +65,7 @@ public class RunnableTest {
         Integer repeatTime = 5;
         for(int i = 0; i < repeatTime; i++) {
             Operation op = new GreetingOperation(client.getPublicKey());
-            RequestMessage requestMessage = new RequestMessage(client.getPrivateKey(), op);
+			RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
             client.request(requestMessage);
             sleep(1000);
         }

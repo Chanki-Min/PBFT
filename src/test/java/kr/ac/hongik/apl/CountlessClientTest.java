@@ -2,9 +2,6 @@ package kr.ac.hongik.apl;
 
 import org.junit.jupiter.api.Assertions;
 
-import java.io.IOException;
-import java.net.*;
-import java.nio.channels.SocketChannel;
 import java.time.Instant;
 import java.util.Properties;
 
@@ -18,7 +15,7 @@ public class CountlessClientTest extends Thread{
     public CountlessClientTest(Properties prop, int clientNum){
         this.client = new Client(prop);
         this.op = new GreetingOperation(client.getPublicKey());
-        this.requestMessage = new RequestMessage(client.getPrivateKey(), op);
+		this.requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
         this.clientNum = clientNum;
     }
 

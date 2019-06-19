@@ -23,7 +23,7 @@ class UtilTest {
 
         assertTrue(Util.verify(publicKey, sampleData, signature));
 
-        Message sample2 = new PrepareMessage(privateKey, 0, 0, "hihihi", 0);
+        Message sample2 = PrepareMessage.makePrepareMsg(privateKey, 0, 0, "hihihi", 0);
         signature = Util.sign(privateKey, sample2);
         assertTrue(Util.verify(publicKey, sample2, signature));
     }
@@ -33,12 +33,12 @@ class UtilTest {
         KeyPair keyPair = Util.generateKeyPair();
         PrivateKey privateKey = keyPair.getPrivate();
 
-        Message expected = new PrepareMessage(privateKey, 0, 0, "hi", 0);
+        Message expected = PrepareMessage.makePrepareMsg(privateKey, 0, 0, "hi", 0);
 
         byte[] ser = Util.serialize(expected);
         assertEquals(expected, Util.deserialize(ser));
 
-        expected = new CommitMessage(privateKey, 1, 1, "hello", 1);
+        expected = CommitMessage.makeCommitMsg(privateKey, 1, 1, "hello", 1);
         ser = Util.serialize(expected);
         assertEquals(expected, Util.deserialize(ser));
     }

@@ -30,7 +30,7 @@ class RequestMessageTest {
         PublicKey clientInfo = keyPair.getPublic();
         long timestamp = Instant.now().getEpochSecond();
         Operation operation = new RequestOperation(clientInfo, timestamp);
-        RequestMessage requestMessage = new RequestMessage(keyPair.getPrivate(), operation);
+		RequestMessage requestMessage = RequestMessage.makeRequestMsg(keyPair.getPrivate(), operation);
         System.out.println("RequestMessage Class Unit Test Success");
     }
 }

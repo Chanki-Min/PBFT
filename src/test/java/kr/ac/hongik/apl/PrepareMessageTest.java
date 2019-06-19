@@ -15,7 +15,7 @@ class PrepareMessageTest {
     void test() throws NoSuchAlgorithmException {
         System.out.println("PrepareMessage Class Unit Test Start");
         KeyPair keyPair = generateKeyPair();
-        PrepareMessage prepareMessage = new PrepareMessage(keyPair.getPrivate(), 0, 0, "digest", 0);
+        PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(keyPair.getPrivate(), 0, 0, "digest", 0);
         System.out.println("PrepareMessage Class Unit Test Success");
     }
 
@@ -23,8 +23,8 @@ class PrepareMessageTest {
     void fromCommitMessage() throws SQLException {
         KeyPair keyPair = Util.generateKeyPair();
         PrivateKey privateKey = keyPair.getPrivate();
-        PrepareMessage expected = new PrepareMessage(privateKey, 1, 1, "hi", 1);
-        CommitMessage commitMessage = new CommitMessage(privateKey, expected.getViewNum(),
+        PrepareMessage expected = PrepareMessage.makePrepareMsg(privateKey, 1, 1, "hi", 1);
+        CommitMessage commitMessage = CommitMessage.makeCommitMsg(privateKey, expected.getViewNum(),
                 expected.getSeqNum(), expected.getDigest(), expected.getReplicaNum());
 
         Logger logger = new Logger();

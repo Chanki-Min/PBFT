@@ -1,7 +1,7 @@
 package kr.ac.hongik.apl;
 
 import java.io.Serializable;
-import java.security.*;
+import java.security.PrivateKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -13,9 +13,16 @@ public class CommitMessage implements Message {
     byte[] signature;
     private Data data;
 
-    public CommitMessage(PrivateKey privateKey, int viewNum, int seqNum, String digest, int replicaNum) {
-        this.data = new Data(viewNum, seqNum, digest, replicaNum);
-        this.signature = sign(privateKey, this.data);
+
+	private CommitMessage(Data data, byte[] signature) {
+		this.data = data;
+		this.signature = signature;
+	}
+
+	public static CommitMessage makeCommitMsg(PrivateKey privateKey, int viewNum, int seqNum, String digest, int replicaNum) {
+		Data data = new Data(viewNum, seqNum, digest, replicaNum);
+		byte[] signature = sign(privateKey, data);
+		return new CommitMessage(data, signature);
     }
 
     public byte[] getSignature() {
@@ -66,8 +73,7 @@ public class CommitMessage implements Message {
         return Arrays.stream(checklist).allMatch(x -> x);
     }
 
-
-    private class Data implements Serializable {
+	private static class Data implements Serializable {
         private final int viewNum;
         private final int seqNum;
         private final String digest;

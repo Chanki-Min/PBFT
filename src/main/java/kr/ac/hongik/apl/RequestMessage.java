@@ -16,17 +16,6 @@ public class RequestMessage implements Message {
     private Operation operation;
     private byte[] signature;
 
-    public RequestMessage(PrivateKey privateKey, Operation operation) {
-
-        this.operation = operation;
-        this.signature = sign(privateKey, this.operation);
-    }
-
-    private RequestMessage(Operation operation, byte[] signature) {
-        this.operation = operation;
-        this.signature = signature;
-    }
-
     public static RequestMessage makeRequestMsg(PrivateKey privateKey, Operation operation) {
 		byte[] signature;
         if (operation instanceof CertStorage)
@@ -36,6 +25,12 @@ public class RequestMessage implements Message {
         return new RequestMessage(operation, signature);
     }
 
+    private RequestMessage(Operation operation, byte[] signature) {
+        this.operation = operation;
+        this.signature = signature;
+    }
+
+
     boolean verify(PublicKey publicKey) {
         if (this.operation instanceof CertStorage)
 			return Util.verify(publicKey, this.operation.toString(), this.signature);
@@ -43,7 +38,7 @@ public class RequestMessage implements Message {
 			return Util.verify(publicKey, this.operation, this.signature);
     }
 
-    boolean isFirstSent(Function<String, PreparedStatement> prepareStatement) {
+    boolean isNotRepeated(Function<String, PreparedStatement> prepareStatement) {
         try {
             String baseQuery = "SELECT R.timestamp FROM Requests R WHERE R.client = ? AND R.operation = ?";
             var pstmt = prepareStatement.apply(baseQuery);

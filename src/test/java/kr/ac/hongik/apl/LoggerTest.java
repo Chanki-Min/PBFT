@@ -45,7 +45,7 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond());
 
-            PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
+            PreprepareMessage preprepareMessage = PreprepareMessage.makePrePrepareMsg(privateKey, 0, 0, sampleOperation);
 
             logger.insertMessage(preprepareMessage);
             logger.insertMessage(preprepareMessage);
@@ -68,10 +68,10 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond());
 
-            RequestMessage requestMessage = new RequestMessage(privateKey, sampleOperation);
-            PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
-            PrepareMessage prepareMessage = new PrepareMessage(privateKey, 0, 0, "hi", 0);
-            CommitMessage commitMessage = new CommitMessage(privateKey, 0, 0, "hi", 0);
+            RequestMessage requestMessage = RequestMessage.makeRequestMsg(privateKey, sampleOperation);
+            PreprepareMessage preprepareMessage = PreprepareMessage.makePrePrepareMsg(privateKey, 0, 0, sampleOperation);
+            PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(privateKey, 0, 0, "hi", 0);
+            CommitMessage commitMessage = CommitMessage.makeCommitMsg(privateKey, 0, 0, "hi", 0);
 
             logger.insertMessage(requestMessage);
             logger.insertMessage(preprepareMessage);
@@ -95,7 +95,7 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond());
 
-            RequestMessage requestMessage = new RequestMessage(privateKey, sampleOperation);
+            RequestMessage requestMessage = RequestMessage.makeRequestMsg(privateKey, sampleOperation);
 
             logger.insertMessage(requestMessage);
 
@@ -105,7 +105,7 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond()
             );
-            RequestMessage requestMessage2 = new RequestMessage(privateKey, sampleOperation2);
+            RequestMessage requestMessage2 = RequestMessage.makeRequestMsg(privateKey, sampleOperation2);
 
             assertFalse(logger.findMessage(requestMessage2));
         } finally {
@@ -126,13 +126,13 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond());
 
-            PreprepareMessage preprepareMessage = new PreprepareMessage(privateKey, 0, 0, sampleOperation);
+            PreprepareMessage preprepareMessage = PreprepareMessage.makePrePrepareMsg(privateKey, 0, 0, sampleOperation);
 
             logger.insertMessage(preprepareMessage);
 
             assertTrue(logger.findMessage(preprepareMessage));
 
-            PreprepareMessage preprepareMessage2 = new PreprepareMessage(privateKey, 1, 1, sampleOperation);
+            PreprepareMessage preprepareMessage2 = PreprepareMessage.makePrePrepareMsg(privateKey, 1, 1, sampleOperation);
 
             assertFalse(logger.findMessage(preprepareMessage2));
         } finally {
@@ -153,13 +153,13 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond());
 
-            PrepareMessage prepareMessage = new PrepareMessage(privateKey, 0, 0, "hi", 0);
+            PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(privateKey, 0, 0, "hi", 0);
 
             logger.insertMessage(prepareMessage);
 
             assertTrue(logger.findMessage(prepareMessage));
 
-            PrepareMessage prepareMessage2 = new PrepareMessage(privateKey, 1, 1, "hello", 1);
+            PrepareMessage prepareMessage2 = PrepareMessage.makePrepareMsg(privateKey, 1, 1, "hello", 1);
 
             assertFalse(logger.findMessage(prepareMessage2));
         } finally {
@@ -180,13 +180,13 @@ class LoggerTest {
                     publicKey,
                     Instant.now().getEpochSecond());
 
-            CommitMessage commitMessage = new CommitMessage(privateKey, 0, 0, "hi", 0);
+            CommitMessage commitMessage = CommitMessage.makeCommitMsg(privateKey, 0, 0, "hi", 0);
 
             logger.insertMessage(commitMessage);
 
             assertTrue(logger.findMessage(commitMessage));
 
-            CommitMessage commitMessage2 = new CommitMessage(privateKey, 1, 1, "hello", 1);
+            CommitMessage commitMessage2 = CommitMessage.makeCommitMsg(privateKey, 1, 1, "hello", 1);
 
             assertFalse(logger.findMessage(commitMessage2));
         } finally {

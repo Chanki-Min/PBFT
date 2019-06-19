@@ -1,7 +1,8 @@
 package kr.ac.hongik.apl;
 
 import java.io.Serializable;
-import java.security.*;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -17,13 +18,20 @@ public class PrepareMessage implements Message {
     byte[] signature;
     private Data data;
 
+    private PrepareMessage(Data data, byte[] signature) {
+        this.data = data;
+        this.signature = signature;
+    }
+
     private PrepareMessage() {
     }
 
-    public PrepareMessage(PrivateKey privateKey, int viewNum, int seqNum, String digest, int replicaNum) {
-        this.data = new Data(viewNum, seqNum, digest, replicaNum);
-        this.signature = sign(privateKey, this.data);
+    public static PrepareMessage makePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, String digest, int replicaNum) {
+        Data data = new Data(viewNum, seqNum, digest, replicaNum);
+        byte[] signature = sign(privateKey, data);
+        return new PrepareMessage(data, signature);
     }
+
 
     static public PrepareMessage fromCommitMessage(CommitMessage commitMessage) {
         PrepareMessage prepareMessage = new PrepareMessage();

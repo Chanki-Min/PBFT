@@ -1,8 +1,8 @@
 #!/bin/bash
 
-mvn package
+mvn package && \
 
-scp -r ./target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar apl@223.194.70.105:~/PBFT/target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar 
+scp -r ./target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar apl@223.194.70.105:~/PBFT/target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar && \
 
 ssh -f  apl@223.194.70.105 '\
 	cd PBFT

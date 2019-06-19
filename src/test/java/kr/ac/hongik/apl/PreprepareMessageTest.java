@@ -28,7 +28,7 @@ class PreprepareMessageTest {
         PublicKey clientInfo = keyPair.getPublic();
         long timestamp = System.currentTimeMillis() / 1000;
         Operation operation = new PreprepareOperation(clientInfo, timestamp);
-        PreprepareMessage preprepareMessage = new PreprepareMessage(keyPair.getPrivate(), 0, 0, operation);
+		PreprepareMessage preprepareMessage = PreprepareMessage.makePrePrepareMsg(keyPair.getPrivate(), 0, 0, operation);
         System.out.println("PreprepareMessage Class Unit Test Success");
     }
 }

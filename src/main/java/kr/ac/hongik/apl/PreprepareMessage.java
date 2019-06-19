@@ -18,10 +18,10 @@ public class PreprepareMessage implements Message {
     private final Data data;
     private byte[] signature;
 
-    public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
-        Data data = new Data(viewNum, seqNum, operation);
-        var sig = sign(privateKey, data);
-        return new PreprepareMessage(data, sig, operation);
+    private PreprepareMessage(Data data, byte[] signature, Operation operation) {
+        this.data = data;
+        this.signature = signature;
+        this.operation = operation;
     }
 
     /**
@@ -31,16 +31,10 @@ public class PreprepareMessage implements Message {
      * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
      * @param operation
      */
-    PreprepareMessage(final PrivateKey privateKey, final int viewNum, final int seqNum, final Operation operation) {
-        this.operation = operation;
-        this.data = new Data(viewNum, seqNum, this.operation);
-        this.signature = sign(privateKey, this.getData());
-    }
-
-    PreprepareMessage(Data data, byte[] signature, Operation operation) {
-        this.data = data;
-        this.signature = signature;
-        this.operation = operation;
+    public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
+        Data data = new Data(viewNum, seqNum, operation);
+        byte[] sig = sign(privateKey, data);
+        return new PreprepareMessage(data, sig, operation);
     }
 
     private boolean checkUniqueTuple(Function<String, PreparedStatement> prepareStatement) {

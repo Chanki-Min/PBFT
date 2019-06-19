@@ -11,8 +11,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
@@ -164,12 +162,12 @@ public class Replica extends Connector {
 	}
 
 	private void handleCommitMessage(CommitMessage cmsg) {
-		Predicate<CommitMessage> committed = (x) -> x.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
+		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
 
 		logger.insertMessage(cmsg);
 
-		if (committed.test(cmsg)) {
+		if (isCommitted) {
 
 			/**
 			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
@@ -242,7 +240,7 @@ public class Replica extends Connector {
 		}
 
 		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
-			CommitMessage commitMessage = new CommitMessage(
+			CommitMessage commitMessage = CommitMessage.makeCommitMsg(
 					this.getPrivateKey(),
 					message.getViewNum(),
 					message.getSeqNum(),
@@ -264,13 +262,13 @@ public class Replica extends Connector {
 			return;
 		}
 		if (!publicKeyMap.containsValue(message.getClientInfo())) return;
-		Supplier<Boolean> check = () ->
+		boolean canGoNextState =
                 message.verify(message.getClientInfo()) &&
-				message.isFirstSent(rethrow().wrap(logger::getPreparedStatement));
+						message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
 
 		if (this.primary == this.myNumber) {
-			if (check.get()) {
+			if (canGoNextState) {
 				logger.insertMessage(message);
 				//Enter broadcast phase
 				broadcastToReplica(message);
@@ -284,10 +282,11 @@ public class Replica extends Connector {
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		SocketChannel primaryChannel = this.replicas.get(this.primary);
 		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
-		Supplier<Boolean> check = () -> message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
-		if (check.get()) {
+		boolean isVerified = message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
+
+		if (isVerified) {
 			logger.insertMessage(message);
-			PrepareMessage prepareMessage = new PrepareMessage(
+			PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(
 					this.getPrivateKey(),
 					message.getViewNum(),
 					message.getSeqNum(),
@@ -337,11 +336,4 @@ public class Replica extends Connector {
 		clients.add(channel);
 	}
 
-	public void broadcastViewChange(Message message) {
-
-	}
-
-	public void broadcastNewView(Message message) {
-
-	}
 }
