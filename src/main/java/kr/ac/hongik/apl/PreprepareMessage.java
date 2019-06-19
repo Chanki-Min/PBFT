@@ -14,116 +14,117 @@ import java.util.function.Supplier;
 import static kr.ac.hongik.apl.Util.*;
 
 public class PreprepareMessage implements Message {
-    private final Operation operation;
-    private final Data data;
-    private byte[] signature;
+	private final Operation operation;
+	private final Data data;
+	private byte[] signature;
 
-    private PreprepareMessage(Data data, byte[] signature, Operation operation) {
-        this.data = data;
-        this.signature = signature;
-        this.operation = operation;
-    }
+	private PreprepareMessage(Data data, byte[] signature, Operation operation) {
+		this.data = data;
+		this.signature = signature;
+		this.operation = operation;
+	}
 
-    /**
-     * @param privateKey for digital signature
-     * @param viewNum    current view number represents current leader.
-     *                   Each replicas can access .properties file to get its own number.
-     * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
-     * @param operation
-     */
-    public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
-        Data data = new Data(viewNum, seqNum, operation);
-        byte[] sig = sign(privateKey, data);
-        return new PreprepareMessage(data, sig, operation);
-    }
+	/**
+	 * @param privateKey for digital signature
+	 * @param viewNum    current view number represents current leader.
+	 *                   Each replicas can access .properties file to get its own number.
+	 * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
+	 * @param operation
+	 */
+	public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
+		Data data = new Data(viewNum, seqNum, operation);
+		byte[] sig = sign(privateKey, data);
+		return new PreprepareMessage(data, sig, operation);
+	}
 
-    private boolean checkUniqueTuple(Function<String, PreparedStatement> prepareStatement) {
-        String baseQuery = "SELECT DISTINCT P.digest FROM Preprepares P WHERE P.viewNum = ? AND P.seqNum = ?";
-        List<String> digests = new ArrayList<>();
-        try( var pstmt = prepareStatement.apply(baseQuery) ) {
-            pstmt.setInt(1, getViewNum());
-            pstmt.setInt(2, getSeqNum());
-            try(var ret = pstmt.executeQuery()) {
-                while(ret.next()) {
-                    digests.add(ret.getString(1));
-                }
-            }
-            return digests.size() == 0 || digests.size() == 1;
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
+	/**
+	 * Checks for signature, watermark, current view, and duplication
+	 *
+	 * @param publicKey
+	 * @param currentPrimary
+	 * @param watermarkGetter
+	 * @param prepareStatement
+	 * @return
+	 */
+	boolean isVerified(PublicKey publicKey,
+					   final int currentPrimary,
+					   Supplier<int[]> watermarkGetter,
+					   Function<String, PreparedStatement> prepareStatement) {
+		Boolean[] checklist = new Boolean[4];
 
+		checklist[0] = verify(publicKey, this.data, this.signature);
 
-    /**
-     * Checks for signature, watermark, current view, and duplication
-     * @param publicKey
-     * @param currentPrimary
-     * @param watermarkGetter
-     * @param prepareStatement
-     * @return
-     */
-    boolean isVerified(PublicKey publicKey,
-                       final int currentPrimary,
-                       Supplier<int[]> watermarkGetter,
-                       Function<String, PreparedStatement> prepareStatement) {
-        Boolean[] checklist = new Boolean[4];
+		checklist[1] = getViewNum() == currentPrimary;
 
-        checklist[0] = verify(publicKey, this.data, this.signature);
+		checklist[2] = checkUniqueTuple(prepareStatement);
 
-        checklist[1] = getViewNum() == currentPrimary;
+		int[] watermarks = watermarkGetter.get();
+		checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() <= watermarks[1]);
 
-        checklist[2] = checkUniqueTuple(prepareStatement);
+		return Arrays.stream(checklist).allMatch(x -> x);
+	}
 
-        int[] watermarks = watermarkGetter.get();
-        checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() <= watermarks[1]);
+	int getViewNum() {
+		return this.data.viewNum;
+	}
 
-        return Arrays.stream(checklist).allMatch(x -> x);
-    }
+	private boolean checkUniqueTuple(Function<String, PreparedStatement> prepareStatement) {
+		String baseQuery = "SELECT DISTINCT P.digest FROM Preprepares P WHERE P.viewNum = ? AND P.seqNum = ?";
+		List<String> digests = new ArrayList<>();
+		try (var pstmt = prepareStatement.apply(baseQuery)) {
+			pstmt.setInt(1, getViewNum());
+			pstmt.setInt(2, getSeqNum());
+			try (var ret = pstmt.executeQuery()) {
+				while (ret.next()) {
+					digests.add(ret.getString(1));
+				}
+			}
+			return digests.size() == 0 || digests.size() == 1;
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
 
-    Data getData(){ return this.data;}
+	int getSeqNum() {
+		return this.data.seqNum;
+	}
 
+	Data getData() {
+		return this.data;
+	}
 
-    int getViewNum() {
-        return this.data.viewNum;
-    }
+	String getDigest() {
+		return this.data.digest;
+	}
 
-    int getSeqNum() {
-        return this.data.seqNum;
-    }
+	public byte[] getSignature() {
+		return this.signature;
+	}
 
-    String getDigest() {
-        return this.data.digest;
-    }
+	PreprepareMessage setSignature(byte[] signature) {
+		this.signature = signature;
+		return this;
+	}
 
-    public byte[] getSignature() {
-        return this.signature;
-    }
+	PublicKey getClientInfo() {
+		return this.getOperation().getClientInfo();
+	}
 
-    PreprepareMessage setSignature(byte[] signature) {
-        this.signature = signature;
-        return this;
-    }
+	Operation getOperation() {
+		return this.operation;
+	}
 
-    Operation getOperation() {
-        return this.operation;
-    }
+	private static class Data implements Serializable {
+		private int viewNum;
+		private int seqNum;
+		private String digest;
 
-    PublicKey getClientInfo() {
-        return this.getOperation().getClientInfo();
-    }
-
-    private static class Data implements Serializable {
-        private int viewNum;
-        private int seqNum;
-        private String digest;
-
-        private Data(final int viewNum, final int seqNum, Operation operation) {
-            this.viewNum = viewNum;
-            this.seqNum = seqNum;
-            this.digest = hash(operation);
-        }
-    }
+		private Data(final int viewNum, final int seqNum, Operation operation) {
+			this.viewNum = viewNum;
+			this.seqNum = seqNum;
+			this.digest = hash(operation);
+		}
+	}
 
 }
