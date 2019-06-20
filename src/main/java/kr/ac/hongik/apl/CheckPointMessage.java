@@ -1,15 +1,15 @@
 package kr.ac.hongik.apl;
 
-import java.io.Serializable;
-import java.security.*;
+        import java.io.Serializable;
+        import java.security.*;
 
-import static kr.ac.hongik.apl.Util.sign;
+        import static kr.ac.hongik.apl.Util.sign;
 
-public class CheckPointMessage implements Serializable{
+public class CheckPointMessage implements Message{
     private Data data;
     private  byte[] signature;
 
-    public static CheckPointMessage makeCheckOutMessage(PrivateKey privateKey, int seqNum, String digest, int replicaNum) {
+    public static CheckPointMessage makeCheckPointMessage(PrivateKey privateKey, int seqNum, String digest, int replicaNum) {
         Data data = new Data(seqNum, digest,replicaNum);
         byte[] signature = sign(privateKey, data);
         return new CheckPointMessage(data, signature);
@@ -23,6 +23,11 @@ public class CheckPointMessage implements Serializable{
     public boolean verify(PublicKey publicKey) {
         return Util.verify(publicKey, this.data, this.signature);
     }
+
+    public byte[] getSignature() {return signature;}
+    public int getSeqNum() {return data.seqNum;}
+    public int getReplicaNum() {return data.replicaNum;}
+    public String getDigest() {return data.digest;}
 
     private static class Data implements Serializable {
         private final int seqNum;

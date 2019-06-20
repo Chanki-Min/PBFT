@@ -73,6 +73,9 @@ public class Replica extends Connector {
 		}
 	}
 
+	/**
+	 * @return An array which contains (low watermark, high watermark).
+	 */
 	int[] getWatermarks() {
 		return new int[]{this.lowWatermark, this.lowWatermark + WATERMARK_UNIT};
 	}
@@ -101,10 +104,23 @@ public class Replica extends Connector {
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
-			} else
+			} else if (message instanceof CheckPointMessage){
+				handleCheckPointMessage((CheckPointMessage) message);
+			}else
 				throw new UnsupportedOperationException("Invalid message");
 		}
 	}
+
+
+
+
+
+
+
+
+
+
+
 
 	private void handleHeaderMessage(HeaderMessage message) {
 		SocketChannel channel = message.getChannel();
@@ -207,11 +223,56 @@ public class Replica extends Connector {
 				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 				send(destination, replyMessage);
+
+				if(rightNextCommitMsg.getSeqNum() == getWatermarks()[1]) {
+					int seqNum = rightNextCommitMsg.getSeqNum();
+                    CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
+                            this.getPrivateKey(),
+                            seqNum,
+							logger.getStateDigest(seqNum),
+							this.myNumber);
+					//Broadcast message
+					replicas.values().forEach(sock -> send(sock, checkpointMessage));
+				}
+
 			} catch (NoSuchElementException e) {
 				return;
 			}
 		}
 	}
+	private void handleCheckPointMessage(CheckPointMessage message){
+		PublicKey publicKey = publicKeyMap.get(this.replicas.get(message.getReplicaNum()));
+		if(message.verify(publicKey)) {
+			logger.insertMessage(message);
+
+			String query = "SELECT stateDigest FROM Checkpoint C WHERE C.seqNum = ?";
+
+			try(var psmt = logger.getPreparedStatement(query)) {
+
+				psmt.setInt(1,message.getSeqNum());
+
+				try(var ret = psmt.executeQuery()) {
+					List<String> digestList = new ArrayList<>();
+					while(ret.next()) {
+						digestList.add(ret.getString(1));
+					}
+					int f = getMaximumFaulty();
+					//2f + 1개 이상의 메시지를 수집하고,
+					//2f + 1개의 메시지 중 f + 1개는 확실히 non-faulty이므로 다들 같은 메시지를 보낼 것이다.
+					//나머지 f개는 최악의 경우 전부 faulty 이고, 각자 다른 메시지를 보낼 수 있다.
+					//따라서 최악의 경우에는 f + 1개의 서로 다른 메시지가 올 것이다.
+					if(digestList.size() > 2 * f && digestList.stream().distinct().count() <= f + 1){
+						logger.executeGarbageCollection(message.getSeqNum());
+					}
+				}
+
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+
 
 	private SocketChannel getChannelFromClientInfo(PublicKey key) {
 		return publicKeyMap.entrySet().stream()
@@ -249,7 +310,7 @@ public class Replica extends Connector {
 
 			logger.insertMessage(commitMessage);
 
-            replicas.values().forEach(channel -> send(channel, commitMessage));
+			replicas.values().forEach(channel -> send(channel, commitMessage));
 		}
 	}
 
@@ -263,7 +324,7 @@ public class Replica extends Connector {
 		}
 		if (!publicKeyMap.containsValue(message.getClientInfo())) return;
 		boolean canGoNextState =
-                message.verify(message.getClientInfo()) &&
+				message.verify(message.getClientInfo()) &&
 						message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
 

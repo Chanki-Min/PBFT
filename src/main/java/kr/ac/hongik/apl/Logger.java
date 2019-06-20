@@ -1,5 +1,7 @@
 package kr.ac.hongik.apl;
 
+import org.apache.commons.lang3.NotImplementedException;
+
 import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -91,17 +93,57 @@ public class Logger {
         }
     }
 
-    /**
-     * Close the database connection and delete entire database files
-     */
-    void deleteDBFile() {
-        this.close();
-        this.conn = null;
-        File file = new File("src/main/resources/");
-        Arrays.stream(file.listFiles())
-                .filter(x -> x.getName().equals(this.fileName))
-                .forEach(File::delete);
+    public String getStateDigest(int seqNum) {
+        //TODO: Fill!!!
+        StringBuilder builder = new StringBuilder();
+        builder.append(getPrePrepareMsgs(seqNum));
+        builder.append(getPrepareMsgs(seqNum));
+        builder.append(getCommitMsgs(seqNum));
+
+        return Util.hash(builder.toString().getBytes());
     }
+
+    private String getPrePrepareMsgs(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    private String getPrepareMsgs(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    private String getCommitMsgs(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    public void executeGarbageCollection(int seqNum){
+       //TODO: Fill!
+       cleanUpPrePrepareMsg(seqNum);
+       cleanUpPrepareMsg(seqNum);
+       cleanUpCommitMsg(seqNum);
+       cleanUpCheckpointMsg(seqNum);
+       cleanUpExecutedMsg(seqNum);
+    }
+
+    private void cleanUpPrePrepareMsg(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    private void cleanUpPrepareMsg(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    private void cleanUpCommitMsg(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    private void cleanUpCheckpointMsg(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
+    private void cleanUpExecutedMsg(int seqNum) {
+        throw new NotImplementedException("구현하세요");
+    }
+
 
     PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
         return conn.prepareStatement(baseQuery);
@@ -142,9 +184,16 @@ public class Logger {
             insertPrepareMessage((PrepareMessage) message);
         } else if (message instanceof CommitMessage) {
             insertCommitMessage((CommitMessage) message);
+        }  else if (message instanceof CheckPointMessage) {
+            insertCheckPointMessage((CheckPointMessage) message);
         } else
             throw new RuntimeException("Invalid message type");
 
+    }
+
+    private void insertCheckPointMessage(CheckPointMessage message) {
+        //TODO
+        throw new NotImplementedException("구현하세요");
     }
 
     void insertMessage(int sequenceNumber, ReplyMessage message) {
