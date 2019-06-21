@@ -261,10 +261,11 @@ public class Replica extends Connector {
 		} catch (SQLException e) {
 			return;
 		}
-		if (!publicKeyMap.containsValue(message.getClientInfo())) return;
-		boolean canGoNextState =
-                message.verify(message.getClientInfo()) &&
-						message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
+
+		var sock = getChannelFromClientInfo(message.getClientInfo());
+		PublicKey publicKey = publicKeyMap.get(sock);
+		boolean canGoNextState = message.verify(publicKey) &&
+				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
 
 		if (this.primary == this.myNumber) {
