@@ -39,17 +39,14 @@ public class RequestMessage implements Message {
     }
 
     boolean isNotRepeated(Function<String, PreparedStatement> prepareStatement) {
-        try {
-            String baseQuery = "SELECT R.timestamp FROM Requests R WHERE R.client = ? AND R.operation = ?";
-            var pstmt = prepareStatement.apply(baseQuery);
+		//Client의 request timestamp는 항상 증가하는 방향으로만 이루어져야 한다.
+		String baseQuery = "SELECT R.timestamp FROM Requests R WHERE R.client = ? ORDER BY R.timestamp DESC";
+		try (var pstmt = prepareStatement.apply(baseQuery)) {
             pstmt.setString(1, getEncoder().encodeToString(serialize(this.getClientInfo())));
-            pstmt.setString(2, getEncoder().encodeToString(serialize(this.getOperation())));
             var ret = pstmt.executeQuery();
-            while(ret.next()){
-                if(this.getTime() == ret.getLong(1))
-                    return false;
-            }
-            return true;
+
+			// 클라이언트의 첫 request이거나 가장 최신의 timestamp일 때만 true 반환
+			return !ret.next() || this.getTime() > ret.getLong(1);
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
