@@ -11,7 +11,7 @@ import static kr.ac.hongik.apl.Util.generateKeyPair;
 class PreprepareOperation extends Operation {
 
     PreprepareOperation(PublicKey clientInfo, long timestamp) {
-        super(clientInfo, timestamp);
+        super(clientInfo);
     }
 
     @Override

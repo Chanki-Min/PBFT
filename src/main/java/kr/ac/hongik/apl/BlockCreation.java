@@ -3,7 +3,6 @@ package kr.ac.hongik.apl;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.function.Function;
 
 public class BlockCreation extends Operation {
@@ -15,7 +14,7 @@ public class BlockCreation extends Operation {
 	}
 
 	protected BlockCreation(PublicKey clientInfo, BlockPayload blockPayload) {
-		super(clientInfo, Instant.now().getEpochSecond(), false);
+		super(clientInfo, false);
 		this.blockPayload = blockPayload;
 	}
 

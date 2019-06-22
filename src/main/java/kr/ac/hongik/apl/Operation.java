@@ -2,22 +2,23 @@ package kr.ac.hongik.apl;
 
 import java.io.Serializable;
 import java.security.PublicKey;
+import java.time.Instant;
+import java.util.UUID;
 
 abstract class Operation implements Serializable {
     final private PublicKey clientInfo;
     final private long timestamp;
     final private boolean isDistributed;
+    final private String random = UUID.randomUUID().toString(); //This random string guarantee uniqueness
 
-    protected Operation(PublicKey clientInfo, long timestamp, boolean isDistributed) {
+    protected Operation(PublicKey clientInfo, boolean isDistributed) {
         this.clientInfo = clientInfo;
-        this.timestamp = timestamp;
+        this.timestamp = Instant.now().toEpochMilli();
         this.isDistributed = isDistributed;
     }
 
-    protected Operation(PublicKey clientInfo, long timestamp) {
-        this.clientInfo = clientInfo;
-        this.timestamp = timestamp;
-        isDistributed = false;
+    protected Operation(PublicKey clientInfo) {
+        this(clientInfo, false);
     }
 
 	public abstract Object execute();

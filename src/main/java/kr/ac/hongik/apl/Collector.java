@@ -4,7 +4,6 @@ package kr.ac.hongik.apl;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.function.Function;
 
 public class Collector extends Operation {
@@ -13,7 +12,7 @@ public class Collector extends Operation {
 	private Integer replicaNumber = null;
 
 	public Collector(PublicKey clientInfo, String root) {
-		super(clientInfo, Instant.now().getEpochSecond(), true);
+		super(clientInfo, true);
 		this.root = root;
 	}
 

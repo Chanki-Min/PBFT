@@ -1,10 +1,8 @@
 package kr.ac.hongik.apl;
 
-import javax.print.DocFlavor;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.function.Function;
 
 public class Validation extends Operation {
@@ -13,7 +11,7 @@ public class Validation extends Operation {
 	private Function<String, PreparedStatement> sqlAccessor = null;
 
 	protected Validation(PublicKey clientInfo, String header, String artHash) {
-		super(clientInfo, Instant.now().getEpochSecond());
+		super(clientInfo);
 		this.artHash = artHash;
 		this.header = header;
 	}
