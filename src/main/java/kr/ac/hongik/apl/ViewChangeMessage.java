@@ -17,21 +17,21 @@ public class ViewChangeMessage implements Message {
 		this.signature = signature;
 	}
 
-	public static ViewChangeMessage makeViewChangeMsg(PrivateKey privateKey, int lastCheckpointNum, int newViewNum, int seqNum, int replicaNum,
+	public static ViewChangeMessage makeViewChangeMsg(PrivateKey privateKey, int lastCheckpointNum, int newViewNum, int replicaNum,
 													  Function<String, PreparedStatement> preparedStatement) {
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum);
-		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum, seqNum);
+		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum);
 
-		Data data = new Data(newViewNum, seqNum, checkPointMessages, messageList, replicaNum);
+		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replicaNum);
 		byte[] signature = Util.sign(privateKey, data);
 
 		return new ViewChangeMessage(data, signature);
 	}
 
-	private static List<Pm> getMessageList(Function<String, PreparedStatement> preparedStatement, int checkpointNum, int seqNum) {
+	private static List<Pm> getMessageList(Function<String, PreparedStatement> preparedStatement, int checkpointNum) {
 		//TODO
-		throw new NotImplementedException("checkpointNum 부터 seqNum까지 각 n에 대하여 " +
+		throw new NotImplementedException("checkpointNum 보다 큰 각각의 sequence number n에 대하여 " +
 				"n에 해당하는 PrePrepareMessage, " +
 				"n에 해당하는 prepare message들, " +
 				"그리고 D(request)을 P_n이라고 한다. 이 P_n들의 리스트를 반환해야 한다.");
