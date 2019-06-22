@@ -13,7 +13,7 @@ import static kr.ac.hongik.apl.Util.generateKeyPair;
 class RequestOperation extends Operation {
 
     RequestOperation(PublicKey clientInfo, long timestamp) {
-        super(clientInfo, timestamp);
+        super(clientInfo);
     }
 
     @Override

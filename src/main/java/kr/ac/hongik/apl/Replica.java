@@ -344,30 +344,28 @@ public class Replica extends Connector {
 				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
 
-		if (this.primary == this.myNumber) {
-			if (canGoNextState) {
-				logger.insertMessage(message);
+		if (canGoNextState) {
+			logger.insertMessage(message);
+			if (this.primary == this.myNumber) {
 				//Enter broadcast phase
 				broadcastToReplica(message);
+			} else {
+				//Relay to primary
+				super.send(replicas.get(primary), message);
+
+				//Set a timer for view-change phase
+				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], (this.primary + 1) % replicas.size(), this);
+				Timer timer = new Timer();
+				timer.schedule(viewChangeTimerTask, Replica.timeout);
+
+				/* Store timer object to cancel it when the request is executed and the timer is not expired.
+				 * key: timestamp + client info, value: timer
+				 */
+				String key = message.getTime() + Util.hash(message.getClientInfo());
+				timerMap.put(key, timer);
 			}
-		} else {
-			//Relay to primary
-			super.send(replicas.get(primary), message);
-
-			//Set a timer for view-change phase
-			ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], (this.primary + 1) % replicas.size(), this);
-			Timer timer = new Timer();
-			timer.schedule(viewChangeTimerTask, Replica.timeout);
-
-			/* Store timer object to cancel it when the request is executed and the timer is not expired.
-			 * key: timestamp + client info, value: timer
-			 */
-			String key = message.getTime() + Util.hash(message.getClientInfo());
-			timerMap.put(key, timer);
 		}
 	}
-
-
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		SocketChannel primaryChannel = this.replicas.get(this.primary);
