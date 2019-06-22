@@ -268,15 +268,15 @@ public class Replica extends Connector {
 				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
 
-		if (this.primary == this.myNumber) {
-			if (canGoNextState) {
-				logger.insertMessage(message);
+		if (canGoNextState) {
+			logger.insertMessage(message);
+			if (this.primary == this.myNumber) {
 				//Enter broadcast phase
 				broadcastToReplica(message);
+			} else {
+				//Relay to primary
+				super.send(replicas.get(primary), message);
 			}
-		} else {
-			//Relay to primary
-			super.send(replicas.get(primary), message);
 		}
 	}
 
