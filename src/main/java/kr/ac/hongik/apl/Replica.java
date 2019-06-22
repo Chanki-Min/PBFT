@@ -202,9 +202,13 @@ public class Replica extends Connector {
 					((Validation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
 				}
 
-				String key = makeKeyForTimer(rightNextCommitMsg.getSeqNum());
-				Timer timer = timerMap.remove(key);
-				timer.cancel();
+				try {
+					String key = makeKeyForTimer(rightNextCommitMsg.getSeqNum());
+					Timer timer = timerMap.remove(key);
+					timer.cancel();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
 
 
 				Object ret = operation.execute();
@@ -240,19 +244,29 @@ public class Replica extends Connector {
 
 	/**
 	 * Generate key for getting timer from timerMap.
-	 * Commit message doesn't have a timestamp and a client info, so the replica need to query from logger.
+	 * Commit message doesn't have an operation, so the replica need to query from logger.
 	 *
 	 * @param seqNum
-	 * @return String(timestamp + client info) which is queried from seqNum's request
+	 * @return Hash(operation) which is queried from seqNum's request
 	 */
-	private String makeKeyForTimer(int seqNum) {
-		// TODO: 모든 레플리카가 timestamp와 client info에 접근하기 위해서는 모든 레플리카가 request 메시지를 저장해야 한다.
-		/* TODO: 그보다, request와 pre-prepare를 join해줄 것이 보이지 않는다. 유일하게 겹치는 것이 operation 인데,
-		 * 이게 유일한 키로 쓰인다는 보장을 하기가 어렵다. 따라서 operation을 쓰되, operation 클래스 내부에 random 값을 심어서
-		 * 같은 operation이라도 instance 생성마다 다른 operation이 되도록 해야 할 것 같다.
-		 * 이 경우 client는 operation instance를 절대로 재사용 해서는 아니된다.
-		 */
-		String query = "SELECT ";
+	private String makeKeyForTimer(int seqNum) throws SQLException {
+		String query = "SELECT R.operation " +
+				"FROM Preprepares PP Requests R " +
+				"WHERE PP.seqNum = ? AND PP.operation = R.operation";
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			pstmt.setInt(1, seqNum);
+
+			var ret = pstmt.executeQuery();
+			if (ret.next()) {
+				String base64Data = ret.getString(1);
+				byte[] ser = Base64.getDecoder().decode(base64Data);
+				Operation operation = (Operation) Util.deserialize(ser);
+
+				return Util.hash(operation);
+			} else {
+				throw new SQLException("There's no " + seqNum + "th operation");
+			}
+		}
 	}
 
 	private void handleCheckPointMessage(CheckPointMessage message){
@@ -359,9 +373,10 @@ public class Replica extends Connector {
 				timer.schedule(viewChangeTimerTask, Replica.timeout);
 
 				/* Store timer object to cancel it when the request is executed and the timer is not expired.
-				 * key: timestamp + client info, value: timer
+				 * key: operation, value: timer
+				 * An operation can be a key because every operation has a random UUID;
 				 */
-				String key = message.getTime() + Util.hash(message.getClientInfo());
+				String key = Util.hash(message.getOperation());
 				timerMap.put(key, timer);
 			}
 		}
