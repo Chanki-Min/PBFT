@@ -3,7 +3,6 @@ package kr.ac.hongik.apl;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -14,7 +13,7 @@ public class CertStorage extends Operation {
 	private Integer replicaNumber = null;
 
 	protected CertStorage(PublicKey clientInfo, Map<Integer, byte[]> pieces) {
-		super(clientInfo, Instant.now().getEpochSecond(), true);
+		super(clientInfo, true);
 		this.pieces = pieces;
 	}
 

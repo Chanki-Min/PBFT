@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SampleOperation extends Operation {
 
     SampleOperation(PublicKey clientInfo, long timestamp) {
-        super(clientInfo, timestamp);
+        super(clientInfo);
     }
 
     @Override
