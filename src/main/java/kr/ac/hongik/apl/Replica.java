@@ -117,13 +117,13 @@ public class Replica extends Connector {
 	}
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
-        /*
-        	TODO View change 메시지 처리 -> new view message 생성
-        	1. 메시지의 전자서명 검증
-        	2. 메시지 저장
-        	3. newView의 리더가 자신의 메시지 포함 2f + 1개 view-change 메시지 수집
-        	4. -> new view 메시지 브로드캐스트
-         */
+		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
+		if (message.verify(publicKey)) {
+			logger.insertMessage(message);    //TODO: View change 메시지 저장: 내부 구현
+			if (message.getNewViewNum() == getMyNumber()) {
+				/* TODO: view-change 메시지가 2f + 1(자신 포함)이상인지 확인하고 new-view 메시지 broadcast */
+			}
+		}
 	}
 
 	private void handleHeaderMessage(HeaderMessage message) {
