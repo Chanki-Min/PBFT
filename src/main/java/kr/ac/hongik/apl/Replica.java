@@ -35,6 +35,7 @@ public class Replica extends Connector {
 	private int lowWatermark;
 
 	private Map<String, Timer> timerMap = new HashMap<>();
+	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까??
 
 
 	Replica(Properties prop, String serverIp, int serverPort) {
@@ -96,21 +97,33 @@ public class Replica extends Connector {
 		//Assume that every connection is established
 		while (true) {
 			Message message = super.receive();              //Blocking method
-			if (message instanceof HeaderMessage) {
+			if (!isViewChangePhase && message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
-			} else if (message instanceof RequestMessage) {
+			} else if (!isViewChangePhase && message instanceof RequestMessage) {
 				handleRequestMessage((RequestMessage) message);
-			} else if (message instanceof PreprepareMessage) {
+			} else if (!isViewChangePhase && message instanceof PreprepareMessage) {
 				handlePreprepareMessage((PreprepareMessage) message);
-			} else if (message instanceof PrepareMessage) {
+			} else if (!isViewChangePhase && message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
-			} else if (message instanceof CommitMessage) {
+			} else if (!isViewChangePhase && message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
-			} else if (message instanceof CheckPointMessage){
+			} else if (message instanceof CheckPointMessage) {
 				handleCheckPointMessage((CheckPointMessage) message);
+			} else if (message instanceof ViewChangeMessage) {
+				handleViewChangeMessage((ViewChangeMessage) message);
 			}else
 				throw new UnsupportedOperationException("Invalid message");
 		}
+	}
+
+	private void handleViewChangeMessage(ViewChangeMessage message) {
+        /*
+        	TODO View change 메시지 처리 -> new view message 생성
+        	1. 메시지의 전자서명 검증
+        	2. 메시지 저장
+        	3. newView의 리더가 자신의 메시지 포함 2f + 1개 view-change 메시지 수집
+        	4. -> new view 메시지 브로드캐스트
+         */
 	}
 
 	private void handleHeaderMessage(HeaderMessage message) {
@@ -447,4 +460,7 @@ public class Replica extends Connector {
 		return this.logger;
 	}
 
+	public void setViewChangePhase(boolean viewChangePhase) {
+		isViewChangePhase = viewChangePhase;
+	}
 }

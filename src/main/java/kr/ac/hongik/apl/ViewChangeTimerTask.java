@@ -16,6 +16,7 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 
 	@Override
 	public void run() {
+		replica.setViewChangePhase(true);
 		var getPreparedStatementFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getPrivateKey(), checkpointNum, newViewNum, replica.getMyNumber(), getPreparedStatementFn);
 
