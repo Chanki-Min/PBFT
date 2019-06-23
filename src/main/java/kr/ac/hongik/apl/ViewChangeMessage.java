@@ -4,6 +4,7 @@ import org.apache.commons.lang3.NotImplementedException;
 
 import java.io.Serializable;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.function.Function;
@@ -29,6 +30,30 @@ public class ViewChangeMessage implements Message {
 		return new ViewChangeMessage(data, signature);
 	}
 
+	public boolean verify(PublicKey publicKey) {
+		return Util.verify(publicKey, data, signature);
+	}
+
+	public int getNewViewNum() {
+		return data.newViewNum;
+	}
+
+	public int getLastCheckpointNum() {
+		return data.lastCheckpointNum;
+	}
+
+	public List<CheckPointMessage> getCheckPointMessages() {
+		return data.checkPointMessages;
+	}
+
+	public List<Pm> getMessageList() {
+		return data.messageList;
+	}
+
+	public int getReplicaNum() {
+		return data.replicaNum;
+	}
+
 	private static List<Pm> getMessageList(Function<String, PreparedStatement> preparedStatement, int checkpointNum) {
 		//TODO
 		throw new NotImplementedException("checkpointNum 보다 큰 각각의 sequence number n에 대하여 " +
@@ -43,11 +68,11 @@ public class ViewChangeMessage implements Message {
 	}
 
 	private static class Data implements Serializable {
-		final int newViewNum;
-		final int lastCheckpointNum;
-		final List<CheckPointMessage> checkPointMessages;
-		final List<Pm> messageList;
-		final int replicaNum;
+		private final int newViewNum;
+		private final int lastCheckpointNum;
+		private final List<CheckPointMessage> checkPointMessages;
+		private final List<Pm> messageList;
+		private final int replicaNum;
 
 		private Data(int newViewNum, int lastCheckpoint, List<CheckPointMessage> checkPointMessages, List<Pm> pmList, int replicaNum) {
 			this.newViewNum = newViewNum;
@@ -56,17 +81,31 @@ public class ViewChangeMessage implements Message {
 			this.messageList = pmList;
 			this.replicaNum = replicaNum;
 		}
+
+
 	}
 
 	private static class Pm implements Serializable {
-		final PreprepareMessage preprepareMessage;
-		final List<PrepareMessage> prepareMessages;
-		final String requestDigest;
+		private final PreprepareMessage preprepareMessage;
+		private final List<PrepareMessage> prepareMessages;
+		private final String requestDigest;
 
 		private Pm(PreprepareMessage preprepareMessage, List<PrepareMessage> prepareMessages, String requestDigest) {
 			this.preprepareMessage = preprepareMessage;
 			this.prepareMessages = prepareMessages;
 			this.requestDigest = requestDigest;
+		}
+
+		public PreprepareMessage getPreprepareMessage() {
+			return preprepareMessage;
+		}
+
+		public List<PrepareMessage> getPrepareMessages() {
+			return prepareMessages;
+		}
+
+		public String getRequestDigest() {
+			return requestDigest;
 		}
 	}
 }
