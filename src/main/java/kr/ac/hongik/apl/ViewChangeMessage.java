@@ -85,7 +85,7 @@ public class ViewChangeMessage implements Message {
 
 	}
 
-	private static class Pm implements Serializable {
+	static class Pm implements Serializable {
 		private final PreprepareMessage preprepareMessage;
 		private final List<PrepareMessage> prepareMessages;
 		private final String requestDigest;

@@ -11,6 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
@@ -35,7 +36,7 @@ public class Replica extends Connector {
 	private int lowWatermark;
 
 	private Map<String, Timer> timerMap = new HashMap<>();
-	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까??
+	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까?, 언제 flag를 해제할까?
 
 
 	Replica(Properties prop, String serverIp, int serverPort) {
@@ -111,18 +112,101 @@ public class Replica extends Connector {
 				handleCheckPointMessage((CheckPointMessage) message);
 			} else if (message instanceof ViewChangeMessage) {
 				handleViewChangeMessage((ViewChangeMessage) message);
-			}else
+			} else if (message instanceof NewViewMessage) {
+				handleNewViewMessage((NewViewMessage) message);
+			} else
 				throw new UnsupportedOperationException("Invalid message");
 		}
 	}
 
-	private void handleViewChangeMessage(ViewChangeMessage message) {
-		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
-		if (message.verify(publicKey)) {
-			logger.insertMessage(message);    //TODO: View change 메시지 저장: 내부 구현
-			if (message.getNewViewNum() == getMyNumber()) {
-				/* TODO: view-change 메시지가 2f + 1(자신 포함)이상인지 확인하고 new-view 메시지 broadcast */
+	private void handleRequestMessage(RequestMessage message) {
+		try {
+			if (this.logger.findMessage(message)) {
+				return;
 			}
+		} catch (SQLException e) {
+			return;
+		}
+
+		var sock = getChannelFromClientInfo(message.getClientInfo());
+		PublicKey publicKey = publicKeyMap.get(sock);
+		boolean canGoNextState = message.verify(publicKey) &&
+				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
+
+
+		if (canGoNextState) {
+			logger.insertMessage(message);
+			if (this.getPrimary() == this.myNumber) {
+				//Enter broadcast phase
+				broadcastToReplica(message);
+			} else {
+				//Relay to primary
+				super.send(replicas.get(getPrimary()), message);
+
+				//Set a timer for view-change phase
+				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], (this.getPrimary() + 1) % replicas.size(), this);
+				Timer timer = new Timer();
+				timer.schedule(viewChangeTimerTask, Replica.timeout);
+
+				/* Store timer object to cancel it when the request is executed and the timer is not expired.
+				 * key: operation, value: timer
+				 * An operation can be a key because every operation has a random UUID;
+				 */
+				String key = Util.hash(message.getOperation());
+				timerMap.put(key, timer);
+			}
+		}
+	}
+
+	private void handlePreprepareMessage(PreprepareMessage message) {
+		SocketChannel primaryChannel = this.replicas.get(this.getPrimary());
+		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
+		boolean isVerified = message.isVerified(publicKey, this.getPrimary(), this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
+
+		if (isVerified) {
+			logger.insertMessage(message);
+			PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(
+					this.getPrivateKey(),
+					message.getViewNum(),
+					message.getSeqNum(),
+					message.getDigest(),
+					this.myNumber);
+			replicas.values().forEach(channel -> send(channel, prepareMessage));
+		}
+
+	}
+
+	private void handlePrepareMessage(PrepareMessage message) {
+		PublicKey publicKey = publicKeyMap.get(this.replicas.get(message.getReplicaNum()));
+		if (message.isVerified(publicKey, this.getPrimary(), this::getWatermarks)) {
+			logger.insertMessage(message);
+		}
+		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ?")) {
+			pstmt.setInt(1, message.getSeqNum());
+			pstmt.setInt(2, this.myNumber);
+			try (var ret = pstmt.executeQuery()) {
+				if (ret.next()) {
+					var i = ret.getInt(1);
+					if (i > 0)
+						return;
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return;
+		}
+
+		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
+			CommitMessage commitMessage = CommitMessage.makeCommitMsg(
+					this.getPrivateKey(),
+					message.getViewNum(),
+					message.getSeqNum(),
+					message.getDigest(),
+					this.myNumber);
+
+			logger.insertMessage(commitMessage);
+
+			replicas.values().forEach(channel -> send(channel, commitMessage));
 		}
 	}
 
@@ -322,95 +406,49 @@ public class Replica extends Connector {
 				.findFirst().get().getKey();
 	}
 
-	private void handlePrepareMessage(PrepareMessage message) {
-		PublicKey publicKey = publicKeyMap.get(this.replicas.get(message.getReplicaNum()));
-		if (message.isVerified(publicKey, this.primary, this::getWatermarks)) {
-			logger.insertMessage(message);
-		}
-		try(var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ?")) {
-			pstmt.setInt(1, message.getSeqNum());
-			pstmt.setInt(2, this.myNumber);
-			try(var ret = pstmt.executeQuery()) {
-				if(ret.next()) {
-					var i = ret.getInt(1);
-					if(i > 0)
-						return;
+	private void handleViewChangeMessage(ViewChangeMessage message) {
+		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
+		if (message.verify(publicKey)) {
+			logger.insertMessage(message);    //TODO: View change 메시지 저장: 내부 구현
+			if (message.getNewViewNum() == getMyNumber()) {
+				if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
+					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getPrimary() + 1);
+
+					replicas.values().forEach(sock -> send(sock, newViewMessage));
 				}
 			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-			return;
-		}
-
-		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
-			CommitMessage commitMessage = CommitMessage.makeCommitMsg(
-					this.getPrivateKey(),
-					message.getViewNum(),
-					message.getSeqNum(),
-					message.getDigest(),
-					this.myNumber);
-
-			logger.insertMessage(commitMessage);
-
-			replicas.values().forEach(channel -> send(channel, commitMessage));
 		}
 	}
 
-	private void handleRequestMessage(RequestMessage message) {
-		try {
-			if (this.logger.findMessage(message)) {
-				return;
-			}
-		} catch (SQLException e) {
+	private void handleNewViewMessage(NewViewMessage message) {
+		PublicKey key = publicKeyMap.get(replicas.get(message.getNewViewNum()));
+		if (!message.verify(key))
 			return;
-		}
 
-		var sock = getChannelFromClientInfo(message.getClientInfo());
-		PublicKey publicKey = publicKeyMap.get(sock);
-		boolean canGoNextState = message.verify(publicKey) &&
-				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
+		setPrimary(message.getNewViewNum());
 
+		List<ViewChangeMessage> viewChangeMessages = message.getViewChangeMessageList();
+		List<PreprepareMessage> receivedMsgs = viewChangeMessages
+				.stream()
+				.flatMap(x -> x.getMessageList().stream())
+				.map(x -> x.getPreprepareMessage())
+				.collect(Collectors.toList());
+		List<PreprepareMessage> preprepareMessages = message.getOperationList();
 
-		if (canGoNextState) {
-			logger.insertMessage(message);
-			if (this.primary == this.myNumber) {
-				//Enter broadcast phase
-				broadcastToReplica(message);
+		for (var prePareMsg : preprepareMessages) {
+			PreprepareMessage newMsg;
+			if (receivedMsgs.stream().anyMatch(x -> x.equals(prePareMsg))) {
+				newMsg = makePrePrepareMsg(getPrivateKey(), message.getNewViewNum(), prePareMsg.getSeqNum(), prePareMsg.getOperation());
 			} else {
-				//Relay to primary
-				super.send(replicas.get(primary), message);
-
-				//Set a timer for view-change phase
-				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], (this.primary + 1) % replicas.size(), this);
-				Timer timer = new Timer();
-				timer.schedule(viewChangeTimerTask, Replica.timeout);
-
-				/* Store timer object to cancel it when the request is executed and the timer is not expired.
-				 * key: operation, value: timer
-				 * An operation can be a key because every operation has a random UUID;
-				 */
-				String key = Util.hash(message.getOperation());
-				timerMap.put(key, timer);
+				//TODO: execution 단계에서 null 처리하기
+				newMsg = makePrePrepareMsg(getPrivateKey(), message.getNewViewNum(), prePareMsg.getSeqNum(), null);
 			}
+			replicas.values().forEach(sock -> send(sock, newMsg));
 		}
 	}
 
-	private void handlePreprepareMessage(PreprepareMessage message) {
-		SocketChannel primaryChannel = this.replicas.get(this.primary);
-		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
-		boolean isVerified = message.isVerified(publicKey, this.primary, this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
-
-		if (isVerified) {
-			logger.insertMessage(message);
-			PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(
-					this.getPrivateKey(),
-					message.getViewNum(),
-					message.getSeqNum(),
-					message.getDigest(),
-					this.myNumber);
-			replicas.values().forEach(channel -> send(channel, prepareMessage));
-		}
-
+	public int getPrimary() {
+		return primary;
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
@@ -429,7 +467,7 @@ public class Replica extends Connector {
 			int seqNum = getLatestSequenceNumber() + 1;
 
 			Operation operation = message.getOperation();
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), primary, seqNum, operation);
+			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getPrimary(), seqNum, operation);
 			logger.insertMessage(preprepareMessage);
 
 			//Broadcast messages
@@ -462,5 +500,40 @@ public class Replica extends Connector {
 
 	public void setViewChangePhase(boolean viewChangePhase) {
 		isViewChangePhase = viewChangePhase;
+	}
+
+	private boolean canMakeNewViewMessage(ViewChangeMessage message) {
+		/* view-change 메시지가 2f + 1(자신 포함)인지 확인
+		 *   cf: 정확하게 2f + 1개가 되었을 때만 view-change 메시지를 보내야 한다. 왜냐하면 2f + 1이상으로 조건을 잡을 경우 2f + 1번째와  2f+2번째 메시지가 들어왔을 때 각각에 대하여 모두 view-change message를 보낼 것이기 때문이다.
+		 */
+
+		Boolean[] checklist = new Boolean[2];
+		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ?";
+		try (var pstmt = logger.getPreparedStatement(query1)) {
+			pstmt.setInt(1, this.myNumber);
+			var ret = pstmt.executeQuery();
+			if (ret.next())
+				checklist[0] = ret.getInt(1) == 1;
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+
+		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ?";
+		try (var pstmt = logger.getPreparedStatement(query2)) {
+			pstmt.setInt(1, this.myNumber);
+			var ret = pstmt.executeQuery();
+			if (ret.next())
+				checklist[1] = ret.getInt(1) == 2 * getMaximumFaulty();
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+
+		return Arrays.stream(checklist).allMatch(x -> x);
+	}
+
+	public void setPrimary(int primary) {
+		this.primary = primary;
 	}
 }

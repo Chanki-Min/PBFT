@@ -6,7 +6,6 @@ import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -74,6 +73,8 @@ public class Logger {
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
                 "CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
+				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, " +
+						"PRIMARY KEY(newViewNum, checkpointNum, replica))",
         };
         for (String query : queries) {
             try {
@@ -175,21 +176,28 @@ public class Logger {
     }
 
 
-    void insertMessage(Message message) {
-        if (message instanceof RequestMessage) {
-            insertRequestMessage((RequestMessage) message);
-        } else if (message instanceof PreprepareMessage) {
-            insertPreprepareMessage((PreprepareMessage) message);
-        } else if (message instanceof PrepareMessage) {
-            insertPrepareMessage((PrepareMessage) message);
-        } else if (message instanceof CommitMessage) {
-            insertCommitMessage((CommitMessage) message);
-        }  else if (message instanceof CheckPointMessage) {
-            insertCheckPointMessage((CheckPointMessage) message);
-        } else
-            throw new RuntimeException("Invalid message type");
+	void insertMessage(Message message) {
+		if (message instanceof RequestMessage) {
+			insertRequestMessage((RequestMessage) message);
+		} else if (message instanceof PreprepareMessage) {
+			insertPreprepareMessage((PreprepareMessage) message);
+		} else if (message instanceof PrepareMessage) {
+			insertPrepareMessage((PrepareMessage) message);
+		} else if (message instanceof CommitMessage) {
+			insertCommitMessage((CommitMessage) message);
+		}  else if (message instanceof CheckPointMessage) {
+			insertCheckPointMessage((CheckPointMessage) message);
+		} else if (message instanceof ViewChangeMessage) {
+			insertViewChangeMessage((ViewChangeMessage) message);
+		} else
+			throw new RuntimeException("Invalid message type");
+	}
 
-    }
+	private void insertViewChangeMessage(ViewChangeMessage message) {
+		//TODO
+		throw new NotImplementedException("view change message를 db에 삽입하세요");
+
+	}
 
     private void insertCheckPointMessage(CheckPointMessage message) {
         //TODO
