@@ -1,5 +1,7 @@
 package kr.ac.hongik.apl;
 
+import org.echocat.jsu.JdbcUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -377,11 +379,11 @@ public class Replica extends Connector {
 
 				psmt.setInt(1,message.getSeqNum());
 
-				try(var ret = psmt.executeQuery()) {
-					List<String> digestList = new ArrayList<>();
-					while(ret.next()) {
-						digestList.add(ret.getString(1));
-					}
+				try (ResultSet ret = psmt.executeQuery()) {
+					List<String> digestList = JdbcUtils.toStream(ret)
+							.map(rethrow().wrapFunction(x -> x.getString(1)))
+							.collect(Collectors.toList());
+
 					int f = getMaximumFaulty();
 					//2f + 1개 이상의 메시지를 수집하고,
 					//2f + 1개의 메시지 중 f + 1개는 확실히 non-faulty이므로 다들 같은 메시지를 보낼 것이다.
