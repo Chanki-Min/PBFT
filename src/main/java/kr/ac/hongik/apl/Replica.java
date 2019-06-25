@@ -2,6 +2,7 @@ package kr.ac.hongik.apl;
 
 import org.echocat.jsu.JdbcUtils;
 
+import javax.print.DocFlavor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -516,21 +517,31 @@ public class Replica extends Connector {
 		 *   cf: 정확하게 2f + 1개가 되었을 때만 view-change 메시지를 보내야 한다. 왜냐하면 2f + 1이상으로 조건을 잡을 경우 2f + 1번째와  2f+2번째 메시지가 들어왔을 때 각각에 대하여 모두 view-change message를 보낼 것이기 때문이다.
 		 */
 
-		Boolean[] checklist = new Boolean[2];
-		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ?";
+		Boolean[] checklist = new Boolean[3];
+		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query1)) {
 			pstmt.setInt(1, this.myNumber);
+			pstmt.setInt(2, message.getNewViewNum());
 			var ret = pstmt.executeQuery();
 			if (ret.next())
 				checklist[0] = ret.getInt(1) == 1;
 		}
 
-		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ?";
+		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query2)) {
 			pstmt.setInt(1, this.myNumber);
+			pstmt.setInt(2, message.getNewViewNum());
 			var ret = pstmt.executeQuery();
 			if (ret.next())
-				checklist[1] = ret.getInt(1) == 2 * getMaximumFaulty();
+				checklist[1] = ret.getInt(1) >= 2 * getMaximumFaulty();
+		}
+
+		String query3 = "SELECT count(*) FROM NewViewMessages WHERE newViewNum = ?";
+		try(var psmt = logger.getPreparedStatement(query3)) {
+			psmt.setInt(1, message.getNewViewNum());
+			var ret = psmt.executeQuery();
+			if(ret.next())
+				checklist[2] = ret.getInt(1) == 0;
 		}
 
 		return Arrays.stream(checklist).allMatch(x -> x);

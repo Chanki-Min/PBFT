@@ -73,6 +73,7 @@ public class Logger {
                 "CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, checkpointNum, replica))",
+                "CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
         };
         for (String query : queries) {
             try {
@@ -186,11 +187,25 @@ public class Logger {
 			insertCheckPointMessage((CheckPointMessage) message);
 		} else if (message instanceof ViewChangeMessage) {
 			insertViewChangeMessage((ViewChangeMessage) message);
-		} else
+		} else if (message instanceof NewViewMessage){
+		    insertNewViewMessage((NewViewMessage) message);
+        } else
 			throw new RuntimeException("Invalid message type");
 	}
 
-	private void insertViewChangeMessage(ViewChangeMessage message) {
+    private void insertNewViewMessage(NewViewMessage message) {
+        String query = "INSERT INTO NewViewMessages (?, ?)";
+        try(var pstmt = getPreparedStatement(query)) {
+            pstmt.setInt(1, message.getNewViewNum());
+            pstmt.setString(2, Util.serToString(message));
+
+            pstmt.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void insertViewChangeMessage(ViewChangeMessage message) {
 		String query = "INSERT INTO ViewChanges (?, ?, ?, ?, ?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, message.getNewViewNum());
