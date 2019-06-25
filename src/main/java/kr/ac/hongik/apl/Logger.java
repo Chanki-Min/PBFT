@@ -1,14 +1,11 @@
 package kr.ac.hongik.apl;
 
-import com.google.gson.Gson;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.io.File;
-import java.io.Serializable;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.Base64;
 import java.util.UUID;
 
 import static kr.ac.hongik.apl.Util.desToObject;
@@ -194,25 +191,18 @@ public class Logger {
 	}
 
 	private void insertViewChangeMessage(ViewChangeMessage message) {
-		//TODO
         String query = "INSERT INTO ViewChanges (?, ?, ?, ?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, message.getNewViewNum());
             pstmt.setInt(2, message.getLastCheckpointNum());
             pstmt.setInt(3, message.getReplicaNum());
-            //TODO: List<inner class>가 serializable 키워드를 넣었음에도 불구하고 제대로 넣어지지가 않는다.
-            Gson gson = new Gson();
-            String json = gson.toJson(message.getCheckPointMessages());
-            Serializable obj = message.getCheckPointMessages().get(0);
-            String data = Base64.getEncoder().encodeToString(Util.serialize(obj));
-            pstmt.setString(4, data);
-            Serializable obj1 = message.getMessageList();
-            Base64.getEncoder().encodeToString(serialize());
+			pstmt.setString(4, Util.serToString(message.getCheckPointMessages()));
+			pstmt.setString(5, Util.serToString(message.getMessageList()));
+
+			pstmt.execute();
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        throw new NotImplementedException("view change message를 db에 삽입하세요");
-
 	}
 
     private void insertCheckPointMessage(CheckPointMessage message) {

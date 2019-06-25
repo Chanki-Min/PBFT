@@ -415,7 +415,7 @@ public class Replica extends Connector {
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
 		if (message.verify(publicKey)) {
-			logger.insertMessage(message);    //TODO: View change 메시지 저장: 내부 구현
+			logger.insertMessage(message);
 			if (message.getNewViewNum() == getMyNumber()) {
 				if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
 					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getPrimary() + 1);
