@@ -414,15 +414,19 @@ public class Replica extends Connector {
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
-		if (message.verify(publicKey)) {
-			logger.insertMessage(message);
-			if (message.getNewViewNum() == getMyNumber()) {
-				if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
-					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getPrimary() + 1);
 
-					replicas.values().forEach(sock -> send(sock, newViewMessage));
-				}
+		if (!message.verify(publicKey) || message.getNewViewNum() != getMyNumber())
+			return;
+
+		logger.insertMessage(message);
+		try {
+			if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
+				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getPrimary() + 1);
+
+				replicas.values().forEach(sock -> send(sock, newViewMessage));
 			}
+		} catch (SQLException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -507,7 +511,7 @@ public class Replica extends Connector {
 		isViewChangePhase = viewChangePhase;
 	}
 
-	private boolean canMakeNewViewMessage(ViewChangeMessage message) {
+	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
 		/* view-change 메시지가 2f + 1(자신 포함)인지 확인
 		 *   cf: 정확하게 2f + 1개가 되었을 때만 view-change 메시지를 보내야 한다. 왜냐하면 2f + 1이상으로 조건을 잡을 경우 2f + 1번째와  2f+2번째 메시지가 들어왔을 때 각각에 대하여 모두 view-change message를 보낼 것이기 때문이다.
 		 */
@@ -519,9 +523,6 @@ public class Replica extends Connector {
 			var ret = pstmt.executeQuery();
 			if (ret.next())
 				checklist[0] = ret.getInt(1) == 1;
-		} catch (SQLException e) {
-			e.printStackTrace();
-			return false;
 		}
 
 		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ?";
@@ -530,9 +531,6 @@ public class Replica extends Connector {
 			var ret = pstmt.executeQuery();
 			if (ret.next())
 				checklist[1] = ret.getInt(1) == 2 * getMaximumFaulty();
-		} catch (SQLException e) {
-			e.printStackTrace();
-			return false;
 		}
 
 		return Arrays.stream(checklist).allMatch(x -> x);
