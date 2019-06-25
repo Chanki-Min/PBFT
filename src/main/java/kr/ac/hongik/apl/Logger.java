@@ -11,9 +11,8 @@ import java.sql.*;
 import java.util.Base64;
 import java.util.UUID;
 
-import static java.util.Base64.getEncoder;
-import static kr.ac.hongik.apl.Util.deserialize;
-import static kr.ac.hongik.apl.Util.serialize;
+import static kr.ac.hongik.apl.Util.desToObject;
+import static kr.ac.hongik.apl.Util.serToString;
 
 public class Logger {
     static final int CONSTRAINT_ERROR = 19;
@@ -166,9 +165,8 @@ public class Logger {
 
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
-                String operationBase64 = ret.getString(1);
-                byte[] ser = Base64.getDecoder().decode(operationBase64);
-                Operation operation = (Operation) deserialize(ser);
+				String data = ret.getString(1);
+				Operation operation = desToObject(data, Operation.class);
                 return operation;
             }
         } catch (SQLException e) {
@@ -230,8 +228,8 @@ public class Logger {
         String query = "INSERT INTO Executed VALUES (?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, seqNum);
-            String clientBase64 = getEncoder().encodeToString(serialize(message));
-            pstmt.setString(2, clientBase64);
+			String data = Util.serToString(message);
+			pstmt.setString(2, data);
             pstmt.execute();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -275,11 +273,11 @@ public class Logger {
         try {
             PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
-            String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
-            pstmt.setString(1, clientBase64);
+			String data = serToString(message.getClientInfo());
+			pstmt.setString(1, data);
             pstmt.setLong(2, message.getTime());
-            String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
-            pstmt.setString(3, operationBase64);
+			String data1 = serToString(message.getOperation());
+			pstmt.setString(3, data1);
 
             pstmt.execute();
         } catch (SQLException e) {
@@ -295,8 +293,8 @@ public class Logger {
             pstmt.setInt(1, message.getViewNum());
             pstmt.setInt(2, message.getSeqNum());
             pstmt.setString(3, message.getDigest());
-            String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
-            pstmt.setString(4, operationBase64);
+			String data = serToString(message.getOperation());
+			pstmt.setString(4, data);
 
             pstmt.execute();
         } catch (SQLException e) {
@@ -355,11 +353,11 @@ public class Logger {
         String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
         PreparedStatement pstatement = conn.prepareStatement(baseQuery);
 
-        String clientBase64 = getEncoder().encodeToString(serialize(message.getClientInfo()));
-        pstatement.setString(1, clientBase64);
+		String data = serToString(message.getClientInfo());
+		pstatement.setString(1, data);
         pstatement.setLong(2, message.getTime());
-        String operationBase64 = getEncoder().encodeToString(serialize(message.getOperation()));
-        pstatement.setString(3, operationBase64);
+		String data1 = serToString(message.getOperation());
+		pstatement.setString(3, data1);
 
         ResultSet ret = pstatement.executeQuery();
         if (ret.next())

@@ -91,5 +91,4 @@ class BlockCreationTest {
 
 		Assertions.assertTrue(roots1.stream().map(x -> (String) x).distinct().count() == 1);
 	}
-
 }
