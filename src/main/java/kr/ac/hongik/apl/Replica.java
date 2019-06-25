@@ -289,6 +289,10 @@ public class Replica extends Connector {
 			try {
 				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 				var operation = logger.getOperation(rightNextCommitMsg);
+
+				if (operation == null)
+					return;
+
 				if (operation instanceof BlockCreation) {
 					((BlockCreation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
 				} else if (operation instanceof CertStorage) {
@@ -442,7 +446,6 @@ public class Replica extends Connector {
 			if (receivedMsgs.stream().anyMatch(x -> x.equals(prePareMsg))) {
 				newMsg = makePrePrepareMsg(getPrivateKey(), message.getNewViewNum(), prePareMsg.getSeqNum(), prePareMsg.getOperation());
 			} else {
-				//TODO: execution 단계에서 null 처리하기
 				newMsg = makePrePrepareMsg(getPrivateKey(), message.getNewViewNum(), prePareMsg.getSeqNum(), null);
 			}
 			replicas.values().forEach(sock -> send(sock, newMsg));
