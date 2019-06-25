@@ -71,7 +71,7 @@ public class Logger {
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
                 "CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
-				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, " +
+				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, checkpointNum, replica))",
         };
         for (String query : queries) {
@@ -191,13 +191,14 @@ public class Logger {
 	}
 
 	private void insertViewChangeMessage(ViewChangeMessage message) {
-        String query = "INSERT INTO ViewChanges (?, ?, ?, ?, ?)";
+		String query = "INSERT INTO ViewChanges (?, ?, ?, ?, ?, ?)";
         try (var pstmt = getPreparedStatement(query)) {
             pstmt.setInt(1, message.getNewViewNum());
             pstmt.setInt(2, message.getLastCheckpointNum());
             pstmt.setInt(3, message.getReplicaNum());
 			pstmt.setString(4, Util.serToString(message.getCheckPointMessages()));
 			pstmt.setString(5, Util.serToString(message.getMessageList()));
+			pstmt.setString(6, Util.serToString(message));
 
 			pstmt.execute();
         } catch (SQLException e) {
