@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
+import static kr.ac.hongik.apl.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.ReplyMessage.makeReplyMsg;
 
@@ -101,7 +102,7 @@ public class Replica extends Connector {
 		//Assume that every connection is established
 		while (true) {
 			Message message = super.receive();              //Blocking method
-			if (!isViewChangePhase && message instanceof HeaderMessage) {
+			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (!isViewChangePhase && message instanceof RequestMessage) {
 				handleRequestMessage((RequestMessage) message);
@@ -168,7 +169,7 @@ public class Replica extends Connector {
 
 		if (isVerified) {
 			logger.insertMessage(message);
-			PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(
+			PrepareMessage prepareMessage = makePrepareMsg(
 					this.getPrivateKey(),
 					message.getViewNum(),
 					message.getSeqNum(),
@@ -446,14 +447,12 @@ public class Replica extends Connector {
 				.collect(Collectors.toList());
 		List<PreprepareMessage> preprepareMessages = message.getOperationList();
 
-		for (var prePareMsg : preprepareMessages) {
-			PreprepareMessage newMsg;
-			if (receivedMsgs.stream().anyMatch(x -> x.equals(prePareMsg))) {
-				newMsg = makePrePrepareMsg(getPrivateKey(), message.getNewViewNum(), prePareMsg.getSeqNum(), prePareMsg.getOperation());
-			} else {
-				newMsg = makePrePrepareMsg(getPrivateKey(), message.getNewViewNum(), prePareMsg.getSeqNum(), null);
+		for (var pre_prepareMsg : preprepareMessages) {
+			if (receivedMsgs.stream().anyMatch(x -> x.equals(pre_prepareMsg))) {
+				PrepareMessage newMsg = makePrepareMsg(getPrivateKey(), message.getNewViewNum(),
+						pre_prepareMsg.getSeqNum(), pre_prepareMsg.getDigest(), this.getMyNumber());
+				replicas.values().forEach(sock -> send(sock, newMsg));
 			}
-			replicas.values().forEach(sock -> send(sock, newMsg));
 		}
 	}
 
