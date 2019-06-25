@@ -37,7 +37,7 @@ public class NewViewMessage implements Message {
 		/* Replica.canMakeNewViewMessage에서 replica 자신의 view-change 메시지가 있는지, 2f개의 다른 backup들의 메시지가 있는지 이미 검증한다. */
 
 		String query = "SELECT V1.data FROM ViewChanges V1 " +
-				"WHERE AND V1.checkpointNum = (SELECT MAX(V2.checkpointNum) FROM ViewChanges V2 ) ";
+				"WHERE AND V1.newViewNum = (SELECT MAX(V2.newViewNum) FROM ViewChanges V2 ) ";	/* newViewNum은 단조증가함! */
 		try (var pstmt = queryFn.apply(query)) {
 			var ret = pstmt.executeQuery();
 			List<ViewChangeMessage> viewChangeMessages = JdbcUtils.toStream(ret)
