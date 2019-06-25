@@ -145,4 +145,13 @@ public class Util {
             return false;
         }
     }
+
+	public static String serToString(Serializable object) {
+		return Base64.getEncoder().encodeToString(serialize(object));
+	}
+
+	public static <T> T desToObject(String str, Class<T> type) {
+		Serializable obj = deserialize(Base64.getDecoder().decode(str));
+		return type.cast(obj);
+	}
 }

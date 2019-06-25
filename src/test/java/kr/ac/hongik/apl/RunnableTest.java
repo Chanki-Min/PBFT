@@ -79,7 +79,4 @@ public class RunnableTest {
 
     }
 
-    /*
-     * TODO: Run each Replica on the independent server with own IP.
-     */
 }
