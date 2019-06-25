@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl;
 
 import com.codahale.shamir.Scheme;
+import com.owlike.genson.GensonBuilder;
 import org.apache.commons.lang3.SerializationUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -150,8 +151,16 @@ public class Util {
         return Base64.getEncoder().encodeToString(serialize(object));
     }
 
+	public static String serToString(List<?> object) {
+		return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().serialize(object);
+	}
+
     public static <T> T desToObject(String str, Class<T> type) {
-        Serializable obj = deserialize(Base64.getDecoder().decode(str));
-        return type.cast(obj);
+		if (type == List.class) {
+			return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().deserialize(str, type);
+		} else {
+			Serializable obj = deserialize(Base64.getDecoder().decode(str));
+			return type.cast(obj);
+		}
     }
 }
