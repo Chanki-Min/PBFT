@@ -513,6 +513,7 @@ public class Replica extends Connector {
 	}
 
 	private void handleNewViewMessage(NewViewMessage message) {
+		//TODO: 로직 전면적 수정 필요
 		PublicKey key = publicKeyMap.get(replicas.get(message.getNewViewNum()));
 		if (!message.verify(key))
 			return;
