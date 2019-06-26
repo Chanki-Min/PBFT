@@ -2,7 +2,6 @@ package kr.ac.hongik.apl;
 
 import org.echocat.jsu.JdbcUtils;
 
-import javax.print.DocFlavor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -548,5 +547,9 @@ public class Replica extends Connector {
 
 	public void setPrimary(int primary) {
 		this.primary = primary;
+	}
+
+	public Map<String, Timer> getTimerMap() {
+		return timerMap;
 	}
 }
