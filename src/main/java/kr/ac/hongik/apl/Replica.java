@@ -29,7 +29,7 @@ public class Replica extends Connector {
 
 
 	private final int myNumber;
-	private int primary = 0;
+	private int viewNum = 0;
 
 	private ServerSocketChannel listener;
 	private List<SocketChannel> clients;
@@ -143,11 +143,11 @@ public class Replica extends Connector {
 				//Enter broadcast phase
 				broadcastToReplica(message);
 			} else {
-				//Relay to primary
+				//Relay to viewNum
 				super.send(replicas.get(getPrimary()), message);
 
 				//Set a timer for view-change phase
-				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], (this.getPrimary() + 1) % replicas.size(), this);
+				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], this.getViewNum() + 1, this);
 				Timer timer = new Timer();
 				timer.schedule(viewChangeTimerTask, Replica.timeout);
 
@@ -413,6 +413,18 @@ public class Replica extends Connector {
 				.findFirst().get().getKey();
 	}
 
+	public int getPrimary() {
+		return viewNum % replicas.size();
+	}
+
+	public int getViewNum() {
+		return viewNum;
+	}
+
+	public void setViewNum(int primary) {
+		this.viewNum = primary;
+	}
+
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
 
@@ -422,41 +434,13 @@ public class Replica extends Connector {
 		logger.insertMessage(message);
 		try {
 			if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
-				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getPrimary() + 1);
+				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
 
 				replicas.values().forEach(sock -> send(sock, newViewMessage));
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-	}
-
-	private void handleNewViewMessage(NewViewMessage message) {
-		PublicKey key = publicKeyMap.get(replicas.get(message.getNewViewNum()));
-		if (!message.verify(key))
-			return;
-
-		setPrimary(message.getNewViewNum());
-
-		List<ViewChangeMessage> viewChangeMessages = message.getViewChangeMessageList();
-		List<PreprepareMessage> receivedMsgs = viewChangeMessages
-				.stream()
-				.flatMap(x -> x.getMessageList().stream())
-				.map(x -> x.getPreprepareMessage())
-				.collect(Collectors.toList());
-		List<PreprepareMessage> preprepareMessages = message.getOperationList();
-
-		for (var pre_prepareMsg : preprepareMessages) {
-			if (receivedMsgs.stream().anyMatch(x -> x.equals(pre_prepareMsg))) {
-				PrepareMessage newMsg = makePrepareMsg(getPrivateKey(), message.getNewViewNum(),
-						pre_prepareMsg.getSeqNum(), pre_prepareMsg.getDigest(), this.getMyNumber());
-				replicas.values().forEach(sock -> send(sock, newMsg));
-			}
-		}
-	}
-
-	public int getPrimary() {
-		return primary;
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
@@ -545,8 +529,28 @@ public class Replica extends Connector {
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
-	public void setPrimary(int primary) {
-		this.primary = primary;
+	private void handleNewViewMessage(NewViewMessage message) {
+		PublicKey key = publicKeyMap.get(replicas.get(message.getNewViewNum()));
+		if (!message.verify(key))
+			return;
+
+		setViewNum(message.getNewViewNum());
+
+		List<ViewChangeMessage> viewChangeMessages = message.getViewChangeMessageList();
+		List<PreprepareMessage> receivedMsgs = viewChangeMessages
+				.stream()
+				.flatMap(x -> x.getMessageList().stream())
+				.map(x -> x.getPreprepareMessage())
+				.collect(Collectors.toList());
+		List<PreprepareMessage> preprepareMessages = message.getOperationList();
+
+		for (var pre_prepareMsg : preprepareMessages) {
+			if (receivedMsgs.stream().anyMatch(x -> x.equals(pre_prepareMsg))) {
+				PrepareMessage newMsg = makePrepareMsg(getPrivateKey(), message.getNewViewNum(),
+						pre_prepareMsg.getSeqNum(), pre_prepareMsg.getDigest(), this.getMyNumber());
+				replicas.values().forEach(sock -> send(sock, newMsg));
+			}
+		}
 	}
 
 	public Map<String, Timer> getTimerMap() {
