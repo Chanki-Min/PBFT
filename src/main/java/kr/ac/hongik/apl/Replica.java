@@ -307,7 +307,7 @@ public class Replica extends Connector {
 				}
 
 				try {
-					String key = makeKeyForTimer(rightNextCommitMsg.getSeqNum());
+					String key = makeKeyForTimer(rightNextCommitMsg);
 					Timer timer = timerMap.remove(key);
 					timer.cancel();
 				} catch (SQLException e) {
@@ -350,27 +350,13 @@ public class Replica extends Connector {
 	 * Generate key for getting timer from timerMap.
 	 * Commit message doesn't have an operation, so the replica need to query from logger.
 	 *
-	 * @param seqNum
-	 * @return Hash(operation) which is queried from seqNum's request
+	 *
+	 * @param cmsg
+	 * @return Hash(operation) which is queried from cmsg's request
 	 */
-	private String makeKeyForTimer(int seqNum) throws SQLException {
-		String query = "SELECT R.operation " +
-				"FROM Preprepares PP Requests R " +
-				"WHERE PP.seqNum = ? AND PP.operation = R.operation";
-		try (var pstmt = logger.getPreparedStatement(query)) {
-			pstmt.setInt(1, seqNum);
-
-			var ret = pstmt.executeQuery();
-			if (ret.next()) {
-				String base64Data = ret.getString(1);
-				byte[] ser = Base64.getDecoder().decode(base64Data);
-				Operation operation = (Operation) Util.deserialize(ser);
-
-				return Util.hash(operation);
-			} else {
-				throw new SQLException("There's no " + seqNum + "th operation");
-			}
-		}
+	private String makeKeyForTimer(CommitMessage cmsg) {
+		var operation = logger.getOperation(cmsg);
+		return Util.hash(operation);
 	}
 
 	private void handleCheckPointMessage(CheckPointMessage message){
@@ -495,9 +481,6 @@ public class Replica extends Connector {
 	}
 
 	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
-		/* view-change 메시지가 2f + 1(자신 포함)인지 확인
-		 *   cf: 정확하게 2f + 1개가 되었을 때만 view-change 메시지를 보내야 한다. 왜냐하면 2f + 1이상으로 조건을 잡을 경우 2f + 1번째와  2f+2번째 메시지가 들어왔을 때 각각에 대하여 모두 view-change message를 보낼 것이기 때문이다.
-		 */
 
 		Boolean[] checklist = new Boolean[3];
 		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
