@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
@@ -40,6 +41,7 @@ public class Replica extends Connector {
 
 	private Map<String, Timer> timerMap = new HashMap<>();
 	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까?, 언제 flag를 해제할까?
+	private Queue<Message> buffer = new LinkedList<>();
 
 
 	Replica(Properties prop, String serverIp, int serverPort) {
@@ -100,7 +102,7 @@ public class Replica extends Connector {
 	void start() {
 		//Assume that every connection is established
 		while (true) {
-			Message message = super.receive();              //Blocking method
+			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (!isViewChangePhase && message instanceof RequestMessage) {
@@ -119,6 +121,27 @@ public class Replica extends Connector {
 				handleNewViewMessage((NewViewMessage) message);
 			} else
 				throw new UnsupportedOperationException("Invalid message");
+		}
+	}
+
+	/**
+	 * @return
+	 */
+	@Override
+	protected Message receive() {
+		if (!isViewChangePhase) {
+			if (buffer.isEmpty())
+				return super.receive();
+			else
+				return buffer.poll();
+		} else {
+			Predicate<Message> receivable = (msg) -> msg instanceof CheckPointMessage || msg instanceof ViewChangeMessage || msg instanceof NewViewMessage;
+
+			Message message;
+			for (message = super.receive(); !receivable.test(message); message = super.receive()) {
+				buffer.offer(message);
+			}
+			return message;
 		}
 	}
 
@@ -306,13 +329,9 @@ public class Replica extends Connector {
 					((Validation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
 				}
 
-				try {
-					String key = makeKeyForTimer(rightNextCommitMsg);
-					Timer timer = timerMap.remove(key);
-					timer.cancel();
-				} catch (SQLException e) {
-					e.printStackTrace();
-				}
+				String key = makeKeyForTimer(rightNextCommitMsg);
+				Timer timer = timerMap.remove(key);
+				timer.cancel();
 
 
 				Object ret = operation.execute();
@@ -518,6 +537,7 @@ public class Replica extends Connector {
 		if (!message.verify(key))
 			return;
 
+		setViewChangePhase(false);
 		setViewNum(message.getNewViewNum());
 
 		List<ViewChangeMessage> viewChangeMessages = message.getViewChangeMessageList();
