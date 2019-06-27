@@ -437,20 +437,37 @@ public class Replica extends Connector {
 			return;
 
 		logger.insertMessage(message);
-		/* TODO: f + 1 이상의 v > currentView 인 view-change를 수집한다면
-		    나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다.
-		 */
 
-		if (message.getNewViewNum() % replicas.size() == getMyNumber())
-			try {
-				if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
-					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
 
+		try {
+			if (message.getNewViewNum() % replicas.size() == getMyNumber() && canMakeNewViewMessage(message)) {
+				/* 정확히 2f + 1개일 때만 broadcast */
+				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
+				replicas.values().forEach(sock -> send(sock, newViewMessage));
+			} else {
+				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
+					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
+
+				List<Integer> newViewList;
+				String query = "SELECT V.newViewNum from Viewchanges V WHERE V.newViewNum > ?";
+				try (var pstmt = logger.getPreparedStatement(query)) {
+					pstmt.setInt(1, this.getMyNumber());
+					ResultSet rs = pstmt.executeQuery();
+					newViewList = JdbcUtils.toStream(rs)
+							.map(rethrow().wrapFunction(x -> x.getString(1)))
+							.map(Integer::valueOf)
+							.sorted()
+							.collect(Collectors.toList());
+				}
+
+				if (newViewList.size() > getMaximumFaulty()) {
+					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, newViewList.get(0));
 					replicas.values().forEach(sock -> send(sock, newViewMessage));
 				}
-			} catch (SQLException e) {
-				e.printStackTrace();
 			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
