@@ -24,5 +24,8 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getPrivateKey(), checkpointNum, newViewNum, replica.getMyNumber(), getPreparedStatementFn);
 
 		replica.replicas.values().forEach(sock -> replica.send(sock, viewChangeMessage));
+
+
+		/* TODO: new view v + i 에 대해서 Timeout * i 만큼 기다린다. 이 기간 내에 new-view message를 받지 못한다면 i := i + 1로 새로운 view-change message를 생성한다. */
 	}
 }
