@@ -101,12 +101,16 @@ public class NewViewMessage implements Message {
 					.max(Comparator.comparingInt(PrepareMessage::getSeqNum))
 					.get()
 					.getSeqNum();
-
+			/*
+				nullPre_preparesStream: Stream of Pre-prepare Msg with Diget = null (second case of paper)
+			 */
 			Stream<PreprepareMessage> nullPre_preparesStream = IntStream.rangeClosed(min_s, max_s)
 					.filter(n -> prepareList.stream().noneMatch(p -> p.getSeqNum() == n))
 					.sorted()
 					.mapToObj(n -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, n, null));
-
+			/*
+				received_pre_prepares: Stream of Pre-prepare Msg that was in set of viewChangeMessages
+			 */
 			Stream<PreprepareMessage> received_pre_prepares = viewChangeMessages.stream()
 					.map(v -> v.getMessageList())
 					.flatMap(pm -> pm.stream())
@@ -118,10 +122,15 @@ public class NewViewMessage implements Message {
 					.findAny()
 					.get()
 					.getOperation();
-
+			/**
+				make Stream of Pre-prepare Msgs that has non-null Operation Op.
+			    Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience
+			 */
 			Stream<PreprepareMessage> pre_preparesStream = prepareList.stream()
 					.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)));
-
+			/*
+				make Sorted Set that has null-Pre-pre & not-null-Pre-pre
+			 */
 			List<PreprepareMessage> pre_prepares = Stream.concat(nullPre_preparesStream, pre_preparesStream)
 					.sorted(Comparator.comparingInt(PreprepareMessage::getSeqNum))
 					.collect(Collectors.toList());

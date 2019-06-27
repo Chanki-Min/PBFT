@@ -460,7 +460,7 @@ public class Replica extends Connector {
 							.collect(Collectors.toList());
 				}
 
-				if (newViewList.size() > getMaximumFaulty()) {
+				if (newViewList.size() == getMaximumFaulty() + 1) {
 					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, newViewList.get(0));
 					replicas.values().forEach(sock -> send(sock, newViewMessage));
 				}
