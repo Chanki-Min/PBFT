@@ -433,19 +433,24 @@ public class Replica extends Connector {
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
 
-		if (!message.verify(publicKey) || message.getNewViewNum() != getMyNumber())
+		if (!message.verify(publicKey))
 			return;
 
 		logger.insertMessage(message);
-		try {
-			if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
-				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
+		/* TODO: f + 1 이상의 v > currentView 인 view-change를 수집한다면
+		    나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다.
+		 */
 
-				replicas.values().forEach(sock -> send(sock, newViewMessage));
+		if (message.getNewViewNum() % replicas.size() == getMyNumber())
+			try {
+				if (canMakeNewViewMessage(message)) { /* 정확히 2f + 1개일 때만 broadcast */
+					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
+
+					replicas.values().forEach(sock -> send(sock, newViewMessage));
+				}
+			} catch (SQLException e) {
+				e.printStackTrace();
 			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
