@@ -40,7 +40,7 @@ public class Replica extends Connector {
 	private int lowWatermark;
 
 	private Map<String, Timer> timerMap = new HashMap<>();
-	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까?, 언제 flag를 해제할까?
+	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까?
 	private Queue<Message> buffer = new LinkedList<>();
 
 
@@ -532,29 +532,17 @@ public class Replica extends Connector {
 	}
 
 	private void handleNewViewMessage(NewViewMessage message) {
-		//TODO: 로직 전면적 수정 필요
 		PublicKey key = publicKeyMap.get(replicas.get(message.getNewViewNum()));
-		if (!message.verify(key))
+		if (!message.isVerified(key))
 			return;
 
 		setViewChangePhase(false);
 		setViewNum(message.getNewViewNum());
 
-		List<ViewChangeMessage> viewChangeMessages = message.getViewChangeMessageList();
-		List<PreprepareMessage> receivedMsgs = viewChangeMessages
+		message.getOperationList()
 				.stream()
-				.flatMap(x -> x.getMessageList().stream())
-				.map(x -> x.getPreprepareMessage())
-				.collect(Collectors.toList());
-		List<PreprepareMessage> preprepareMessages = message.getOperationList();
-
-		for (var pre_prepareMsg : preprepareMessages) {
-			if (receivedMsgs.stream().anyMatch(x -> x.equals(pre_prepareMsg))) {
-				PrepareMessage newMsg = makePrepareMsg(getPrivateKey(), message.getNewViewNum(),
-						pre_prepareMsg.getSeqNum(), pre_prepareMsg.getDigest(), this.getMyNumber());
-				replicas.values().forEach(sock -> send(sock, newMsg));
-			}
-		}
+				.map(pp -> makePrepareMsg(getPrivateKey(), pp.getViewNum(), pp.getSeqNum(), pp.getDigest(), getMyNumber()))
+				.forEach(msg -> replicas.values().forEach(sock -> send(sock, msg)));
 	}
 
 	public Map<String, Timer> getTimerMap() {

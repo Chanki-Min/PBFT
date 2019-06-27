@@ -7,6 +7,7 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
@@ -35,6 +36,29 @@ public class NewViewMessage implements Message {
 
 
 		return new NewViewMessage(data, signature);
+	}
+
+	public boolean isVerified(PublicKey key) {
+		Boolean[] checklist = new Boolean[3];
+
+		checklist[0] = this.verify(key);
+
+		var agreed_prepares = this.getViewChangeMessageList()
+				.stream()
+				.flatMap(v -> v.getMessageList().stream())
+				.flatMap(pm -> pm.getPrepareMessages().stream());
+
+		checklist[1] = this.getOperationList()
+				.stream()
+				.filter(pp -> pp.getDigest() != null)
+				.allMatch(pp -> agreed_prepares.anyMatch(p -> p.getDigest().equals(pp.getDigest())));
+
+		checklist[2] = this.getOperationList()
+				.stream()
+				.filter(pp -> pp.getDigest() == null)
+				.noneMatch(pp -> agreed_prepares.anyMatch(p -> p.getDigest().equals(pp.getDigest())));
+
+		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
 	private static List<ViewChangeMessage> getViewChangeMessages(Function<String, PreparedStatement> queryFn) throws SQLException {
