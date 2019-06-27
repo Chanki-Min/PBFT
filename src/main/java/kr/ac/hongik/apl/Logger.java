@@ -67,7 +67,8 @@ public class Logger {
         String[] queries = {
                 "CREATE TABLE Requests (client TEXT,timestamp DATE,operation TEXT, PRIMARY KEY(client, timestamp, operation))",
                 "CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, operation TEXT, PRIMARY KEY(viewNum, seqNum, digest))",
-                "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, seqNum, digest, replica))",
+                "CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, " +
+                        "seqNum, digest, replica))",
                 "CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
                 "CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
                 "CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
@@ -93,7 +94,7 @@ public class Logger {
         }
     }
 
-    public String getStateDigest(int seqNum) {
+    public String getStateDigest(int seqNum) throws SQLException {
         //TODO: Fill!!!
         StringBuilder builder = new StringBuilder();
         builder.append(getPrePrepareMsgs(seqNum));
@@ -103,19 +104,64 @@ public class Logger {
         return Util.hash(builder.toString().getBytes());
     }
 
-    private String getPrePrepareMsgs(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private String getPrePrepareMsgs(int seqNum) throws SQLException {
+        String baseQuery = "SELECT digest FROM Preprepares WHERE seqNum <= ? ";
+
+        PreparedStatement pstmt = conn.prepareStatement(baseQuery);
+        pstmt.setInt(1,seqNum);
+
+        ResultSet ret = pstmt.executeQuery();
+
+        StringBuilder builder = new StringBuilder();
+
+        while(ret.next()){
+            builder.append(ret.getString(1));
+        }
+        return String.valueOf(builder);
+
+        //throw new NotImplementedException("구현하세요");
     }
 
-    private String getPrepareMsgs(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private String getPrepareMsgs(int seqNum) throws SQLException {
+        String baseQuery = "SELECT digest FROM Prepares WHERE seqNum <=?";
+
+        PreparedStatement pstmt = conn.prepareStatement(baseQuery);
+        pstmt.setInt(1,seqNum);
+
+        ResultSet ret = pstmt.executeQuery();
+
+        StringBuilder builder = new StringBuilder();
+
+        while(ret.next()){
+            builder.append(ret.getString(1));
+
+        }
+        return String.valueOf(builder);
+
+        //throw new NotImplementedException("구현하세요");
     }
 
-    private String getCommitMsgs(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private String getCommitMsgs(int seqNum) throws SQLException {
+        String baseQuery = "SELECT digest FROM Commits WHERE seqNum <= ?";
+
+        PreparedStatement pstmt = conn.prepareStatement(baseQuery);
+        pstmt.setInt(1,seqNum);
+
+        ResultSet ret = pstmt.executeQuery();
+
+        StringBuilder builder = new StringBuilder();
+
+        while(ret.next()){
+            builder.append(ret.getString(1));
+        }
+
+        return String.valueOf(builder);
+
+
+       // throw new NotImplementedException("구현하세요");
     }
 
-    public void executeGarbageCollection(int seqNum){
+    public void executeGarbageCollection(int seqNum) throws SQLException {
        //TODO: Fill!
        cleanUpPrePrepareMsg(seqNum);
        cleanUpPrepareMsg(seqNum);
@@ -124,24 +170,44 @@ public class Logger {
        cleanUpExecutedMsg(seqNum);
     }
 
-    private void cleanUpPrePrepareMsg(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private void cleanUpPrePrepareMsg(int seqNum) throws SQLException {
+        String query = "DELETE FROM Preprepares WHERE seqNum <= ?";
+        PreparedStatement pstmt = conn.prepareStatement(query);
+        pstmt.setInt(1,seqNum);
+        pstmt.execute();
+       // throw new NotImplementedException("구현하세요");
     }
 
-    private void cleanUpPrepareMsg(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private void cleanUpPrepareMsg(int seqNum) throws SQLException {
+        String query = "DELETE FROM Prepares WHERE seqNum <= ?";
+        PreparedStatement pstmt = conn.prepareStatement(query);
+        pstmt.setInt(1,seqNum);
+        pstmt.execute();
+        // throw new NotImplementedException("구현하세요");
     }
 
-    private void cleanUpCommitMsg(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private void cleanUpCommitMsg(int seqNum) throws SQLException {
+        String query = "DELETE FROM Commits WHERE seqNum <= ?";
+        PreparedStatement pstmt = conn.prepareStatement(query);
+        pstmt.setInt(1,seqNum);
+        pstmt.execute();
+        //throw new NotImplementedException("구현하세요");
     }
 
-    private void cleanUpCheckpointMsg(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
+        String query = "DELETE FROM Checkpoints WHERE seqNum <=?";
+        PreparedStatement pstmt = conn.prepareStatement(query);
+        pstmt.setInt(1,seqNum);
+        pstmt.execute();
+        //throw new NotImplementedException("구현하세요");
     }
 
-    private void cleanUpExecutedMsg(int seqNum) {
-        throw new NotImplementedException("구현하세요");
+    private void cleanUpExecutedMsg(int seqNum) throws SQLException {
+        String query = "DELETE FROM Executed WHERE seqNum <= ?";
+        PreparedStatement pstmt = conn.prepareStatement(query);
+        pstmt.setInt(1,seqNum);
+        pstmt.execute();
+        //throw new NotImplementedException("구현하세요");
     }
 
 
@@ -222,8 +288,21 @@ public class Logger {
 	}
 
     private void insertCheckPointMessage(CheckPointMessage message) {
+        String baseQuery = "INSERT INTO Checkpoints VALUES (? , ? , ?)";
+        try{
+            PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+
+            preparedStatement.setInt(1, message.getSeqNum());
+            preparedStatement.setString(2,message.getDigest());
+            preparedStatement.setInt(3,message.getReplicaNum());
+
+            preparedStatement.execute();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         //TODO
-        throw new NotImplementedException("구현하세요");
+       // throw new NotImplementedException("구현하세요");
     }
 
     void insertMessage(int sequenceNumber, ReplyMessage message) {
@@ -246,10 +325,12 @@ public class Logger {
         String baseQuery = "INSERT INTO Commits VALUES ( ?, ?, ?, ? )";
         try {
             PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+
             preparedStatement.setInt(1, message.getViewNum());
             preparedStatement.setInt(2, message.getSeqNum());
             preparedStatement.setString(3, message.getDigest());
             preparedStatement.setInt(4, message.getReplicaNum());
+
             preparedStatement.execute();
         } catch (SQLException e) {
             if(e.getErrorCode() == CONSTRAINT_ERROR)
