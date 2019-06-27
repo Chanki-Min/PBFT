@@ -1,17 +1,21 @@
 package kr.ac.hongik.apl;
 
-import org.apache.commons.lang3.NotImplementedException;
 import org.echocat.jsu.JdbcUtils;
 
 import java.io.Serializable;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.diffplug.common.base.Errors.rethrow;
+import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
 
 public class NewViewMessage implements Message {
 	private final Data data;
@@ -25,7 +29,7 @@ public class NewViewMessage implements Message {
 	public static NewViewMessage makeNewViewMessage(Replica replica, int newViewNum) throws SQLException {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
-		List<PreprepareMessage> operationList = getOperationList(queryFn);
+		List<PreprepareMessage> operationList = getOperationList(replica, newViewNum);
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
 
@@ -48,11 +52,60 @@ public class NewViewMessage implements Message {
 		}
 	}
 
-	private static List<PreprepareMessage> getOperationList(Function<String, PreparedStatement> queryFn) {
-		//TODO: getOperationList
-		throw new NotImplementedException("필요한 쿼리:" +
-				"View-change message DB를 검색하며 가장 높은 sequence number 및 가장 낮은 sequence number를 구한다." +
-				"각 sequence number n에 대해 새로 new view number에 기반한 pre-prepare message를 생성한다.");
+	private static List<PreprepareMessage> getOperationList(Replica replica, int newViewNum) throws SQLException {
+		String query = "SELECT V.data FROM ViewChanges V " +
+				"WHERE V.newViewNum = ? " +
+				"AND V.checkpointNum = (SELECT MAX(V3.checkpointNum) FROM ViewChanges V3)";
+		try (var pstmt = replica.getLogger().getPreparedStatement(query)) {
+			pstmt.setInt(1, newViewNum);
+			ResultSet rs = pstmt.executeQuery();
+
+			List<ViewChangeMessage> viewChangeMessages = JdbcUtils.toStream(rs)
+					.map(rethrow().wrapFunction(x -> x.getString(1)))
+					.map(x -> Util.desToObject(x, ViewChangeMessage.class))
+					.collect(Collectors.toList());
+
+			List<PrepareMessage> prepareList = viewChangeMessages.stream()
+					.flatMap(v -> v.getMessageList().stream())
+					.flatMap(pm -> pm.getPrepareMessages().stream())
+					.sorted(Comparator.comparingInt(PrepareMessage::getSeqNum))
+					.collect(Collectors.toList());
+
+
+			int min_s = replica.getWatermarks()[0] + 1;
+			int max_s = prepareList.stream()
+					.max(Comparator.comparingInt(PrepareMessage::getSeqNum))
+					.get()
+					.getSeqNum();
+
+			Stream<PreprepareMessage> nullPre_preparesStream = IntStream.rangeClosed(min_s, max_s)
+					.filter(n -> prepareList.stream().noneMatch(p -> p.getSeqNum() == n))
+					.sorted()
+					.mapToObj(n -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, n, null));
+
+			Stream<PreprepareMessage> received_pre_prepares = viewChangeMessages.stream()
+					.map(v -> v.getMessageList())
+					.flatMap(pm -> pm.stream())
+					.map(pm -> pm.getPreprepareMessage())
+					.distinct();
+
+			Function<PrepareMessage, Operation> getOp = p -> received_pre_prepares
+					.filter(pp -> pp.getDigest().equals(p.getDigest()))
+					.findAny()
+					.get()
+					.getOperation();
+
+			Stream<PreprepareMessage> pre_preparesStream = prepareList.stream()
+					.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)));
+
+			List<PreprepareMessage> pre_prepares = Stream.concat(nullPre_preparesStream, pre_preparesStream)
+					.sorted(Comparator.comparingInt(PreprepareMessage::getSeqNum))
+					.collect(Collectors.toList());
+
+
+			return pre_prepares;
+		}
+
 	}
 
 	public int getNewViewNum() {
