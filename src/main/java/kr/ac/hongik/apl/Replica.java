@@ -406,7 +406,10 @@ public class Replica extends Connector {
 					replicas.values().forEach(sock -> send(sock, checkpointMessage));
 				}
 
-			} catch (NoSuchElementException e) {
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+			catch (NoSuchElementException e) {
 				return;
 			}
 		}
