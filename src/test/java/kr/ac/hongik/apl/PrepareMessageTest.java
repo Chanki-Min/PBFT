@@ -32,6 +32,6 @@ class PrepareMessageTest {
 
         PrepareMessage actual = PrepareMessage.fromCommitMessage(commitMessage);
         Assertions.assertTrue(logger.findMessage(actual));
-        logger.deleteDBFile();
-    }
+
+	}
 }

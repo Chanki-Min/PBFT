@@ -29,7 +29,7 @@ class LoggerTest {
     @Test
     void createTables() {
         Logger logger = new Logger();
-        logger.deleteDBFile();
+
     }
 
     @Test
@@ -51,7 +51,7 @@ class LoggerTest {
             logger.insertMessage(preprepareMessage);
 
         } finally {
-            logger.deleteDBFile();
+
         }
     }
 
@@ -78,7 +78,7 @@ class LoggerTest {
             logger.insertMessage(prepareMessage);
             logger.insertMessage(commitMessage);
         } finally {
-            logger.deleteDBFile();
+
         }
     }
 
@@ -109,7 +109,7 @@ class LoggerTest {
 
             assertFalse(logger.findMessage(requestMessage2));
         } finally {
-            logger.deleteDBFile();
+
         }
     }
 
@@ -136,7 +136,7 @@ class LoggerTest {
 
             assertFalse(logger.findMessage(preprepareMessage2));
         } finally {
-            logger.deleteDBFile();
+
         }
     }
 
@@ -163,7 +163,7 @@ class LoggerTest {
 
             assertFalse(logger.findMessage(prepareMessage2));
         } finally {
-            logger.deleteDBFile();
+
         }
     }
 
@@ -190,7 +190,7 @@ class LoggerTest {
 
             assertFalse(logger.findMessage(commitMessage2));
         } finally {
-            logger.deleteDBFile();
+
         }
     }
 }
