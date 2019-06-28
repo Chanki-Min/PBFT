@@ -451,6 +451,7 @@ public class Replica extends Connector {
 					//따라서 최악의 경우에는 f + 1개의 서로 다른 메시지가 올 것이다.
 					if(digestList.size() > 2 * f && digestList.stream().distinct().count() <= f + 1){
 						logger.executeGarbageCollection(message.getSeqNum());
+                        lowWatermark += WATERMARK_UNIT;
 					}
 				}
 
