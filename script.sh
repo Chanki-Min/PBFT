@@ -7,7 +7,7 @@ scp -r ./target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar apl@223.194.70.105:~
 ssh -f  apl@223.194.70.105 '\
 	cd PBFT
 	rm -f *.db
-	pkill java
+	pkill --signal 9 -f "java -jar PBFT"
 	java -jar target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar server 223.194.70.105 19030 2>&1 &
 	for i in $(echo "19031 19032 19033")
 	do
