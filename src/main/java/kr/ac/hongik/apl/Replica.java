@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -40,12 +41,13 @@ public class Replica extends Connector {
 	private int lowWatermark;
 
 	private Map<String, Timer> timerMap = new HashMap<>();
-	private boolean isViewChangePhase = false;    //TODO: Synchronize가 필요할까?
+	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 	private Queue<Message> buffer = new LinkedList<>();
 
 
 	Replica(Properties prop, String serverIp, int serverPort) {
 		super(prop);
+
 
 		String loggerFileName = String.format("consensus_%s_%d.db", serverIp, serverPort);
 
@@ -105,13 +107,13 @@ public class Replica extends Connector {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
-			} else if (!isViewChangePhase && message instanceof RequestMessage) {
+			} else if (!getviewChangePhase() && message instanceof RequestMessage) {
 				handleRequestMessage((RequestMessage) message);
-			} else if (!isViewChangePhase && message instanceof PreprepareMessage) {
+			} else if (!getviewChangePhase() && message instanceof PreprepareMessage) {
 				handlePreprepareMessage((PreprepareMessage) message);
-			} else if (!isViewChangePhase && message instanceof PrepareMessage) {
+			} else if (!getviewChangePhase() && message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
-			} else if (!isViewChangePhase && message instanceof CommitMessage) {
+			} else if (!getviewChangePhase() && message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
 			} else if (message instanceof CheckPointMessage) {
 				handleCheckPointMessage((CheckPointMessage) message);
@@ -129,7 +131,7 @@ public class Replica extends Connector {
 	 */
 	@Override
 	protected Message receive() {
-		if (!isViewChangePhase) {
+		if (!getviewChangePhase()) {
 			if (buffer.isEmpty())
 				return super.receive();
 			else
@@ -517,8 +519,12 @@ public class Replica extends Connector {
 		return this.logger;
 	}
 
+	public boolean getviewChangePhase() {
+		return this.isViewChangePhase.get();
+	}
+
 	public void setViewChangePhase(boolean viewChangePhase) {
-		isViewChangePhase = viewChangePhase;
+		isViewChangePhase.set(viewChangePhase);
 	}
 
 	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
