@@ -1,5 +1,7 @@
 package kr.ac.hongik.apl;
 
+import java.util.Timer;
+
 import static com.diffplug.common.base.Errors.rethrow;
 
 public class ViewChangeTimerTask extends java.util.TimerTask {
@@ -25,7 +27,11 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 
 		replica.replicas.values().forEach(sock -> replica.send(sock, viewChangeMessage));
 
+		ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(checkpointNum, newViewNum + 1, replica);
+		Timer timer = new Timer();
+		timer.schedule(viewChangeTimerTask,
+				replica.getTimerMap().put("View: " + (newViewNum + 1), )
 
-		/* TODO: new view v + i 에 대해서 Timeout * i 만큼 기다린다. 이 기간 내에 new-view message를 받지 못한다면 i := i + 1로 새로운 view-change message를 생성한다. */
+				/* TODO: new view v + i 에 대해서 Timeout * i 만큼 기다린다. 이 기간 내에 new-view message를 받지 못한다면 i := i + 1로 새로운 view-change message를 생성한다. */
 	}
 }
