@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl;
 
-import java.util.Timer;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
 
@@ -19,19 +20,36 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 	@Override
 	public void run() {
 		replica.setViewChangePhase(true);
-		replica.getTimerMap().values().stream().forEach(timer -> timer.cancel());
+
+		//Cancel and remove newViewNum'th timer
+		List<String> deletableKeys = replica.getTimerMap()
+				.entrySet()
+				.stream()
+				.filter(x -> x.getKey().equals("view: " + newViewNum))
+				.peek(x -> x.getValue().cancel())
+				.map(x -> x.getKey())
+				.collect(Collectors.toList());
+
+		replica.getTimerMap().entrySet().removeAll(deletableKeys);
+
+		//Cancel and remove view change timers made by backups
+		deletableKeys = replica.getTimerMap()
+				.entrySet()
+				.stream()
+				.filter(x -> !x.getKey().startsWith("view: "))
+				.peek(x -> x.getValue().cancel())
+				.map(x -> x.getKey())
+				.collect(Collectors.toList());
+
+		replica.getTimerMap().entrySet().removeAll(deletableKeys);
+
+
+
 		var keySet = replica.getTimerMap().keySet();
 		keySet.removeAll(keySet);
 		var getPreparedStatementFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getPrivateKey(), checkpointNum, newViewNum, replica.getMyNumber(), getPreparedStatementFn);
 
 		replica.replicas.values().forEach(sock -> replica.send(sock, viewChangeMessage));
-
-		ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(checkpointNum, newViewNum + 1, replica);
-		Timer timer = new Timer();
-		timer.schedule(viewChangeTimerTask,
-				replica.getTimerMap().put("View: " + (newViewNum + 1), )
-
-				/* TODO: new view v + i 에 대해서 Timeout * i 만큼 기다린다. 이 기간 내에 new-view message를 받지 못한다면 i := i + 1로 새로운 view-change message를 생성한다. */
 	}
 }

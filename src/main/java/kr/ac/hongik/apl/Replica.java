@@ -446,6 +446,14 @@ public class Replica extends Connector {
 				/* 정확히 2f + 1개일 때만 broadcast */
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
 				replicas.values().forEach(sock -> send(sock, newViewMessage));
+			} else if (hasTwoFPlusOneMessages(message)) {
+				/* 2f + 1개 이상의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
+				ViewChangeTimerTask task = new ViewChangeTimerTask(getWatermarks()[0], message.getNewViewNum() + 1, this);
+				Timer timer = new Timer();
+				timer.schedule(task, timeout * (message.getNewViewNum() + 1 - this.getViewNum()));
+
+				String key = "view: " + (message.getNewViewNum() + 1);
+				timerMap.put(key, timer);
 			} else {
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
@@ -469,6 +477,27 @@ public class Replica extends Connector {
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * @param message View-change message
+	 * @return true if DB has f + 1 same view number messages else false
+	 */
+	private boolean hasTwoFPlusOneMessages(ViewChangeMessage message) {
+		String query = "SELECT V.newViewNum FROM Viewchanges V WHERE V.newViewNum = ?";
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			pstmt.setInt(1, message.getNewViewNum());
+			var ret = pstmt.executeQuery();
+
+			return JdbcUtils.toStream(ret)
+					.map(rethrow().wrapFunction(row -> row.getString(1)))
+					.map(Integer::valueOf)
+					.count() == 2 * getMaximumFaulty() + 1;
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
 		}
 	}
 
