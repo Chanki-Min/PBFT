@@ -22,5 +22,4 @@ exit
 source /etc/profile
 rm -f ~/*.db  
 pkill -9 -f "java -jar" 
-sleep 1 
 java -jar ~/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar server 223.194.70.IP PORT 
