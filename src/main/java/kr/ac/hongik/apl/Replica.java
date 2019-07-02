@@ -227,7 +227,17 @@ public class Replica extends Connector {
 					message.getDigest(),
 					this.myNumber);
 			replicas.values().forEach(channel -> send(channel, prepareMessage));
-		}
+		} else {
+			/*
+			TODO
+			Watermark update가 이루어지기 전에 H 보다 큰 request가 올 경우 리젝되는 문제가 발생하여 임시로 해당 메시지를 TCP 윈도우에 넣도록 하였다.
+			추후에 viewchange와 통합시 viewchange에 있는 queue를 사용하도록 수정할 예정이다.
+			 */
+            if (DEBUG) {
+                System.err.println(this.lowWatermark + " " + message.getSeqNum());
+            }
+            send(replicas.get(this.myNumber), message);
+        }
 
 	}
 
