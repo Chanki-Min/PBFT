@@ -9,7 +9,7 @@ public class GreetingOperation extends Operation {
     }
 
     @Override
-	public Object execute() {
+    public Object execute(Logger logger) {
         return new Greeting("Hello, World!");
     }
 }

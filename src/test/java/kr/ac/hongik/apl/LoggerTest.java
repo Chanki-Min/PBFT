@@ -2,12 +2,14 @@ package kr.ac.hongik.apl;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,7 +21,7 @@ class SampleOperation extends Operation {
     }
 
     @Override
-	public Object execute() {
+    public Object execute(Logger logger) {
         return null;
     }
 }
@@ -191,6 +193,30 @@ class LoggerTest {
             assertFalse(logger.findMessage(commitMessage2));
         } finally {
 
+        }
+    }
+
+    @Test
+    public void testGarbageCollection() {
+        try {
+            InputStream in = getClass().getResourceAsStream("/replica.properties");
+
+            Properties prop = new Properties();
+            prop.load(in);
+
+            Client client = new Client(prop);
+            System.err.println("Client: Request");
+            Integer repeatTime = 15;
+            for (int i = 0; i < repeatTime; i++) {
+                Operation op = new CountMessages(client.getPublicKey());
+                RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+                client.request(requestMessage);
+                var ret = client.getReply();
+                System.err.println(i + " : " + ret);
+                //Assertions.assertEquals(i % Replica.WATERMARK_UNIT, (int) ret);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

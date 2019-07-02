@@ -30,7 +30,7 @@ public class BlockCreation extends Operation {
 	 * @return ({ certNumber, certPiece }, { certNumber, certPiece }, merkle tree root)
 	 */
 	@Override
-	public Object execute() {
+	public Object execute(Logger logger) {
 
 		createTableIfNotExists();
 

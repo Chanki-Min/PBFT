@@ -1,7 +1,5 @@
 package kr.ac.hongik.apl;
 
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -105,7 +103,7 @@ public class Logger {
     }
 
     private String getPrePrepareMsgs(int seqNum) throws SQLException {
-        String baseQuery = "SELECT digest FROM Preprepares WHERE seqNum <= ? ";
+        String baseQuery = "SELECT digest, viewNum, seqNum FROM Preprepares WHERE seqNum <= ? ";
 
         PreparedStatement pstmt = conn.prepareStatement(baseQuery);
         pstmt.setInt(1,seqNum);
@@ -115,7 +113,9 @@ public class Logger {
         StringBuilder builder = new StringBuilder();
 
         while(ret.next()){
-            builder.append(ret.getString(1));
+            builder.append(ret.getString("digest"));
+            builder.append(ret.getInt("viewNum"));
+            builder.append(ret.getInt("seqNum"));
         }
         return String.valueOf(builder);
 
@@ -123,7 +123,7 @@ public class Logger {
     }
 
     private String getPrepareMsgs(int seqNum) throws SQLException {
-        String baseQuery = "SELECT digest FROM Prepares WHERE seqNum <=?";
+        String baseQuery = "SELECT digest, viewNum, seqNum FROM Prepares WHERE seqNum <=?";
 
         PreparedStatement pstmt = conn.prepareStatement(baseQuery);
         pstmt.setInt(1,seqNum);
@@ -133,8 +133,9 @@ public class Logger {
         StringBuilder builder = new StringBuilder();
 
         while(ret.next()){
-            builder.append(ret.getString(1));
-
+            builder.append(ret.getString("digest"));
+            builder.append(ret.getInt("viewNum"));
+            builder.append(ret.getInt("seqNum"));
         }
         return String.valueOf(builder);
 
@@ -142,7 +143,7 @@ public class Logger {
     }
 
     private String getCommitMsgs(int seqNum) throws SQLException {
-        String baseQuery = "SELECT digest FROM Commits WHERE seqNum <= ?";
+        String baseQuery = "SELECT seqNum FROM Commits WHERE seqNum <= ?";
 
         PreparedStatement pstmt = conn.prepareStatement(baseQuery);
         pstmt.setInt(1,seqNum);
@@ -152,7 +153,7 @@ public class Logger {
         StringBuilder builder = new StringBuilder();
 
         while(ret.next()){
-            builder.append(ret.getString(1));
+            builder.append(ret.getInt(1));
         }
 
         return String.valueOf(builder);
@@ -171,7 +172,7 @@ public class Logger {
     }
 
     private void cleanUpPrePrepareMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Preprepares WHERE seqNum <= ?";
+        String query = "DELETE FROM Preprepares WHERE seqNum < ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
@@ -179,7 +180,7 @@ public class Logger {
     }
 
     private void cleanUpPrepareMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Prepares WHERE seqNum <= ?";
+        String query = "DELETE FROM Prepares WHERE seqNum < ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
@@ -187,7 +188,7 @@ public class Logger {
     }
 
     private void cleanUpCommitMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Commits WHERE seqNum <= ?";
+        String query = "DELETE FROM Commits WHERE seqNum < ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
@@ -195,7 +196,7 @@ public class Logger {
     }
 
     private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Checkpoints WHERE seqNum <=?";
+        String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
@@ -203,7 +204,7 @@ public class Logger {
     }
 
     private void cleanUpExecutedMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Executed WHERE seqNum <= ?";
+        String query = "DELETE FROM Executed WHERE seqNum < ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();

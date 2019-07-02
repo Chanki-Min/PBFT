@@ -433,7 +433,7 @@ public class Replica extends Connector {
 		if(message.verify(publicKey)) {
 			logger.insertMessage(message);
 
-			String query = "SELECT stateDigest FROM Checkpoint C WHERE C.seqNum = ?";
+			String query = "SELECT stateDigest FROM Checkpoints C WHERE C.seqNum = ?";
 
 			try(var psmt = logger.getPreparedStatement(query)) {
 
@@ -453,7 +453,10 @@ public class Replica extends Connector {
 							.max(Comparator.comparingInt(x -> x))
 							.orElse(0);
 
-					if (max > 2 * f) {
+					if (max == 2 * f + 1) {
+						if (DEBUG) {
+							System.err.println("start in GC");
+						}
 						logger.executeGarbageCollection(message.getSeqNum());
                         lowWatermark += WATERMARK_UNIT;
 					}

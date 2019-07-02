@@ -21,7 +21,7 @@ abstract class Operation implements Serializable {
         this(clientInfo, false);
     }
 
-	public abstract Object execute();
+    public abstract Object execute(Logger logger);
 
     PublicKey getClientInfo() {
         return this.clientInfo;
