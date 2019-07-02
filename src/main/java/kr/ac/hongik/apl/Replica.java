@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.PrepareMessage.makePrepareMsg;
+import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.ReplyMessage.makeReplyMsg;
 /*TODO

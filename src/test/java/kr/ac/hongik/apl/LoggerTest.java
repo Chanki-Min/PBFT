@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -9,6 +10,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -211,9 +213,11 @@ class LoggerTest {
                 Operation op = new CountMessages(client.getPublicKey());
                 RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
                 client.request(requestMessage);
-                var ret = client.getReply();
-                System.err.println(i + " : " + ret);
-                //Assertions.assertEquals(i % Replica.WATERMARK_UNIT, (int) ret);
+                int[] ret = (int[]) client.getReply();
+                System.err.printf("#%d: ", i);
+                Arrays.stream(ret).forEach(x -> System.err.print(x + " "));
+                System.err.println();
+                Assertions.assertEquals(i % Replica.WATERMARK_UNIT, ret[3] % Replica.WATERMARK_UNIT);
             }
         } catch (Exception e) {
             e.printStackTrace();
