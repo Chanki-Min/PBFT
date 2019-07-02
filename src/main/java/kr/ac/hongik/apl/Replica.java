@@ -439,17 +439,21 @@ public class Replica extends Connector {
 
 				psmt.setInt(1,message.getSeqNum());
 
-				try (ResultSet ret = psmt.executeQuery()) {
-					List<String> digestList = JdbcUtils.toStream(ret)
-							.map(rethrow().wrapFunction(x -> x.getString(1)))
-							.collect(Collectors.toList());
-
+				try(var ret = psmt.executeQuery()) {
+					Map<String, Integer> digestMap = new HashMap<>();
+					while(ret.next()) {
+						var key = ret.getString(1);
+						var num = digestMap.getOrDefault(key, 0);
+						digestMap.put(key, num + 1);
+					}
 					int f = getMaximumFaulty();
-					//2f + 1개 이상의 메시지를 수집하고,
-					//2f + 1개의 메시지 중 f + 1개는 확실히 non-faulty이므로 다들 같은 메시지를 보낼 것이다.
-					//나머지 f개는 최악의 경우 전부 faulty 이고, 각자 다른 메시지를 보낼 수 있다.
-					//따라서 최악의 경우에는 f + 1개의 서로 다른 메시지가 올 것이다.
-					if(digestList.size() > 2 * f && digestList.stream().distinct().count() <= f + 1){
+					int max = digestMap
+							.values()
+							.stream()
+							.max(Comparator.comparingInt(x -> x))
+							.orElse(0);
+
+					if (max > 2 * f) {
 						logger.executeGarbageCollection(message.getSeqNum());
                         lowWatermark += WATERMARK_UNIT;
 					}
