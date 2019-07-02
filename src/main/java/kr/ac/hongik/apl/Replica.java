@@ -27,7 +27,6 @@ public class Replica extends Connector {
 	public static final boolean DEBUG = true;
 
 	final static int WATERMARK_UNIT = 100;
-	private final static long timeout = 5000;    //Unit: milliseconds
 
 
 	private final int myNumber;
@@ -174,7 +173,7 @@ public class Replica extends Connector {
 				//Set a timer for view-change phase
 				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], this.getViewNum() + 1, this);
 				Timer timer = new Timer();
-				timer.schedule(viewChangeTimerTask, Replica.timeout);
+				timer.schedule(viewChangeTimerTask, Replica.TIMEOUT);
 
 				/* Store timer object to cancel it when the request is executed and the timer is not expired.
 				 * key: operation, value: timer
@@ -450,7 +449,7 @@ public class Replica extends Connector {
 				/* 2f + 1개 이상의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
 				ViewChangeTimerTask task = new ViewChangeTimerTask(getWatermarks()[0], message.getNewViewNum() + 1, this);
 				Timer timer = new Timer();
-				timer.schedule(task, timeout * (message.getNewViewNum() + 1 - this.getViewNum()));
+				timer.schedule(task, TIMEOUT * (message.getNewViewNum() + 1 - this.getViewNum()));
 
 				String key = "view: " + (message.getNewViewNum() + 1);
 				timerMap.put(key, timer);
