@@ -22,10 +22,6 @@ import static kr.ac.hongik.apl.PrepareMessage.makePrepareMsg;
 import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.ReplyMessage.makeReplyMsg;
-/*TODO
-	connector의 receive 함수 내부에서 deserialize시 터지는 문제가 간헐적으로 발생함.
-	kafka로 전환하며 해결할 예정.
- */
 
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
@@ -103,6 +99,7 @@ public class Replica extends Connector {
 		}
 		throw new RuntimeException("Unauthorized replica");
 	}
+
 
 	void start() {
 		//Assume that every connection is established
@@ -231,18 +228,7 @@ public class Replica extends Connector {
 					message.getDigest(),
 					this.myNumber);
 			replicas.values().forEach(channel -> send(channel, prepareMessage));
-		} else {
-			/*
-			TODO
-			Watermark update가 이루어지기 전에 H 보다 큰 request가 올 경우 리젝되는 문제가 발생하여 임시로 해당 메시지를 TCP 윈도우에 넣도록 하였다.
-			추후에 viewchange와 통합시 viewchange에 있는 queue를 사용하도록 수정할 예정이다.
-			 */
-            if (DEBUG) {
-                System.err.println(this.lowWatermark + " " + message.getSeqNum());
-            }
-            send(replicas.get(this.myNumber), message);
-        }
-
+		} 
 	}
 
 	private void handlePrepareMessage(PrepareMessage message) {
@@ -334,6 +320,7 @@ public class Replica extends Connector {
 
 	}
 
+
 	private void handleCommitMessage(CommitMessage cmsg) {
 		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
@@ -395,7 +382,7 @@ public class Replica extends Connector {
 				timer.cancel();
 
 
-				Object ret = operation.execute();
+				Object ret = operation.execute(this.logger);
 
 				System.err.printf("Execute #%d\n", cmsg.getSeqNum());
 
@@ -409,7 +396,12 @@ public class Replica extends Connector {
 				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 				send(destination, replyMessage);
 
+				/****** Checkpoint Phase *******/
 				if(rightNextCommitMsg.getSeqNum() == getWatermarks()[1]) {
+					if (DEBUG) {
+						System.err.println("Enter checkpoint phase");
+					}
+
 					int seqNum = rightNextCommitMsg.getSeqNum();
                     CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
                             this.getPrivateKey(),
