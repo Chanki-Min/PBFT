@@ -21,7 +21,10 @@ import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.ReplyMessage.makeReplyMsg;
-
+/*TODO
+	connector의 receive 함수 내부에서 deserialize시 터지는 문제가 간헐적으로 발생함.
+	kafka로 전환하며 해결할 예정.
+ */
 
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
