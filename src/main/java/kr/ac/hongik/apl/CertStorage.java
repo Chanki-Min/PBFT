@@ -28,7 +28,7 @@ public class CertStorage extends Operation {
 	}
 
 	@Override
-	public Object execute(Logger logger) {
+	public Object execute(Object obj) {
 		HashTree hashTree = new HashTree(pieces.values().stream().collect(Collectors.toList()));
 		String root = hashTree.root.getHash();
 		byte[] myPiece = pieces.get(replicaNumber + 1);

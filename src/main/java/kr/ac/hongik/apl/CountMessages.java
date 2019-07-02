@@ -10,13 +10,9 @@ public class CountMessages extends Operation {
     }
 
     @Override
-    public Object execute(Logger logger) {
-       /* Logger logger = null;
-        if(object instanceof Logger){
-            logger = (Logger)object;
-        }
-        else {return null;}
-        */
+    public Object execute(Object obj) {
+        Logger logger = (Logger) obj;
+
 
         String[] table_name = {"Preprepares", "Prepares", "Commits", "Executed"};
         String base_query = "SELECT COUNT(*) FROM ";

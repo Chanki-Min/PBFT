@@ -21,7 +21,7 @@ class SampleOperation extends Operation {
     }
 
     @Override
-    public Object execute(Logger logger) {
+    public Object execute(Object obj) {
         return null;
     }
 }
@@ -206,7 +206,7 @@ class LoggerTest {
 
             Client client = new Client(prop);
             System.err.println("Client: Request");
-            Integer repeatTime = 15;
+            Integer repeatTime = 150;
             for (int i = 0; i < repeatTime; i++) {
                 Operation op = new CountMessages(client.getPublicKey());
                 RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);

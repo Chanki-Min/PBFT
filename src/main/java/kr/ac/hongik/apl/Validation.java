@@ -21,7 +21,7 @@ public class Validation extends Operation {
 	}
 
 	@Override
-	public Object execute(Logger logger) {
+	public Object execute(Object obj) {
 		var query = "SELECT B.header " +
 				"FROM Blocks B " +
 				"WHERE B.txnTime = (SELECT MAX(B1.txnTime) " +
