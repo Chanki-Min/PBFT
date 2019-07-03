@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.PrepareMessage.makePrepareMsg;
-import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.ReplyMessage.makeReplyMsg;
 
@@ -459,7 +458,7 @@ public class Replica extends Connector {
 							.max(Comparator.comparingInt(x -> x))
 							.orElse(0);
 
-					if (max == 2 * f + 1) {
+					if (max == 2 * getMaximumFaulty() + 1 && message.getSeqNum() > this.lowWatermark) {
 						if (DEBUG) {
 							System.err.println("start in GC");
 						}

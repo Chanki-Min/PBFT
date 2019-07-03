@@ -138,7 +138,7 @@ public class Logger {
     }
 
     public String getStateDigest(int seqNum) throws SQLException {
-        //TODO: Fill!!!
+
         StringBuilder builder = new StringBuilder();
         builder.append(getPrePrepareMsgs(seqNum));
         builder.append(getPrepareMsgs(seqNum));
@@ -164,7 +164,6 @@ public class Logger {
         }
         return String.valueOf(builder);
 
-        //throw new NotImplementedException("구현하세요");
     }
 
     private String getPrepareMsgs(int seqNum) throws SQLException {
@@ -184,7 +183,6 @@ public class Logger {
         }
         return String.valueOf(builder);
 
-        //throw new NotImplementedException("구현하세요");
     }
 
     private String getCommitMsgs(int seqNum) throws SQLException {
@@ -203,13 +201,10 @@ public class Logger {
 
         return String.valueOf(builder);
 
-
-       // throw new NotImplementedException("구현하세요");
     }
 
     public void executeGarbageCollection(int seqNum) throws SQLException {
-       //TODO: Fill!
-       cleanUpPrePrepareMsg(seqNum);
+        cleanUpPrePrepareMsg(seqNum);
        cleanUpPrepareMsg(seqNum);
        cleanUpCommitMsg(seqNum);
        cleanUpCheckpointMsg(seqNum);
@@ -221,7 +216,6 @@ public class Logger {
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
-       // throw new NotImplementedException("구현하세요");
     }
 
     private void cleanUpPrepareMsg(int seqNum) throws SQLException {
@@ -229,7 +223,6 @@ public class Logger {
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
-        // throw new NotImplementedException("구현하세요");
     }
 
     private void cleanUpCommitMsg(int seqNum) throws SQLException {
@@ -237,25 +230,13 @@ public class Logger {
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
-        //throw new NotImplementedException("구현하세요");
     }
 
     private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
-        /**
-         * 삭제 조건을 이하가 아닌 '미만'으로 사용하였을 경우 4번째 checkpoint 메시지에 반응하여 watermark를 두번 증가시키는 경우가 발생하였음.
-         * 따라서 삭제 조건을 '이하'로 설정함
-         *
-         * 추측건데, 다음과 같은 조건에서 문제가 발생하였을 가능성이 있음.
-         *  합의에 2f + 1개의 replica가 필요하므로 4개 기준 3개의 레플리카와 1개의 레플리카의 진행 속도는 다를 가능성이 매우 높다.
-         *  그런데 이 상태에서 checkpoint phase에 도달하게 되면 3개의 선두 그룹은 자신들끼리 주고받은 2f + 1개의 커밋 메시지를 기반으로 checkpoint m을 작성할 것이고,
-         *  나머지 f개의 레플리카는 추가적으로 자신들이 생성해낸 checkpoint 메시지까지 포함하여 새로운 checkpoint message m'을 생성할 것이다.
-         *  그런데 m'에는 m 이외의 정보가 들어있으므로 m != m'이다. 따라서 이 경우에 watermark를 두 번 증가시키는 오류를 발생시킨 것으로 보인다.
-         */
-        String query = "DELETE FROM Checkpoints WHERE seqNum <= ?";
+        String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
-        //throw new NotImplementedException("구현하세요");
     }
 
     private void cleanUpExecutedMsg(int seqNum) throws SQLException {
@@ -263,7 +244,6 @@ public class Logger {
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
-        //throw new NotImplementedException("구현하세요");
     }
 
 
