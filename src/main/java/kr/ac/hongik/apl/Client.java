@@ -1,6 +1,5 @@
 package kr.ac.hongik.apl;
 
-import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
@@ -11,7 +10,7 @@ public class Client extends Connector {
 	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
 	private List<Long> ignoreList = new ArrayList<>();
 
-	private Map<Long, Timer> timerMap = new HashMap<>();
+	private Map<Long, Timer> timerMap = new HashMap<>();    /* Key: timestamp, value: timer  */
 
 
 	public Client(Properties prop) {
@@ -19,7 +18,7 @@ public class Client extends Connector {
 		super.connect();
 	}
 
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) {
 	}
 
 	@Override
@@ -40,6 +39,9 @@ public class Client extends Connector {
 		timer.schedule(task, TIMEOUT);
 		timerMap.put(msg.getTime(), timer);
 		this.replicas.values().forEach(channel -> this.send(channel, msg));
+		int idx = new Random().nextInt(replicas.size());
+		var sock = replicas.values().stream().skip(idx).findFirst().get();
+		send(sock, msg);
 	}
 
 	Object getReply() {
@@ -101,8 +103,6 @@ public class Client extends Connector {
 		this.replicas.put(header.getReplicaNum(), channel);
 	}
 
-	private void releaseTimer(ReplyMessage replyMessage) {
-	}
 
 	static class BroadcastTask extends TimerTask {
 

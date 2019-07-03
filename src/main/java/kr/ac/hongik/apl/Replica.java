@@ -58,7 +58,7 @@ public class Replica extends Connector {
 
 		try {
 			listener = ServerSocketChannel.open();
-			//listener.socket().setReuseAddress(true);
+			listener.socket().setReuseAddress(true);
 			listener.configureBlocking(false);
 			listener.bind(new InetSocketAddress(serverPort));
 			listener.register(this.selector, SelectionKey.OP_ACCEPT);
@@ -106,13 +106,13 @@ public class Replica extends Connector {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
-			} else if (!getviewChangePhase() && message instanceof RequestMessage) {
+			} else if (message instanceof RequestMessage) {
 				handleRequestMessage((RequestMessage) message);
-			} else if (!getviewChangePhase() && message instanceof PreprepareMessage) {
+			} else if (message instanceof PreprepareMessage) {
 				handlePreprepareMessage((PreprepareMessage) message);
-			} else if (!getviewChangePhase() && message instanceof PrepareMessage) {
+			} else if (message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
-			} else if (!getviewChangePhase() && message instanceof CommitMessage) {
+			} else if (message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
 			} else if (message instanceof CheckPointMessage) {
 				handleCheckPointMessage((CheckPointMessage) message);
@@ -136,7 +136,8 @@ public class Replica extends Connector {
 			else
 				return buffer.poll();
 		} else {
-			Predicate<Message> receivable = (msg) -> msg instanceof CheckPointMessage || msg instanceof ViewChangeMessage || msg instanceof NewViewMessage;
+			Class<? extends Message>[] messageTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
+			Predicate<Message> receivable = (msg) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(msg));
 
 			Message message;
 			for (message = super.receive(); !receivable.test(message); message = super.receive()) {
@@ -303,12 +304,29 @@ public class Replica extends Connector {
 			/**
 			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
 			 * 이를 이용하여 합의 여부를 감지한다.
-			 * 이미 합의가 이루어져서 reply가 되었다면, 더 이상 진행하지 않고 함수를 종료한다.
 			 *
-			 * 단, 추후 checkpoint phase를 추가할 시, 로직에 있어서 수정이 필요할 수 있다.
+			 * 이미 수행된 경우에는 수행된 값을 DB로부터 읽어 반환한다.
 			 */
-			if (isAlreadyExecuted(cmsg.getSeqNum()))
-				return;
+			if (isAlreadyExecuted(cmsg.getSeqNum())) {
+				try (var pstmt = logger.getPreparedStatement("SELECT replyMessage FROM Executed WHERE seqNum = ?")) {
+					pstmt.setInt(1, cmsg.getSeqNum());
+					var ret = pstmt.executeQuery();
+					ReplyMessage replyMessage = JdbcUtils.toStream(ret)
+							.map(rethrow().wrapFunction(x -> x.getString(1)))
+							.map(x -> Util.desToObject(x, ReplyMessage.class))
+							.findFirst()
+							.get();
+
+					SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
+					send(destination, replyMessage);
+
+
+				} catch (SQLException e) {
+					e.printStackTrace();
+					return;
+				}
+			}
+
 
 			priorityQueue.add(cmsg);
 			try {
@@ -330,6 +348,7 @@ public class Replica extends Connector {
 					((Validation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
 				}
 
+				// Release backup's view-change timer
 				String key = makeKeyForTimer(rightNextCommitMsg);
 				Timer timer = timerMap.remove(key);
 				timer.cancel();
@@ -593,6 +612,13 @@ public class Replica extends Connector {
 			return;
 
 		setViewChangePhase(false);
+		if ((message.getNewViewNum() <= this.getViewNum())) {
+			if (DEBUG) {
+				System.err.printf("Received view number(%d) is less than or equal to current view number(%d)",
+						message.getNewViewNum(), this.getViewNum());
+			}
+			return;
+		}
 		setViewNum(message.getNewViewNum());
 
 		message.getOperationList()
