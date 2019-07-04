@@ -54,15 +54,15 @@ public class CommitMessage implements Message {
         String baseQuery = new StringBuilder()
                 .append("SELECT DISTINCT count(C.replica) ")
                 .append("FROM Commits C ")
-                .append("WHERE C.seqNum = ?")
+                .append("WHERE C.seqNum = ? AND C.digest = ?")
                 .toString();
         try (var pstmt = prepareStatement.apply(baseQuery)) {
             pstmt.setInt(1, this.getSeqNum());
-
+            pstmt.setString(2, this.getDigest());
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
                 var sameMessages = ret.getInt(1);
-                checklist[1] = sameMessages > maxFaulty * 2;
+                checklist[1] = sameMessages == maxFaulty * 2 + 1;
             }
 
         } catch (SQLException e) {
