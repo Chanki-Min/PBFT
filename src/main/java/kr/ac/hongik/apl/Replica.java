@@ -44,7 +44,7 @@ public class Replica extends Connector {
 	private Queue<Message> buffer = new LinkedList<>();
 
 
-	Replica(Properties prop, String serverIp, int serverPort) {
+	public Replica(Properties prop, String serverIp, int serverPort) {
 		super(prop);
 
 
@@ -136,7 +136,7 @@ public class Replica extends Connector {
 			else
 				return buffer.poll();
 		} else {
-			Class<? extends Message>[] messageTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
+			Class[] messageTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
 			Predicate<Message> receivable = (msg) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(msg));
 
 			Message message;
@@ -148,11 +148,14 @@ public class Replica extends Connector {
 	}
 
 	private void handleRequestMessage(RequestMessage message) {
-		try {
-			if (this.logger.findMessage(message)) {
-				return;
-			}
-		} catch (SQLException e) {
+		ReplyMessage replyMessage = findReplyMessageOrNull(message.getOperation());
+		if (replyMessage != null) {
+			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
+			send(destination, replyMessage);
+			return;
+		}
+
+		if (this.logger.findMessage(message)) {
 			return;
 		}
 
@@ -183,6 +186,30 @@ public class Replica extends Connector {
 				String key = Util.hash(message.getOperation());
 				timerMap.put(key, timer);
 			}
+		}
+	}
+
+	private ReplyMessage findReplyMessageOrNull(Operation operation) {
+		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.operation = ?")) {
+			pstmt.setString(1, Util.serToString(operation));
+			var ret = pstmt.executeQuery();
+			if (ret.next()) {
+				int seqNum = ret.getInt(1);
+
+				try (var pstmt1 = logger.getPreparedStatement("SELECT E.replyMessage FROM Executed E WHERE E.seqNum = ?")) {
+					pstmt1.setInt(1, seqNum);
+					var ret1 = pstmt1.executeQuery();
+					if (ret1.next())
+						return Util.desToObject(ret1.getString(1), ReplyMessage.class);
+					else
+						return null;
+				}
+			} else {
+				return null;
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return null;
 		}
 	}
 
