@@ -321,10 +321,10 @@ public class Replica extends Connector {
 
 
 	private void handleCommitMessage(CommitMessage cmsg) {
+		logger.insertMessage(cmsg);
 		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
 
-		logger.insertMessage(cmsg);
 
 		if (isCommitted) {
 
@@ -357,60 +357,50 @@ public class Replica extends Connector {
 
 			priorityQueue.add(cmsg);
 			try {
-				CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
-				var operation = logger.getOperation(rightNextCommitMsg);
-
-				if (operation == null)
-					return;
-
-				if (operation instanceof BlockCreation) {
-					((BlockCreation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
-				} else if (operation instanceof CertStorage) {
-					((CertStorage) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
-					((CertStorage) operation).setReplicaNumber(myNumber);
-				} else if (operation instanceof Collector) {
-					((Collector) operation).setReplicaNumber(myNumber);
-					((Collector) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
-				} else if (operation instanceof Validation) {
-					((Validation) operation).setSqlAccessor(rethrow().wrap(logger::getPreparedStatement));
-				}
-
-				// Release backup's view-change timer
-				String key = makeKeyForTimer(rightNextCommitMsg);
-				Timer timer = timerMap.remove(key);
-				timer.cancel();
+				while(true){
+					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
+					var operation = logger.getOperation(rightNextCommitMsg);
 
 
-				Object ret = operation.execute(this.logger);
+					if (operation == null)
+						return;
 
-				System.err.printf("Execute #%d\n", cmsg.getSeqNum());
+					// Release backup's view-change timer
+					String key = makeKeyForTimer(rightNextCommitMsg);
+					Timer timer = timerMap.remove(key);
+					timer.cancel();
 
-				var viewNum = cmsg.getViewNum();
-				var timestamp = operation.getTimestamp();
-				var clientInfo = operation.getClientInfo();
-				ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
-						clientInfo, myNumber, ret, operation.isDistributed());
 
-				logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
-				SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
-				send(destination, replyMessage);
+					Object ret = operation.execute(this.logger);
 
-				/****** Checkpoint Phase *******/
-				if(rightNextCommitMsg.getSeqNum() == getWatermarks()[1]) {
-					if (DEBUG) {
-						System.err.println("Enter checkpoint phase");
+					System.err.printf("Execute #%d\n", cmsg.getSeqNum());
+
+					var viewNum = cmsg.getViewNum();
+					var timestamp = operation.getTimestamp();
+					var clientInfo = operation.getClientInfo();
+					ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
+							clientInfo, myNumber, ret, operation.isDistributed());
+
+					logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
+					SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
+					send(destination, replyMessage);
+
+					/****** Checkpoint Phase *******/
+					if (rightNextCommitMsg.getSeqNum() == getWatermarks()[1]) {
+						if (DEBUG) {
+							System.err.println("Enter checkpoint phase");
+						}
+
+						int seqNum = rightNextCommitMsg.getSeqNum();
+						CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
+								this.getPrivateKey(),
+								seqNum,
+								logger.getStateDigest(seqNum, getMaximumFaulty()),
+								this.myNumber);
+						//Broadcast message
+						replicas.values().forEach(sock -> send(sock, checkpointMessage));
 					}
-
-					int seqNum = rightNextCommitMsg.getSeqNum();
-                    CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
-                            this.getPrivateKey(),
-                            seqNum,
-							logger.getStateDigest(seqNum),
-							this.myNumber);
-					//Broadcast message
-					replicas.values().forEach(sock -> send(sock, checkpointMessage));
 				}
-
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
