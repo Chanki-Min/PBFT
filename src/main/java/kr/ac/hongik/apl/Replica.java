@@ -319,7 +319,7 @@ public class Replica extends Connector {
 
 					SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 					send(destination, replyMessage);
-
+					return;
 
 				} catch (SQLException e) {
 					e.printStackTrace();
