@@ -137,21 +137,23 @@ public class Logger {
         }
     }
 
-    public String getStateDigest(int seqNum) throws SQLException {
-
+    public String getStateDigest(int seqNum, int maxFaulty) throws SQLException {
         StringBuilder builder = new StringBuilder();
-        builder.append(getPrePrepareMsgs(seqNum));
-        builder.append(getPrepareMsgs(seqNum));
-        builder.append(getCommitMsgs(seqNum));
+        builder.append(getPrePrepareMsgs(seqNum, maxFaulty));
+        builder.append(getPrepareMsgs(seqNum, maxFaulty));
+        builder.append(getCommitMsgs(seqNum, maxFaulty));
 
         return Util.hash(builder.toString().getBytes());
     }
 
-    private String getPrePrepareMsgs(int seqNum) throws SQLException {
-        String baseQuery = "SELECT digest, viewNum, seqNum FROM Preprepares WHERE seqNum <= ? ";
+    private String getPrePrepareMsgs(int seqNum, int maxFaulty) throws SQLException {
+
+        String baseQuery = "SELECT DISTINCT digest, viewNum, seqNum FROM Preprepares WHERE seqNum <= ? GROUP BY digest, viewNum, seqNum HAVING count(*) > ? ORDER BY seqNum";
 
         PreparedStatement pstmt = conn.prepareStatement(baseQuery);
         pstmt.setInt(1,seqNum);
+        pstmt.setInt(2, 2 * maxFaulty);
+
 
         ResultSet ret = pstmt.executeQuery();
 
@@ -166,12 +168,12 @@ public class Logger {
 
     }
 
-    private String getPrepareMsgs(int seqNum) throws SQLException {
-        String baseQuery = "SELECT digest, viewNum, seqNum FROM Prepares WHERE seqNum <=?";
+    private String getPrepareMsgs(int seqNum, int maxFaulty) throws SQLException {
+        String baseQuery = "SELECT DISTINCT digest, viewNum, seqNum FROM Prepares WHERE seqNum <= ? GROUP BY digest, viewNum, seqNum HAVING count(*) > ? ORDER BY seqNum";
 
         PreparedStatement pstmt = conn.prepareStatement(baseQuery);
         pstmt.setInt(1,seqNum);
-
+        pstmt.setInt(2, 2 * maxFaulty);
         ResultSet ret = pstmt.executeQuery();
 
         StringBuilder builder = new StringBuilder();
@@ -185,12 +187,12 @@ public class Logger {
 
     }
 
-    private String getCommitMsgs(int seqNum) throws SQLException {
-        String baseQuery = "SELECT seqNum FROM Commits WHERE seqNum <= ?";
+    private String getCommitMsgs(int seqNum, int maxFaulty) throws SQLException {
+        String baseQuery = "SELECT DISTINCT digest, seqNum FROM Commits WHERE seqNum <= ? GROUP BY digest, seqNum HAVING count(*) > ? ORDER BY seqNum";
 
         PreparedStatement pstmt = conn.prepareStatement(baseQuery);
         pstmt.setInt(1,seqNum);
-
+        pstmt.setInt(2, 2 * maxFaulty);
         ResultSet ret = pstmt.executeQuery();
 
         StringBuilder builder = new StringBuilder();
