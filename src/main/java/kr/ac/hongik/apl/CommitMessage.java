@@ -48,8 +48,18 @@ public class CommitMessage implements Message {
     boolean isCommittedLocal(Function<String, PreparedStatement> prepareStatement, int maxFaulty, int replicaNum) {
         Boolean[] checklist = new Boolean[2];
         //Predicate isPrepared(m, v, n, i) is true
-        PrepareMessage prepareMessage = PrepareMessage.fromCommitMessage(this);
-        checklist[0] = prepareMessage.isPrepared(prepareStatement, maxFaulty, replicaNum);
+        String query = "SELECT count(*) FROM Commits WHERE seqNum =? AND replica= ?";
+        try (var pstmt = prepareStatement.apply(query)) {
+            pstmt.setInt(1, this.getSeqNum());
+            pstmt.setInt(2, replicaNum);
+            try (var ret = pstmt.executeQuery()) {
+                ret.next();
+                checklist[0] = (ret.getInt(1) == 1);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         //And got 2f+1 same commit messages
         String baseQuery = new StringBuilder()
                 .append("SELECT DISTINCT count(C.replica) ")
