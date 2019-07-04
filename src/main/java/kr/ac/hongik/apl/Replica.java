@@ -287,49 +287,6 @@ public class Replica extends Connector {
 
 	}
 
-	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
-		String query = "SELECT MAX(E.seqNum) FROM Executed E";
-		try (var pstmt = logger.getPreparedStatement(query)) {
-			try (var ret = pstmt.executeQuery()) {
-				ret.next();
-				int soFarMaxSeqNum = ret.getInt(1);
-				var first = priorityQueue.peek();
-                if (first != null && DEBUG) {
-                    System.err.println("First seq#: " + first.getSeqNum());
-                }
-
-				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
-					priorityQueue.poll();
-
-					return first;
-				}
-				throw new NoSuchElementException();
-			}
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new NoSuchElementException();
-		}
-	}
-
-
-	boolean isAlreadyExecuted(int sequenceNumber) {
-		String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
-		try (var pstmt = logger.getPreparedStatement(query)) {
-			pstmt.setInt(1, sequenceNumber);
-			try (var ret = pstmt.executeQuery()) {
-				if (ret.next())
-					return ret.getInt(1) > 0;
-				else
-					return false;
-			}
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-
-	}
-
-
 	private void handleCommitMessage(CommitMessage cmsg) {
 		logger.insertMessage(cmsg);
 		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
@@ -337,7 +294,8 @@ public class Replica extends Connector {
 
 
 		if (isCommitted) {
-
+			if (DEBUG)
+				System.err.println(cmsg.getSeqNum() + " is committed local");
 			/**
 			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
 			 * 이를 이용하여 합의 여부를 감지한다.
@@ -366,7 +324,7 @@ public class Replica extends Connector {
 
 
 			priorityQueue.add(cmsg);
-            if ((!priorityQueue.contains(cmsg))) throw new AssertionError();
+			if ((!priorityQueue.contains(cmsg))) throw new AssertionError();
 			try {
 				while(true){
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
@@ -414,10 +372,56 @@ public class Replica extends Connector {
 				}
 			} catch (SQLException e) {
 				e.printStackTrace();
-			}
-			catch (NoSuchElementException e) {
+			} catch (NoSuchElementException e) {
 				return;
 			}
+		} else {
+			if (DEBUG)
+				System.err.println(cmsg.getSeqNum() + " is not committed local");
+		}
+	}
+
+
+	boolean isAlreadyExecuted(int sequenceNumber) {
+		String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			pstmt.setInt(1, sequenceNumber);
+			try (var ret = pstmt.executeQuery()) {
+				if (ret.next())
+					return ret.getInt(1) > 0;
+				else
+					return false;
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
+
+	}
+
+
+	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
+		String query = "SELECT MAX(E.seqNum) FROM Executed E";
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			try (var ret = pstmt.executeQuery()) {
+				ret.next();
+				int soFarMaxSeqNum = ret.getInt(1);
+				var first = priorityQueue.peek();
+				if (first != null && DEBUG) {
+					System.err.println("First seq#: " + first.getSeqNum());
+				}
+
+				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
+					priorityQueue.poll();
+					if ((priorityQueue.contains(first))) throw new AssertionError();
+
+					return first;
+				}
+				throw new NoSuchElementException();
+			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			throw new NoSuchElementException();
 		}
 	}
 

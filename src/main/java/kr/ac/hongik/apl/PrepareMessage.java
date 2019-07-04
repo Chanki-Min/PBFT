@@ -73,7 +73,15 @@ public class PrepareMessage implements Message {
         int[] watermarks = watermarkGetter.get();
         int lowWatermark = watermarks[0],
                 highWatermark = watermarks[1];
-        checklist[2] = (lowWatermark <= this.getSeqNum()) && (this.getSeqNum() <= highWatermark);
+        /*
+         TODO 워터마크 범위에 해당하지 않는 PREPARE를 보관하지 않고 버릴 경우 this replica가 commit mesg를 만들지 못하여 Execute checklist를 만족하지 못함. 범위에 해당하지 않는 메세지는 Loopback, db insert 등 보관하여 나중에 워터마크 범위에 들어왔을 때 처리해야 함
+
+         view-change의 경우는 new-view 메시지에 따라서 v -> v+1로 동기화 되므로 아마 문제가 생기지 않을 것 같다.
+         */
+        if (Replica.DEBUG)
+            checklist[2] = true;
+        else
+            checklist[2] = (lowWatermark <= this.getSeqNum()) && (this.getSeqNum() <= highWatermark);
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }
