@@ -428,10 +428,11 @@ public class Replica extends Connector {
 		if(message.verify(publicKey)) {
 			logger.insertMessage(message);
 
-			String query = "SELECT stateDigest FROM Checkpoints C WHERE C.seqNum = ?";
+            String query = "SELECT stateDigest, replica FROM Checkpoints C WHERE C.seqNum = ?";
 
 			try(var psmt = logger.getPreparedStatement(query)) {
 
+<<<<<<< HEAD
 				psmt.setInt(1,message.getSeqNum());
 
 				try(var ret = psmt.executeQuery()) {
@@ -447,7 +448,10 @@ public class Replica extends Connector {
 							.stream()
 							.max(Comparator.comparingInt(x -> x))
 							.orElse(0);
-
+/*
+TODO
+ 자기 거 가지고 있나 확인 후 GC
+ */
 					if (max == 2 * getMaximumFaulty() + 1 && message.getSeqNum() > this.lowWatermark) {
 						if (DEBUG) {
 							System.err.println("start in GC");
