@@ -310,17 +310,21 @@ public class Logger {
         }
     }
 
-    public boolean findMessage(Message message) throws SQLException {
-        if (message instanceof RequestMessage) {
-            return findRequestMessage((RequestMessage) message);
-        } else if (message instanceof PreprepareMessage) {
-            return findPreprepareMessage((PreprepareMessage) message);
-        } else if (message instanceof PrepareMessage) {
-            return findPrepareMessage((PrepareMessage) message);
-        } else if (message instanceof CommitMessage) {
-            return findCommitMessage((CommitMessage) message);
-        } else
-            throw new SQLException("Message type is incompatible");
+    public boolean findMessage(Message message) {
+        try {
+            if (message instanceof RequestMessage) {
+                return findRequestMessage((RequestMessage) message);
+            } else if (message instanceof PreprepareMessage) {
+                return findPreprepareMessage((PreprepareMessage) message);
+            } else if (message instanceof PrepareMessage) {
+                return findPrepareMessage((PrepareMessage) message);
+            } else if (message instanceof CommitMessage) {
+                return findCommitMessage((CommitMessage) message);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private boolean findCommitMessage(CommitMessage message) throws SQLException {
