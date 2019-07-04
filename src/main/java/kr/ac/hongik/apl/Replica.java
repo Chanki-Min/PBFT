@@ -294,14 +294,9 @@ public class Replica extends Connector {
 				ret.next();
 				int soFarMaxSeqNum = ret.getInt(1);
 				var first = priorityQueue.peek();
-
-				/*if(DEBUG){
-					CommitMessage[] CommitMsgsinQ = (CommitMessage[]) priorityQueue.toArray( );
-					System.err.print("queue : ");
-					for(int i=0;i<CommitMsgsinQ.length;i++){
-						System.err.print(CommitMsgsinQ[i].getSeqNum()+", ");
-					}
-				}*/
+                if (first != null && DEBUG) {
+                    System.err.println("First seq#: " + first.getSeqNum());
+                }
 
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
@@ -371,6 +366,7 @@ public class Replica extends Connector {
 
 
 			priorityQueue.add(cmsg);
+            if ((!priorityQueue.contains(cmsg))) throw new AssertionError();
 			try {
 				while(true){
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
