@@ -12,6 +12,9 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -101,6 +104,8 @@ public class Replica extends Connector {
 
 
 	void start() {
+
+
 		//Assume that every connection is established
 		while (true) {
 			Message message = receive();              //Blocking method
@@ -289,8 +294,18 @@ public class Replica extends Connector {
 				ret.next();
 				int soFarMaxSeqNum = ret.getInt(1);
 				var first = priorityQueue.peek();
+
+				/*if(DEBUG){
+					CommitMessage[] CommitMsgsinQ = (CommitMessage[]) priorityQueue.toArray( );
+					System.err.print("queue : ");
+					for(int i=0;i<CommitMsgsinQ.length;i++){
+						System.err.print(CommitMsgsinQ[i].getSeqNum()+", ");
+					}
+				}*/
+
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
+
 					return first;
 				}
 				throw new NoSuchElementException();
@@ -432,7 +447,6 @@ public class Replica extends Connector {
 
 			try(var psmt = logger.getPreparedStatement(query)) {
 
-<<<<<<< HEAD
 				psmt.setInt(1,message.getSeqNum());
 
 				try(var ret = psmt.executeQuery()) {
@@ -448,10 +462,7 @@ public class Replica extends Connector {
 							.stream()
 							.max(Comparator.comparingInt(x -> x))
 							.orElse(0);
-/*
-TODO
- 자기 거 가지고 있나 확인 후 GC
- */
+
 					if (max == 2 * getMaximumFaulty() + 1 && message.getSeqNum() > this.lowWatermark) {
 						if (DEBUG) {
 							System.err.println("start in GC");
