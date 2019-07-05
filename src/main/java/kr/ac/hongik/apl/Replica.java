@@ -37,6 +37,24 @@ public class Replica extends Connector {
 	private ServerSocketChannel listener;
 	private List<SocketChannel> clients;
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
+	private PriorityQueue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
+
+	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
+	private static int getSeqNumFromMsg(Message message) {
+		if(message instanceof PreprepareMessage){
+			return  ((PreprepareMessage) message).getSeqNum();
+		}else if(message instanceof PrepareMessage) {
+			return ((PrepareMessage) message).getSeqNum();
+
+		}
+		/*
+		else if(message instanceof ViewChangMessage){
+			return ((ViewChangMessage) message).getSeqNum();
+		}
+
+		*/
+		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
+	}
 
 	private Logger logger;
 	private int lowWatermark;
@@ -268,6 +286,42 @@ public class Replica extends Connector {
 			replicas.values().forEach(channel -> send(channel, commitMessage));
 		}
 	}
+
+	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
+	@Override
+	protected Message receive(){
+
+		Class[] messageTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, /*ViewChangeMessage.class*/};
+		Predicate<Message> canEnqueue = (message) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(message));
+
+		Message message;
+
+		while(!receiveBuffer.isEmpty()) {
+			message = receiveBuffer.peek();
+			int SeqNum = getSeqNumFromMsg(message);
+
+			if( SeqNum < this.getWatermarks()[0] ) {
+				receiveBuffer.poll();
+				continue;
+			}else if( SeqNum < this.getWatermarks()[1] ) {
+				return receiveBuffer.poll();
+			}else {
+				break;
+			}
+		}
+		for (message = super.receive(); canEnqueue.test(message); message = super.receive()) {
+
+			int SeqNum = getSeqNumFromMsg(message);
+
+			if( this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]){
+				return message;
+			}else{
+				receiveBuffer.offer(message);
+			}
+		}
+		return message;
+	}
+
 
 	private void handleHeaderMessage(HeaderMessage message) {
 		SocketChannel channel = message.getChannel();
