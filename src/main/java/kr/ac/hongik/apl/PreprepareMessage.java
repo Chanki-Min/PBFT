@@ -61,7 +61,7 @@ public class PreprepareMessage implements Message {
 		checklist[2] = checkUniqueTuple(prepareStatement);
 
 		int[] watermarks = watermarkGetter.get();
-		checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() <= watermarks[1]);
+		checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() < watermarks[1]);
 
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}

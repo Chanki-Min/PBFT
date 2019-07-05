@@ -4,10 +4,7 @@ import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static kr.ac.hongik.apl.Util.desToObject;
 import static kr.ac.hongik.apl.Util.serToString;
@@ -81,53 +78,11 @@ public class Logger {
             try {
                 PreparedStatement preparedStatement = conn.prepareStatement(query);
                 preparedStatement.execute();
-                String tableName = query.split(" ")[2];
-                List<String> tables = Stream
-                        .of("Preprepares", "Prepares", "Commits", "Executed")
-                        .collect(Collectors.toList());
-                if (tables.stream().anyMatch(tableName::equals)) {
-                    insertDummyRow(tableName);
-                }
             } catch (SQLException e) {
                 e.printStackTrace();
             }
         }
     }
-
-    private void insertDummyRow(String tableName) throws SQLException {
-        if (tableName.equals("Preprepares")) {
-            try (var psmt = getPreparedStatement("INSERT INTO Preprepares VALUES (?, 0, ?, ?)")) {
-                psmt.setInt(1, -1);
-                psmt.setString(2, "hello");
-                psmt.setString(3, "hello");
-                psmt.execute();
-            }
-        }
-        if (tableName.equals("Prepares")) {
-            try (var psmt = getPreparedStatement("INSERT INTO Prepares VALUES (?, 0, ?, ?)")) {
-                psmt.setInt(1, -1);
-                psmt.setString(2, "hello");
-                psmt.setInt(3, -1);
-                psmt.execute();
-            }
-        }
-        if (tableName.equals("Commits")) {
-            try (var psmt = getPreparedStatement("INSERT INTO Commits VALUES (?, 0, ?, ?)")) {
-                psmt.setInt(1, -1);
-                psmt.setString(2, "hello");
-                psmt.setInt(3, -1);
-                psmt.execute();
-            }
-        }
-        if (tableName.equals("Executed")) {
-            try (var psmt = getPreparedStatement("INSERT INTO Executed VALUES (0, ?)")) {
-                psmt.setString(1, "hello");
-                psmt.execute();
-            }
-        }
-
-    }
-
 
     void close() {
         try {
@@ -214,35 +169,35 @@ public class Logger {
     }
 
     private void cleanUpPrePrepareMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Preprepares WHERE seqNum < ?";
+        String query = "DELETE FROM Preprepares WHERE seqNum <= ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
     }
 
     private void cleanUpPrepareMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Prepares WHERE seqNum < ?";
+        String query = "DELETE FROM Prepares WHERE seqNum <= ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
     }
 
     private void cleanUpCommitMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Commits WHERE seqNum < ?";
+        String query = "DELETE FROM Commits WHERE seqNum <= ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
     }
 
     private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
+        String query = "DELETE FROM Checkpoints WHERE seqNum <= ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();
     }
 
     private void cleanUpExecutedMsg(int seqNum) throws SQLException {
-        String query = "DELETE FROM Executed WHERE seqNum < ?";
+        String query = "DELETE FROM Executed WHERE seqNum <= ?";
         PreparedStatement pstmt = conn.prepareStatement(query);
         pstmt.setInt(1,seqNum);
         pstmt.execute();

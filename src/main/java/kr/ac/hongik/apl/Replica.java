@@ -357,7 +357,7 @@ public class Replica extends Connector {
 					send(destination, replyMessage);
 
 					/****** Checkpoint Phase *******/
-					if (rightNextCommitMsg.getSeqNum() == getWatermarks()[1]) {
+					if (rightNextCommitMsg.getSeqNum() == getWatermarks()[1] - 1) {
 						if (DEBUG) {
 							System.err.println("Enter checkpoint phase");
 						}
@@ -405,17 +405,19 @@ public class Replica extends Connector {
 		String query = "SELECT MAX(E.seqNum) FROM Executed E";
 		try (var pstmt = logger.getPreparedStatement(query)) {
 			try (var ret = pstmt.executeQuery()) {
-				ret.next();
-				int soFarMaxSeqNum = ret.getInt(1);
+				int soFarMaxSeqNum;
+				if (ret.next())
+					soFarMaxSeqNum = ret.getInt(1);
+				else
+					soFarMaxSeqNum = getWatermarks()[0] - 1;
+
 				var first = priorityQueue.peek();
 				if (first != null && DEBUG) {
-					System.err.println("First seq#: " + first.getSeqNum());
+					System.err.println("First seq#: " + first.getSeqNum() + "sofarMax:" + soFarMaxSeqNum);
 				}
 
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
-					if ((priorityQueue.contains(first))) throw new AssertionError();
-
 					return first;
 				}
 				throw new NoSuchElementException();
