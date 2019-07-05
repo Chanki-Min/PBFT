@@ -2,6 +2,7 @@ package kr.ac.hongik.apl;
 
 import java.io.Serializable;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -43,6 +44,10 @@ public class CommitMessage implements Message {
 
     public int getReplicaNum() {
         return this.data.replicaNum;
+    }
+
+    public boolean verify(PublicKey key) {
+        return Util.verify(key, this.data, this.signature);
     }
 
     boolean isCommittedLocal(Function<String, PreparedStatement> prepareStatement, int maxFaulty, int replicaNum) {

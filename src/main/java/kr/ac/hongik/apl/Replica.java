@@ -288,6 +288,9 @@ public class Replica extends Connector {
 	}
 
 	private void handleCommitMessage(CommitMessage cmsg) {
+		PublicKey publicKey = publicKeyMap.get(replicas.get(cmsg.getReplicaNum()));
+		if (!cmsg.verify(publicKey))
+			return;
 		logger.insertMessage(cmsg);
 		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
@@ -324,7 +327,6 @@ public class Replica extends Connector {
 
 
 			priorityQueue.add(cmsg);
-			if ((!priorityQueue.contains(cmsg))) throw new AssertionError();
 			try {
 				while(true){
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
