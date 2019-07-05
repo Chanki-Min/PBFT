@@ -12,9 +12,6 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -355,8 +352,6 @@ public class Replica extends Connector {
 
 
 		if (isCommitted) {
-			if (DEBUG)
-				System.err.println(cmsg.getSeqNum() + " is committed local");
 			/**
 			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
 			 * 이를 이용하여 합의 여부를 감지한다.
@@ -401,9 +396,6 @@ public class Replica extends Connector {
 
 
 					Object ret = operation.execute(this.logger);
-
-					System.err.printf("Execute #%d\n", cmsg.getSeqNum());
-
 					var viewNum = cmsg.getViewNum();
 					var timestamp = operation.getTimestamp();
 					var clientInfo = operation.getClientInfo();
@@ -416,9 +408,6 @@ public class Replica extends Connector {
 
 					/****** Checkpoint Phase *******/
 					if (rightNextCommitMsg.getSeqNum() == getWatermarks()[1] - 1) {
-						if (DEBUG) {
-							System.err.println("Enter checkpoint phase");
-						}
 
 						int seqNum = rightNextCommitMsg.getSeqNum();
 						CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
@@ -435,9 +424,6 @@ public class Replica extends Connector {
 			} catch (NoSuchElementException e) {
 				return;
 			}
-		} else {
-			if (DEBUG)
-				System.err.println(cmsg.getSeqNum() + " is not committed local");
 		}
 	}
 
@@ -499,25 +485,33 @@ public class Replica extends Connector {
 
 	private void handleCheckPointMessage(CheckPointMessage message){
 		PublicKey publicKey = publicKeyMap.get(this.replicas.get(message.getReplicaNum()));
-		if(message.verify(publicKey)) {
-			logger.insertMessage(message);
+		if (!message.verify(publicKey))
+			return;
 
-            String query = "SELECT stateDigest, replica FROM Checkpoints C WHERE C.seqNum = ?";
+		logger.insertMessage(message);
 
-			try(var psmt = logger.getPreparedStatement(query)) {
+		try {
+			/* Check whether my checkpoint exists */
+			String query = "SELECT count(*) FROM Checkpoints C WHERE C.seqNum = ? AND C.replica = ?";
+			try (var psmt = logger.getPreparedStatement(query)) {
+				psmt.setInt(1, message.getSeqNum());
+				psmt.setInt(2, this.myNumber);
+				var ret = psmt.executeQuery();
+				ret.next();
+				if (ret.getInt(1) != 1)
+					return;
+			}
 
-				psmt.setInt(1,message.getSeqNum());
-
-				try(var ret = psmt.executeQuery()) {
+			query = "SELECT stateDigest FROM Checkpoints C WHERE C.seqNum = ?";
+			try (var psmt = logger.getPreparedStatement(query)) {
+				psmt.setInt(1, message.getSeqNum());
+				try (var ret = psmt.executeQuery()) {
 					Map<String, Integer> digestMap = new HashMap<>();
-					while(ret.next()) {
+					while (ret.next()) {
 						var key = ret.getString(1);
 						var num = digestMap.getOrDefault(key, 0);
 						digestMap.put(key, num + 1);
 					}
-                    if (!isMyCheckPointMsg) {
-						return;
-                    }
 					int max = digestMap
 							.values()
 							.stream()
@@ -525,17 +519,14 @@ public class Replica extends Connector {
 							.orElse(0);
 
 					if (max == 2 * getMaximumFaulty() + 1 && message.getSeqNum() > this.lowWatermark) {
-						if (DEBUG) {
-							System.err.println("start in GC");
-						}
 						logger.executeGarbageCollection(message.getSeqNum());
-                        lowWatermark += WATERMARK_UNIT;
+						lowWatermark += WATERMARK_UNIT;
 					}
 				}
 
-			} catch (SQLException e) {
-				e.printStackTrace();
 			}
+		} catch (SQLException e) {
+			e.printStackTrace();
 		}
 	}
 
