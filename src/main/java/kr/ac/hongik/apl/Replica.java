@@ -46,7 +46,7 @@ public class Replica extends Connector {
 	@Override
 	protected Message receive() {
 
-		Class[] messageTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, CommitMessage.class, /*ViewChangeMessage.class*/};
+		Class[] messageTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, /*ViewChangeMessage.class*/};
 		Predicate<Message> canEnqueue = (message) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(message));
 
 		Message message;
@@ -515,7 +515,9 @@ public class Replica extends Connector {
 						var num = digestMap.getOrDefault(key, 0);
 						digestMap.put(key, num + 1);
 					}
-					int f = getMaximumFaulty();
+                    if (!isMyCheckPointMsg) {
+						return;
+                    }
 					int max = digestMap
 							.values()
 							.stream()
