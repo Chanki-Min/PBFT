@@ -39,21 +39,42 @@ public class Replica extends Connector {
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
 	private PriorityQueue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
 
+	/**
+	 * @return
+	 */
 	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
-	private static int getSeqNumFromMsg(Message message) {
-		if(message instanceof PreprepareMessage){
-			return  ((PreprepareMessage) message).getSeqNum();
-		}else if(message instanceof PrepareMessage) {
-			return ((PrepareMessage) message).getSeqNum();
+	@Override
+	protected Message receive() {
 
-		}
-		/*
-		else if(message instanceof ViewChangMessage){
-			return ((ViewChangMessage) message).getSeqNum();
-		}
+		Class[] messageTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, CommitMessage.class, /*ViewChangeMessage.class*/};
+		Predicate<Message> canEnqueue = (message) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(message));
 
-		*/
-		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
+		Message message;
+
+		while (!receiveBuffer.isEmpty()) {
+			message = receiveBuffer.peek();
+			int SeqNum = getSeqNumFromMsg(message);
+
+			if (SeqNum < this.getWatermarks()[0]) {
+				receiveBuffer.poll();
+				continue;
+			} else if (SeqNum < this.getWatermarks()[1]) {
+				return receiveBuffer.poll();
+			} else {
+				break;
+			}
+		}
+		for (message = super.receive(); canEnqueue.test(message); message = super.receive()) {
+
+			int SeqNum = getSeqNumFromMsg(message);
+
+			if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
+				return message;
+			} else {
+				receiveBuffer.offer(message);
+			}
+		}
+		return message;
 	}
 
 	private Logger logger;
@@ -288,38 +309,21 @@ public class Replica extends Connector {
 	}
 
 	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
-	@Override
-	protected Message receive(){
-
-		Class[] messageTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, /*ViewChangeMessage.class*/};
-		Predicate<Message> canEnqueue = (message) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(message));
-
-		Message message;
-
-		while(!receiveBuffer.isEmpty()) {
-			message = receiveBuffer.peek();
-			int SeqNum = getSeqNumFromMsg(message);
-
-			if( SeqNum < this.getWatermarks()[0] ) {
-				receiveBuffer.poll();
-				continue;
-			}else if( SeqNum < this.getWatermarks()[1] ) {
-				return receiveBuffer.poll();
-			}else {
-				break;
-			}
+	private static int getSeqNumFromMsg(Message message) {
+		if (message instanceof PreprepareMessage) {
+			return ((PreprepareMessage) message).getSeqNum();
+		} else if (message instanceof PrepareMessage) {
+			return ((PrepareMessage) message).getSeqNum();
+		} else if (message instanceof CommitMessage) {
+			return ((CommitMessage) message).getSeqNum();
 		}
-		for (message = super.receive(); canEnqueue.test(message); message = super.receive()) {
-
-			int SeqNum = getSeqNumFromMsg(message);
-
-			if( this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]){
-				return message;
-			}else{
-				receiveBuffer.offer(message);
-			}
+		/*
+		else if(message instanceof ViewChangMessage){
+			return ((ViewChangMessage) message).getSeqNum();
 		}
-		return message;
+
+		*/
+		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
 
 
@@ -456,19 +460,16 @@ public class Replica extends Connector {
 
 
 	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
-		String query = "SELECT MAX(E.seqNum) FROM Executed E";
+		String query = "SELECT E.seqNum FROM Executed E";
 		try (var pstmt = logger.getPreparedStatement(query)) {
 			try (var ret = pstmt.executeQuery()) {
-				int soFarMaxSeqNum;
-				if (ret.next())
-					soFarMaxSeqNum = ret.getInt(1);
-				else
-					soFarMaxSeqNum = getWatermarks()[0] - 1;
+				List<Integer> seqList = JdbcUtils.toStream(ret)
+						.map(rethrow().wrapFunction(x -> x.getInt(1)))
+						.collect(Collectors.toList());
+
+				int soFarMaxSeqNum = seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
 
 				var first = priorityQueue.peek();
-				if (first != null && DEBUG) {
-					System.err.println("First seq#: " + first.getSeqNum() + "sofarMax:" + soFarMaxSeqNum);
-				}
 
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
@@ -626,14 +627,14 @@ public class Replica extends Connector {
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
-		String query = "SELECT MAX(P.seqNum) FROM Preprepares P";
+		String query = "SELECT P.seqNum FROM Preprepares P";
 		PreparedStatement pstmt = logger.getPreparedStatement(query);
 		ResultSet ret = pstmt.executeQuery();
+		List<Integer> seqList = JdbcUtils.toStream(ret)
+				.map(rethrow().wrapFunction(x -> x.getInt(1)))
+				.collect(Collectors.toList());
 
-		if (ret.next())  //Normal condition
-			return ret.getInt(1);
-		else            //Initial condition
-			return 0;
+		return seqList.isEmpty() ? -1 : seqList.stream().max(Integer::compareTo).get();
 	}
 
 	private void broadcastToReplica(RequestMessage message) {

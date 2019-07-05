@@ -83,11 +83,6 @@
             <artifactId>shamir</artifactId>
             <version>0.7.0</version>
         </dependency>
-        <dependency>
-            <groupId>com.owlike</groupId>
-            <artifactId>genson</artifactId>
-            <version>1.5</version>
-        </dependency>
     </dependencies>
 
 

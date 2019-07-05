@@ -78,10 +78,7 @@ public class PrepareMessage implements Message {
 
          view-change의 경우는 new-view 메시지에 따라서 v -> v+1로 동기화 되므로 아마 문제가 생기지 않을 것 같다.
          */
-        if (Replica.DEBUG)
-            checklist[2] = true;
-        else
-            checklist[2] = (lowWatermark <= this.getSeqNum()) && (this.getSeqNum() < highWatermark);
+        checklist[2] = (lowWatermark <= this.getSeqNum()) && (this.getSeqNum() < highWatermark);
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }
