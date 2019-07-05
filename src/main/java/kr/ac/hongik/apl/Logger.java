@@ -294,8 +294,6 @@ public class Logger {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        //TODO
-       // throw new NotImplementedException("구현하세요");
     }
 
     void insertMessage(int sequenceNumber, ReplyMessage message) {
