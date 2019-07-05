@@ -10,7 +10,9 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -199,7 +201,7 @@ class LoggerTest {
     }
 
     @Test
-    public void testGarbageCollection() {
+    public void OneClientGC() {
         try {
             InputStream in = getClass().getResourceAsStream("/replica.properties");
 
@@ -207,18 +209,74 @@ class LoggerTest {
             prop.load(in);
 
             Client client = new Client(prop);
+            Operation op = new CountMessages(client.getPublicKey());
+            RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+
+            client.request(requestMessage);
+            int[] firstRet = (int[]) client.getReply();
+
+            System.err.print("Table Counts before Test : ");
+            Arrays.stream(firstRet).forEach(x -> System.err.print(x + " "));
+            System.err.println();
             System.err.println("Client: Request");
-            Integer repeatTime = 150;
+            Integer repeatTime = 50;
             for (int i = 1; i <= repeatTime; i++) {
-                Operation op = new CountMessages(client.getPublicKey());
-                RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+                op = new CountMessages(client.getPublicKey());
+                requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
                 client.request(requestMessage);
                 int[] ret = (int[]) client.getReply();
                 System.err.printf("#%d: ", i);
                 Arrays.stream(ret).forEach(x -> System.err.print(x + " "));
                 System.err.println();
-                Assertions.assertEquals(i % Replica.WATERMARK_UNIT, ret[3] % Replica.WATERMARK_UNIT);
+                Assertions.assertEquals((firstRet[3] + i) % Replica.WATERMARK_UNIT, ret[3] % Replica.WATERMARK_UNIT);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    @Test
+    public void ManyClientGC() {
+        try {
+            InputStream in = getClass().getResourceAsStream("/replica.properties");
+            Properties prop = new Properties();
+            prop.load(in);
+
+            System.err.println("Countless Client : many");
+
+            Client client = new Client(prop);
+            Operation op = new CountMessages(client.getPublicKey());
+            RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+
+            client.request(requestMessage);
+            int[] firstRet = (int[]) client.getReply();
+
+            System.err.print("Table Counts before Test : ");
+            Arrays.stream(firstRet).forEach(x -> System.err.print(x + " "));
+            System.err.println();
+            var beg = Instant.now().toEpochMilli();
+            int maxClientNum = 7;
+            int manyClientRequestNum = 3;
+            List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
+            for (int i = 0; i < maxClientNum; i++) {
+                Thread thread = new Thread(new CountlessClientGCTest(prop, i, manyClientRequestNum));
+                clientThreadList.add(thread);
+            }
+            for (var i : clientThreadList) {
+                i.start();
+            }
+            for (var i : clientThreadList) {
+                i.join();
+            }
+            var end = Instant.now().toEpochMilli();
+            //sleep(30000);
+            op = new CountMessages(client.getPublicKey());
+            requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+            client.request(requestMessage);
+            int[] afterRet = (int[]) client.getReply();
+            System.err.printf("After Many Requests of Countless Client : " + (end - beg) + "millisec , ");
+            Arrays.stream(afterRet).forEach(x -> System.err.print(x + " "));
+            System.err.println();
+            Assertions.assertEquals((firstRet[3] + (maxClientNum * manyClientRequestNum) + 1) % Replica.WATERMARK_UNIT, afterRet[3] % Replica.WATERMARK_UNIT);
         } catch (Exception e) {
             e.printStackTrace();
         }

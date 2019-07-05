@@ -27,6 +27,8 @@ public class CountlessClientGCTest extends Thread {
             System.err.printf("Client %d request #%dstart\n", this.clientNum, i);
             this.client.request(this.requestMessage);
             var ret = this.client.getReply();
+            this.op = new GreetingOperation(client.getPublicKey());
+            this.requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
             //var end = Instant.now().toEpochMilli();
             //System.err.printf("client %d end, %d milli seconds\n", this.clientNum, (int) (end - beg));
             Assertions.assertEquals("Hello, World!", ret.toString());
