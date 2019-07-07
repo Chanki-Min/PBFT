@@ -2,6 +2,7 @@ package kr.ac.hongik.apl;
 
 import org.apache.commons.lang3.NotImplementedException;
 
+import javax.xml.crypto.Data;
 import java.io.Serializable;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -56,7 +57,7 @@ public class ViewChangeMessage implements Message {
 
 	private static List<Pm> getMessageList(Function<String, PreparedStatement> preparedStatement, int checkpointNum) {
 		//TODO
-		throw new NotImplementedException("checkpointNum 보다 큰 각각의 sequence number n에 대하여 " +
+		throw new NotImplementedException("checkpointNum 보다 크커나 같은 각각의 sequence number n에 대하여 " +
 				"n에 해당하는 PrePrepareMessage, " +
 				"n에 해당하는 prepare message들, " +
 				"그리고 D(request)을 P_n이라고 한다. 이 P_n들의 리스트를 반환해야 한다.");
@@ -64,7 +65,7 @@ public class ViewChangeMessage implements Message {
 
 	private static List<CheckPointMessage> getCheckpointMessages(Function<String, PreparedStatement> preparedStatement, int checkpointNum) {
 		//TODO
-		throw new NotImplementedException("checkpointNum에 해당하는 checkpoint message들을 반환해야 함");
+		throw new NotImplementedException("checkpointNum(Watermark[0])에 해당하는 checkpoint message들을 반환해야 함");
 	}
 
 	private static class Data implements Serializable {

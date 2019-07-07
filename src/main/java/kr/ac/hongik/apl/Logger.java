@@ -149,7 +149,7 @@ public class Logger {
         return conn.prepareStatement(baseQuery);
     }
 
-
+    //TODO: new-view-msg 에서 digest(null)이 오고 합의되어 execution 을 위한 Operation call 시 nullOperation 을 반환시키게 분기문 추가 필요, digest(null)은 개발의 편의를 위해 null의 해시값으로도 찾을 수 있지만 null 자체도 같이 전송되도록 정의됨을 유의
     Operation getOperation(CommitMessage message) {
         String baseQuery = new StringBuilder()
                 .append("SELECT P.operation ")
