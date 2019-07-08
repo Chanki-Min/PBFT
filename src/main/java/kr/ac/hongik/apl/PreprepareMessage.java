@@ -31,6 +31,7 @@ public class PreprepareMessage implements Message {
 	 * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
 	 * @param operation
 	 */
+	//TODO: Operation 대신 Request msg 넣기.
 	public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
 		Data data = new Data(viewNum, seqNum, operation);
 		byte[] sig = sign(privateKey, data);
@@ -46,6 +47,7 @@ public class PreprepareMessage implements Message {
 	 * @param prepareStatement
 	 * @return
 	 */
+	//TODO: Client의 Request 검증하기
 	boolean isVerified(PublicKey publicKey,
 					   final int currentPrimary,
 					   Supplier<int[]> watermarkGetter,

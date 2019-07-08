@@ -334,7 +334,6 @@ public class Replica extends Connector {
 			 *
 			 * 이미 수행된 경우에는 수행된 값을 DB로부터 읽어 반환한다.
 			 */
-			//TODO: v에서 execute 한 request에 대한 v+1 commit message의 re-replying 은 막아야 함
 			if (isAlreadyExecuted(cmsg.getSeqNum())) {
 				try (var pstmt = logger.getPreparedStatement("SELECT replyMessage FROM Executed WHERE seqNum = ?")) {
 					pstmt.setInt(1, cmsg.getSeqNum());
@@ -480,7 +479,7 @@ public class Replica extends Connector {
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(replicas.get(message.getReplicaNum()));
-
+		//TODO: ViewChange msg안의 C 집합 select n from checkpoints group by digest,n having count(*) > 2*f
 		if (!message.verify(publicKey))
 			return;
 
@@ -634,7 +633,6 @@ public class Replica extends Connector {
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
-	//TODO: request는 받았지만 아직 prepare 합의를 하지 못한 message들은 Pm에 들어가지 못하므로 Pm에 대한 prepare message들을 send한 후 Pm에 없지만 자신의 DB에 있는 request에 대한 v+1 prepare mesage를 만들어서 send해야 함
 	private void handleNewViewMessage(NewViewMessage message) {
 		PublicKey key = publicKeyMap.get(replicas.get(message.getNewViewNum()));
 		if (!message.isVerified(key))
