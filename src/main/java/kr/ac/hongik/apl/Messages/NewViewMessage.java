@@ -100,7 +100,11 @@ public class NewViewMessage implements Message {
 					.collect(Collectors.toList());
 
 
-			int min_s = replica.getWatermarks()[0] + 1;
+            int min_s = prepareList.stream()
+                    .min(Comparator.comparingInt(PrepareMessage::getSeqNum))
+                    .get()
+                    .getSeqNum();
+
 			int max_s = prepareList.stream()
 					.max(Comparator.comparingInt(PrepareMessage::getSeqNum))
 					.get()
