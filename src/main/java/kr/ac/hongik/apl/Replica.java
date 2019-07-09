@@ -1,16 +1,6 @@
 package kr.ac.hongik.apl;
 
-import kr.ac.hongik.apl.Messages.CheckPointMessage;
-import kr.ac.hongik.apl.Messages.CommitMessage;
-import kr.ac.hongik.apl.Messages.HeaderMessage;
-import kr.ac.hongik.apl.Messages.Message;
-import kr.ac.hongik.apl.Messages.NewViewMessage;
-import kr.ac.hongik.apl.Messages.PrepareMessage;
-import kr.ac.hongik.apl.Messages.PreprepareMessage;
-import kr.ac.hongik.apl.Messages.ReplyMessage;
-import kr.ac.hongik.apl.Messages.RequestMessage;
-import kr.ac.hongik.apl.Messages.ViewChangeMessage;
-import kr.ac.hongik.apl.Messages.ViewChangeTimerTask;
+import kr.ac.hongik.apl.Messages.*;
 import kr.ac.hongik.apl.Operations.Operation;
 import org.echocat.jsu.JdbcUtils;
 
@@ -621,8 +611,11 @@ public class Replica extends Connector {
 				}
 
 				if (newViewList.size() == getMaximumFaulty() + 1) {
-					NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, newViewList.get(0));
-					getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
+					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
+					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(getPrivateKey(),
+							message.getLastCheckpointNum(), newViewList.get(0), getMyNumber(),
+							getPreparedStatementFn);
+					getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
 				}
 			}
 		} catch (SQLException e) {
