@@ -577,12 +577,10 @@ public class Replica extends Connector {
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
-		//TODO: ViewChange msg안의 C 집합 select n from checkpoints group by digest,n having count(*) > 2*f
-		if (!message.isVerified(publicKey,this.getMaximumFaulty(),WATERMARK_UNIT))
+		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT))
 			return;
 
 		logger.insertMessage(message);
-
 
 		try {
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {

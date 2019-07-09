@@ -36,10 +36,10 @@ public class ViewChangeMessage implements Message {
 		return new ViewChangeMessage(data, signature);
 	}
 
-	public boolean isVerified(PublicKey publicKey, int maximumFaulty, int waterMarkUnit){
+	public boolean isVerified(PublicKey publicKey, int maximumFaulty, int WATERMARK_UNIT){
 
 		Boolean[] checkList = new Boolean[6];
-		String ownDigest = data.checkPointMessages.stream()
+		String replicaDigest = data.checkPointMessages.stream()
 				.filter(x -> x.getReplicaNum() == data.replicaNum)
 				.findFirst()
 				.get()
@@ -48,27 +48,27 @@ public class ViewChangeMessage implements Message {
 		checkList[0] = Util.verify(publicKey, this.data, this.signature);
 
 		//verify the set C has own checkPointMsg
-		checkList[1] = data.checkPointMessages.stream().anyMatch(x -> x.getReplicaNum() == data.replicaNum);
-		//verify the set C has over 2f+1 checkPointMsgs. that has same digest with own checkPointMsg & lastCheckPointNum
+		checkList[1] = data.checkPointMessages.stream().anyMatch(cpMsg -> cpMsg.getReplicaNum() == data.replicaNum);
+		//verify the set C has over 2f+1 checkPointMsgs. that has same digest with (own checkPointMsg) & (lastCheckPointNum)
 		checkList[2] = data.checkPointMessages.stream()
-				.filter(msg -> msg.getDigest() == ownDigest)
-				.filter(msg -> msg.getSeqNum() == data.lastCheckpointNum -1)
+				.filter(cpMsg -> cpMsg.getDigest() == replicaDigest)
+				.filter(cpMsg -> cpMsg.getSeqNum() == data.lastCheckpointNum -1)
 				.count() > 2 * maximumFaulty;
 
-		//check messageList doesn't big more than waterMarkUnit. !!!!need more verification!!!!
-		checkList[3] = data.messageList.size() <= waterMarkUnit;
-		//check each Pm's prePareMsg has distinct primary number
+		//check messageList aren't bigger than WATERMARK_UNIT. !!!!need more verification!!!!
+		checkList[3] = data.messageList.size() <= WATERMARK_UNIT;
 
+		//check each Pm's prePareMsg has distinct replica number (i)
 		checkList[4] = data.messageList.stream()
 				.allMatch(pm -> pm.prepareMessages.stream()
-					.filter(Util.distinctByKey(PrepareMessage::getReplicaNum))
+					.filter( Util.distinctByKey(preMsg -> preMsg.getReplicaNum()) )
 				.count() == pm.prepareMessages.size());
 
-		//check each Pm has valid prePareMsg for corresponding	pre-prePareMsg
-		checkList[5] = data.messageList.stream()
-				.filter(pm -> pm.prepareMessages.stream().allMatch(p-> p.getViewNum() == pm.preprepareMessage.getViewNum()))
-				.filter(pm -> pm.prepareMessages.stream().allMatch(p-> p.getSeqNum() == pm.preprepareMessage.getSeqNum()))
-				.filter(pm -> pm.prepareMessages.stream().allMatch(p-> p.getDigest() == pm.preprepareMessage.getDigest()))
+		//check each Pm has valid prepareMsg for corresponding	pre-prepareMsg
+		checkList[5] = data.messageList.parallelStream()
+				.filter(pm -> pm.prepareMessages.stream().allMatch(pre-> pre.getViewNum() == pm.preprepareMessage.getViewNum()))
+				.filter(pm -> pm.prepareMessages.stream().allMatch(pre-> pre.getSeqNum() == pm.preprepareMessage.getSeqNum()))
+				.filter(pm -> pm.prepareMessages.stream().allMatch(pre-> pre.getDigest() == pm.preprepareMessage.getDigest()))
 				.collect(Collectors.toList()).size() == data.messageList.size();
 		return Arrays.stream(checkList).allMatch(x -> x);
 	}
