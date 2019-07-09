@@ -42,7 +42,6 @@ public class NewViewMessage implements Message {
 	}
 
 	public boolean isVerified(PublicKey key) {
-		//TODO: 각 Pm 검증
 		Boolean[] checklist = new Boolean[3];
 
 		checklist[0] = this.verify(key);

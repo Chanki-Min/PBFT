@@ -437,10 +437,13 @@ public class Replica extends Connector {
 					// Release backup's view-change timer
 					String key = makeKeyForTimer(rightNextCommitMsg);
 					Timer timer = timerMap.remove(key);
-					timer.cancel();
+					if (timer != null)
+						timer.cancel();
 
 
+					System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
 					Object ret = operation.execute(this.logger);
+
 					var viewNum = cmsg.getViewNum();
 					var timestamp = operation.getTimestamp();
 					var clientInfo = operation.getClientInfo();
@@ -575,7 +578,7 @@ public class Replica extends Connector {
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		//TODO: ViewChange msg안의 C 집합 select n from checkpoints group by digest,n having count(*) > 2*f
-		if (!message.verify(publicKey))
+		if (!message.isVerified(publicKey,this.getMaximumFaulty(),WATERMARK_UNIT))
 			return;
 
 		logger.insertMessage(message);
@@ -707,18 +710,21 @@ public class Replica extends Connector {
 
 	private void handleNewViewMessage(NewViewMessage message) {
 		PublicKey key = publicKeyMap.get(getReplicaMap().get(message.getNewViewNum()));
-		if (!message.isVerified(key))
+		if (!message.isVerified(key) || message.getNewViewNum() <= this.getViewNum())
 			return;
 
 		setViewChangePhase(false);
-		if ((message.getNewViewNum() <= this.getViewNum())) {
-			if (DEBUG) {
-				System.err.printf("Received view number(%d) is less than or equal to current view number(%d)",
-						message.getNewViewNum(), this.getViewNum());
-			}
-			return;
-		}
+
+		//Set new view number
 		setViewNum(message.getNewViewNum());
+
+		//Set new low watermark
+		int newLowWatermark = message.getOperationList().get(0).getSeqNum();
+		if ((getWatermarks()[0] > newLowWatermark)) throw new AssertionError();
+		this.lowWatermark = newLowWatermark;
+
+		//Execute GC
+		logger.executeGarbageCollection(getWatermarks()[0] - 1);
 
 		message.getOperationList()
 				.stream()

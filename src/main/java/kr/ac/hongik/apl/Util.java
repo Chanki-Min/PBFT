@@ -10,6 +10,9 @@ import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.security.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -162,5 +165,10 @@ public class Util {
 
 	public static String serToString(List<?> object) {
 		return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().serialize(object);
+	}
+
+	public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+		Set<Object> seen = ConcurrentHashMap.newKeySet();
+		return t -> seen.add(keyExtractor.apply(t));
 	}
 }
