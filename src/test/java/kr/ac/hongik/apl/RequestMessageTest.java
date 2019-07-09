@@ -1,9 +1,10 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.RequestMessage;
+import kr.ac.hongik.apl.Operations.Operation;
 import org.junit.jupiter.api.Test;
 
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.time.Instant;
 
@@ -24,7 +25,7 @@ class RequestOperation extends Operation {
 
 class RequestMessageTest {
     @Test
-    void test() throws NoSuchAlgorithmException {
+	void test() {
         System.out.println("RequestMessage Class Unit Test Start");
         KeyPair keyPair = generateKeyPair();
         PublicKey clientInfo = keyPair.getPublic();

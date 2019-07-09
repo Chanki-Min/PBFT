@@ -1,5 +1,8 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.RequestMessage;
+import kr.ac.hongik.apl.Operations.GreetingOperation;
+import kr.ac.hongik.apl.Operations.Operation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

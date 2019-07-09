@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.CommitMessage;
 import org.junit.jupiter.api.Test;
 
 import java.security.KeyPair;

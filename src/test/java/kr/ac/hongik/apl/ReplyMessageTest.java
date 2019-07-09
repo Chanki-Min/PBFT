@@ -1,10 +1,10 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.ReplyMessage;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.time.Instant;
@@ -19,7 +19,7 @@ class ReplyResult implements Serializable {
 
 class ReplyMessageTest {
     @Test
-    void test() throws NoSuchAlgorithmException {
+	void test() {
         System.out.println("ReplyMessage Class Unit Test Start");
         KeyPair keyPair = generateKeyPair();
         PublicKey clientInfo = keyPair.getPublic();

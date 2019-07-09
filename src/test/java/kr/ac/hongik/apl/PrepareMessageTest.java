@@ -1,18 +1,18 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.CommitMessage;
+import kr.ac.hongik.apl.Messages.PrepareMessage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.sql.SQLException;
 
 import static kr.ac.hongik.apl.Util.generateKeyPair;
 
 class PrepareMessageTest {
     @Test
-    void test() throws NoSuchAlgorithmException {
+    void test() {
         System.out.println("PrepareMessage Class Unit Test Start");
         KeyPair keyPair = generateKeyPair();
         PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(keyPair.getPrivate(), 0, 0, "digest", 0);
@@ -20,7 +20,7 @@ class PrepareMessageTest {
     }
 
     @Test
-    void fromCommitMessage() throws SQLException {
+    void fromCommitMessage() {
         KeyPair keyPair = Util.generateKeyPair();
         PrivateKey privateKey = keyPair.getPrivate();
         PrepareMessage expected = PrepareMessage.makePrepareMsg(privateKey, 1, 1, "hi", 1);

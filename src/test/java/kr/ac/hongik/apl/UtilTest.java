@@ -1,10 +1,16 @@
 package kr.ac.hongik.apl;
 
 import com.codahale.shamir.Scheme;
+import kr.ac.hongik.apl.Messages.CommitMessage;
+import kr.ac.hongik.apl.Messages.Message;
+import kr.ac.hongik.apl.Messages.PrepareMessage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.security.*;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UtilTest {
     @Test
-    void digitalSignatureTest() throws NoSuchAlgorithmException, SignatureException, InvalidKeyException, NoSuchProviderException {
+	void digitalSignatureTest() {
         String sampleData = "Hello, world!";
         KeyPair pair = Util.generateKeyPair();
         PrivateKey privateKey = pair.getPrivate();
@@ -29,7 +35,7 @@ class UtilTest {
     }
 
     @Test
-    void serializationTest() throws NoSuchAlgorithmException {
+	void serializationTest() {
         KeyPair keyPair = Util.generateKeyPair();
         PrivateKey privateKey = keyPair.getPrivate();
 

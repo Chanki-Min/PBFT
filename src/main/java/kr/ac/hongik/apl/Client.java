@@ -1,5 +1,10 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.HeaderMessage;
+import kr.ac.hongik.apl.Messages.Message;
+import kr.ac.hongik.apl.Messages.ReplyMessage;
+import kr.ac.hongik.apl.Messages.RequestMessage;
+
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
@@ -38,9 +43,9 @@ public class Client extends Connector {
 		Timer timer = new Timer();
 		timer.schedule(task, TIMEOUT);
 		timerMap.put(msg.getTime(), timer);
-		this.replicas.values().forEach(channel -> this.send(channel, msg));
-		int idx = new Random().nextInt(replicas.size());
-		var sock = replicas.values().stream().skip(idx).findFirst().get();
+		this.getReplicaMap().values().forEach(channel -> this.send(channel, msg));
+		int idx = new Random().nextInt(getReplicaMap().size());
+		var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
 		send(sock, msg);
 	}
 
@@ -54,7 +59,7 @@ public class Client extends Connector {
 			}
 			replyMessage = (ReplyMessage) message;
 			// check client info
-			PublicKey publicKey = this.publicKeyMap.get(this.replicas.get(replyMessage.getReplicaNum()));
+			PublicKey publicKey = this.publicKeyMap.get(this.getReplicaMap().get(replyMessage.getReplicaNum()));
 			if (replyMessage.verifySignature(publicKey)) {
 				long uniqueKey = replyMessage.getTime();
 				if (replyMessage.isDistributed()) {
@@ -100,7 +105,7 @@ public class Client extends Connector {
 		if (!header.getType().equals("replica")) throw new AssertionError();
 		SocketChannel channel = header.getChannel();
 		this.publicKeyMap.put(channel, header.getPublicKey());
-		this.replicas.put(header.getReplicaNum(), channel);
+		this.getReplicaMap().put(header.getReplicaNum(), channel);
 	}
 
 
@@ -116,7 +121,7 @@ public class Client extends Connector {
 
 		@Override
 		public void run() {
-			conn.replicas.values().forEach(socket -> conn.send(socket, requestMessage));
+			conn.getReplicaMap().values().forEach(socket -> conn.send(socket, requestMessage));
 		}
 	}
 }

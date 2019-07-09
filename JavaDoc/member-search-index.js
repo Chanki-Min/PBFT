@@ -1,1 +1,0 @@
-memberSearchIndex = [{"p":"kr.ac.hongik.apl","c":"Function","l":"enroll(String, String, String, int)","url":"enroll(java.lang.String,java.lang.String,java.lang.String,int)"},{"p":"kr.ac.hongik.apl","c":"Function","l":"Function()","url":"%3Cinit%3E()"},{"p":"kr.ac.hongik.apl","c":"Function","l":"validate(String, String)","url":"validate(java.lang.String,java.lang.String)"}]

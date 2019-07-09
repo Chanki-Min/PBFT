@@ -1,6 +1,9 @@
 package kr.ac.hongik.apl;
 
 
+import kr.ac.hongik.apl.Messages.HeaderMessage;
+import kr.ac.hongik.apl.Messages.Message;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
@@ -26,7 +29,7 @@ abstract class Connector {
 
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
-	protected Map<Integer, SocketChannel> replicas = new HashMap<>();
+	private Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
 	protected Map<SocketChannel, PublicKey> publicKeyMap = new HashMap<>();
@@ -52,7 +55,7 @@ abstract class Connector {
 		for (int i = 0; i < this.replicaAddresses.size(); ++i) {
 			try {
 				socketChannel = makeConnection(replicaAddresses.get(i));
-				this.replicas.put(i, socketChannel);
+				this.getReplicaMap().put(i, socketChannel);
 				socketChannel = null;
 			} catch(IOException e) {
 				// System.err.println(e);
@@ -93,6 +96,10 @@ abstract class Connector {
 		return channel;
 	}
 
+	public Map<Integer, SocketChannel> getReplicaMap() {
+		return replicas;
+	}
+
 	/**
 	 * It is a exception free wrapper of send function.
 	 * It sends the data and also manage the wrong replicas
@@ -103,7 +110,7 @@ abstract class Connector {
 	 * @param channel
 	 * @param message
 	 */
-	protected void send(SocketChannel channel, Message message) {
+	public void send(SocketChannel channel, Message message) {
 		byte[] payload = serialize(message);
 
 		try {
@@ -121,34 +128,6 @@ abstract class Connector {
 			//System.err.println(e);
 			reconnect(channel);
 		}
-	}
-
-	private void reconnect(SocketChannel channel) {
-		/* Broken connection: try reconnecting if that socket was connected to replica */
-		replicas.remove(channel);
-		try {
-			int replicaNum = replicas.entrySet().stream()
-				.filter(x -> x.getValue().equals(channel))
-				.findFirst().orElseThrow(NoSuchElementException::new).getKey();
-			closeWithoutException(channel);    //de-register a selector
-			var address = replicaAddresses.get(replicaNum);
-			try {
-				SocketChannel newChannel = makeConnection(address);
-				replicas.put(replicaNum, newChannel);
-			} catch (IOException e1) {
-				//pass
-			}
-
-		} catch (NoSuchElementException e1) {
-			//client socket is failed. ignore reconnection
-			closeWithoutException(channel);    //de-register a selector
-			return;
-		}
-		/*
-		 * 재전송을 안하는 이유:
-		 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
-		 */
-		//clients?
 	}
 
 	/**
@@ -220,13 +199,32 @@ abstract class Connector {
 		}
 	}
 
-	/************************************************************
-	 *
-	 * This methods are just a common methods, not related to connection
-	 */
+	private void reconnect(SocketChannel channel) {
+		/* Broken connection: try reconnecting if that socket was connected to replica */
+		getReplicaMap().remove(channel);
+		try {
+			int replicaNum = getReplicaMap().entrySet().stream()
+					.filter(x -> x.getValue().equals(channel))
+					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+			closeWithoutException(channel);    //de-register a selector
+			var address = replicaAddresses.get(replicaNum);
+			try {
+				SocketChannel newChannel = makeConnection(address);
+				getReplicaMap().put(replicaNum, newChannel);
+			} catch (IOException e1) {
+				//pass
+			}
 
-	protected final PrivateKey getPrivateKey() {
-		return this.privateKey;
+		} catch (NoSuchElementException e1) {
+			//client socket is failed. ignore reconnection
+			closeWithoutException(channel);    //de-register a selector
+			return;
+		}
+		/*
+		 * 재전송을 안하는 이유:
+		 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
+		 */
+		//clients?
 	}
 
 	public PublicKey getPublicKey() {
@@ -237,4 +235,12 @@ abstract class Connector {
 		return this.replicaAddresses.size() / 3;
 	}
 
+	/************************************************************
+	 *
+	 * This methods are just a common methods, not related to connection
+	 */
+
+	public final PrivateKey getPrivateKey() {
+		return this.privateKey;
+	}
 }

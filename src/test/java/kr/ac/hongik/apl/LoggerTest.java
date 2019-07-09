@@ -1,5 +1,11 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Messages.CommitMessage;
+import kr.ac.hongik.apl.Messages.PrepareMessage;
+import kr.ac.hongik.apl.Messages.PreprepareMessage;
+import kr.ac.hongik.apl.Messages.RequestMessage;
+import kr.ac.hongik.apl.Operations.CountMsgsOperation;
+import kr.ac.hongik.apl.Operations.Operation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -209,7 +215,7 @@ class LoggerTest {
             prop.load(in);
 
             Client client = new Client(prop);
-            Operation op = new CountMessages(client.getPublicKey());
+			Operation op = new CountMsgsOperation(client.getPublicKey());
             RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
 
             client.request(requestMessage);
@@ -221,7 +227,7 @@ class LoggerTest {
             System.err.println("Client: Request");
             Integer repeatTime = 50;
             for (int i = 1; i <= repeatTime; i++) {
-                op = new CountMessages(client.getPublicKey());
+				op = new CountMsgsOperation(client.getPublicKey());
                 requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
                 client.request(requestMessage);
                 int[] ret = (int[]) client.getReply();
@@ -244,7 +250,7 @@ class LoggerTest {
             System.err.println("Countless Client : many");
 
             Client client = new Client(prop);
-            Operation op = new CountMessages(client.getPublicKey());
+			Operation op = new CountMsgsOperation(client.getPublicKey());
             RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
 
             client.request(requestMessage);
@@ -258,7 +264,7 @@ class LoggerTest {
             int manyClientRequestNum = 3;
             List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
             for (int i = 0; i < maxClientNum; i++) {
-                Thread thread = new Thread(new CountlessClientGCTest(prop, i, manyClientRequestNum));
+				Thread thread = new Thread(new CountlessClientGCThread(prop, i, manyClientRequestNum));
                 clientThreadList.add(thread);
             }
             for (var i : clientThreadList) {
@@ -269,7 +275,7 @@ class LoggerTest {
             }
             var end = Instant.now().toEpochMilli();
             //sleep(30000);
-            op = new CountMessages(client.getPublicKey());
+			op = new CountMsgsOperation(client.getPublicKey());
             requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
             client.request(requestMessage);
             int[] afterRet = (int[]) client.getReply();
