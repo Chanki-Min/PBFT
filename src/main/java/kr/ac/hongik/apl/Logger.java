@@ -162,12 +162,16 @@ public class Logger {
 		return String.valueOf(builder);
 	}
 
-	public void executeGarbageCollection(int seqNum) throws SQLException {
-		cleanUpPrePrepareMsg(seqNum);
-		cleanUpPrepareMsg(seqNum);
-		cleanUpCommitMsg(seqNum);
-		cleanUpCheckpointMsg(seqNum);
-		cleanUpExecutedMsg(seqNum);
+	public void executeGarbageCollection(int seqNum) {
+		try {
+			cleanUpPrePrepareMsg(seqNum);
+			cleanUpPrepareMsg(seqNum);
+			cleanUpCommitMsg(seqNum);
+			cleanUpCheckpointMsg(seqNum);
+			cleanUpExecutedMsg(seqNum);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private void cleanUpPrePrepareMsg(int seqNum) throws SQLException {
