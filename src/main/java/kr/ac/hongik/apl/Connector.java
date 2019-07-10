@@ -25,7 +25,7 @@ import static kr.ac.hongik.apl.Util.*;
  * Caution: It doesn't handle server's listening socket
  */
 abstract class Connector {
-	public final static long TIMEOUT = 5000;    //Unit: milliseconds
+	public final static long TIMEOUT = 99999000;    //Unit: milliseconds
 
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
