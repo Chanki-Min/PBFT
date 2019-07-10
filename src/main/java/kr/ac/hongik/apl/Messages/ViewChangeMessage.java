@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -7,17 +8,19 @@ import java.io.Serializable;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static kr.ac.hongik.apl.Util.desToObject;
 
 public class ViewChangeMessage implements Message {
 	final Data data;
 	final byte[] signature;
+
 
 	private ViewChangeMessage(Data data, byte[] signature) {
 		this.data = data;
@@ -28,7 +31,7 @@ public class ViewChangeMessage implements Message {
 													  Function<String, PreparedStatement> preparedStatement) {
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum);
-		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum);
+		List<Pm> messageList = getMessageList(privateKey, preparedStatement, lastCheckpointNum);
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replicaNum);
 		byte[] signature = Util.sign(privateKey, data);
@@ -95,13 +98,37 @@ public class ViewChangeMessage implements Message {
 		return data.replicaNum;
 	}
 
-	private static List<Pm> getMessageList(Function<String, PreparedStatement> preparedStatement, int checkpointNum) {
-		//TODO
-		throw new NotImplementedException("checkpointNum 보다 크커나 같은 각각의 sequence number n에 대하여 " +
+	private static List<Pm> getMessageList(PrivateKey privateKey, Function<String, PreparedStatement> preparedStatement,
+										   int checkpointNum) {
+
+		String query = "SELECT viewNum,seqNum,digest,operation FROM Preprepares ";
+		PreparedStatement pstmt = preparedStatement.apply(query);
+		List<PreprepareMessage> preprepareList = new ArrayList<>();
+
+		try (var ret = pstmt.executeQuery()) {
+			while (ret.next()) {
+
+				String data = ret.getString(4);
+				Operation operation = desToObject(data, Operation.class);
+				PreprepareMessage preprepareMessage = PreprepareMessage.makePrePrepareMsg(
+						privateKey,
+						ret.getInt(1),
+						ret.getInt(2),
+						operation);
+				preprepareList.add(preprepareMessage);
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+
+		/*throw new NotImplementedException("checkpointNum 보다 크커나 같은 각각의 sequence number n에 대하여 " +
 				"n에 해당하는 PrePrepareMessage, " +
 				"n에 해당하는 prepare message들, " +
-				"그리고 D(request)을 P_n이라고 한다. 이 P_n들의 리스트를 반환해야 한다.");
+				"그리고 D(request)을 P_n이라고 한다. 이 P_n들의 리스트를 반환해야 한다.");*/
+		return;
 	}
+
 
 	private static List<CheckPointMessage> getCheckpointMessages(Function<String, PreparedStatement> preparedStatement, int checkpointNum) {
 		//TODO
