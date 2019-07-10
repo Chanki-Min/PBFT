@@ -27,7 +27,7 @@ import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
 
-	final static int WATERMARK_UNIT = 100;
+	final static int WATERMARK_UNIT = 20;
 
 
 	private final int myNumber;
@@ -37,6 +37,7 @@ public class Replica extends Connector {
 	private List<SocketChannel> clients;
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
 	private PriorityQueue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
+	private Queue<Message> buffer = new LinkedList<>();
 
 	/**
 	 * @return
@@ -45,44 +46,70 @@ public class Replica extends Connector {
 	@Override
 	protected Message receive() {
 
-		Class[] messageTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, /*ViewChangeMessage.class*/};
-		Predicate<Message> canEnqueue = (message) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(message));
-
 		Message message;
 
-		while (!receiveBuffer.isEmpty()) {
-			message = receiveBuffer.peek();
-			int SeqNum = getSeqNumFromMsg(message);
+		if(!getviewChangePhase()) {
+			Class[] waterMarkSensitiveTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
+			Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(waterMarkSensitiveTypes).anyMatch(msgType -> msgType.isInstance(msg));
 
-			if (SeqNum < this.getWatermarks()[0]) {
-				receiveBuffer.poll();
-				continue;
-			} else if (SeqNum < this.getWatermarks()[1]) {
-				return receiveBuffer.poll();
-			} else {
-				break;
-			}
-		}
-		for (message = super.receive(); canEnqueue.test(message); message = super.receive()) {
-
-			int SeqNum = getSeqNumFromMsg(message);
-
-			if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
+			while (!buffer.isEmpty()){
+				for (message = buffer.poll(); isWaterMarkSensitive.test(message); message = buffer.poll()) {
+					int SeqNum = getSeqNumFromMsg(message);
+					if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
+						return message;
+					} else {
+						receiveBuffer.offer(message);
+					}
+				}
 				return message;
-			} else {
-				receiveBuffer.offer(message);
 			}
-		}
-		return message;
-	}
 
+			while (!receiveBuffer.isEmpty()) {
+				message = receiveBuffer.peek();
+
+				if(!isWaterMarkSensitive.test(message)){
+					return message;
+				}
+
+				int SeqNum = getSeqNumFromMsg(message);
+				if (SeqNum < this.getWatermarks()[0]) {
+					receiveBuffer.poll();
+				}
+				else if (SeqNum < this.getWatermarks()[1]) {
+					return receiveBuffer.poll();
+				}
+				else {
+					break;
+				}
+			}
+
+			for (message = super.receive(); isWaterMarkSensitive.test(message); message = super.receive()) {
+				int SeqNum = getSeqNumFromMsg(message);
+				if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
+					return message;
+				} else {
+					receiveBuffer.offer(message);
+				}
+			}
+			return message;
+		}
+		else {
+			Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
+			Predicate<Message> isUnblockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).anyMatch(msgType -> msgType.isInstance(msg));
+
+			//headerMsg, requestMsg는 getSeqNumFromMsg가 정의 될 수 없어 receiveBuffer에는 넣을 수 없으므로 일반 큐에 넣는다
+			for (message = super.receive(); !isUnblockTypes.test(message); message = super.receive()) {
+				buffer.offer(message);
+			}
+
+			return message;
+		}
+	}
 	private Logger logger;
 	private int lowWatermark;
 
 	private Map<String, Timer> timerMap = new HashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
-	private Queue<Message> buffer = new LinkedList<>();
-
 
 	public Replica(Properties prop, String serverIp, int serverPort) {
 		super(prop);
@@ -182,25 +209,6 @@ public class Replica extends Connector {
 	/**
 	 * @return
 	 */
-	@Override
-	protected Message receive() {
-		if (!getviewChangePhase()) {
-			if (buffer.isEmpty())
-				return super.receive();
-			else
-				return buffer.poll();
-		} else {
-			Class[] messageTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
-			Predicate<Message> receivable = (msg) -> Arrays.stream(messageTypes).anyMatch(msgType -> msgType.isInstance(msg));
-
-			Message message;
-			for (message = super.receive(); !receivable.test(message); message = super.receive()) {
-				buffer.offer(message);
-			}
-			return message;
-		}
-	}
-
 	private void handleRequestMessage(RequestMessage message) {
 		ReplyMessage replyMessage = findReplyMessageOrNull(message.getOperation());
 		if (replyMessage != null) {
@@ -564,8 +572,14 @@ public class Replica extends Connector {
 							.orElse(0);
 
 					if (max == 2 * getMaximumFaulty() + 1 && message.getSeqNum() > this.lowWatermark) {
+						if(DEBUG){
+							System.err.println("start Garbage Collection");
+						}
 						logger.executeGarbageCollection(message.getSeqNum());
 						lowWatermark += WATERMARK_UNIT;
+						if(DEBUG){
+							System.err.println("low watermark : "+this.lowWatermark);
+						}
 					}
 				}
 
