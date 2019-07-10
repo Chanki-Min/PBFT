@@ -196,6 +196,9 @@ public class Replica extends Connector {
 			} else if (message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
 			} else if (message instanceof CheckPointMessage) {
+				if (DEBUG) {
+					System.err.println("got CheckpointMessage #" + ((CheckPointMessage) message).getSeqNum() + "from " + ((CheckPointMessage) message).getReplicaNum());
+				}
 				handleCheckPointMessage((CheckPointMessage) message);
 			} else if (message instanceof ViewChangeMessage) {
 				handleViewChangeMessage((ViewChangeMessage) message);
@@ -471,6 +474,9 @@ public class Replica extends Connector {
 								seqNum,
 								logger.getStateDigest(seqNum, getMaximumFaulty()),
 								this.myNumber);
+						if (DEBUG) {
+							System.err.println("Enter Checkpoint phase");
+						}
 						//Broadcast message
 						getReplicaMap().values().forEach(sock -> send(sock, checkpointMessage));
 					}

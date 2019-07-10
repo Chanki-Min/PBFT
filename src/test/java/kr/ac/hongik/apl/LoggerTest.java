@@ -243,7 +243,7 @@ class LoggerTest {
 
     @Test
     public void ManyManyClientGC(){
-        for(int i=0;i<5;i++)
+        for (int i = 0; i < 15; i++)
             ManyClientGC();
     }
 
