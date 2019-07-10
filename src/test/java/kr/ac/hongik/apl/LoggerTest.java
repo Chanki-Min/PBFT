@@ -240,6 +240,13 @@ class LoggerTest {
             e.printStackTrace();
         }
     }
+
+    @Test
+    public void ManyManyClientGC(){
+        for(int i=0;i<5;i++)
+            ManyClientGC();
+    }
+
     @Test
     public void ManyClientGC() {
         try {
