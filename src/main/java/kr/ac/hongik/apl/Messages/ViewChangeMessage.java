@@ -31,7 +31,7 @@ public class ViewChangeMessage implements Message {
 													  Function<String, PreparedStatement> preparedStatement) {
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum);
-		List<Pm> messageList = getMessageList(privateKey, preparedStatement, lastCheckpointNum);
+        List<Pm> messageList = getMessageList(replicaNum, privateKey, preparedStatement, lastCheckpointNum);
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replicaNum);
 		byte[] signature = Util.sign(privateKey, data);
@@ -98,8 +98,9 @@ public class ViewChangeMessage implements Message {
 		return data.replicaNum;
 	}
 
-	private static List<Pm> getMessageList(PrivateKey privateKey, Function<String, PreparedStatement> preparedStatement,
-										   int checkpointNum) {
+    private static List<Pm> getMessageList(int replicaNum, PrivateKey privateKey,
+                                           Function<String, PreparedStatement> preparedStatement,
+                                           int checkpointNum) {
 
 		String query = "SELECT viewNum,seqNum,digest,operation FROM Preprepares ";
 		PreparedStatement pstmt = preparedStatement.apply(query);
@@ -120,6 +121,27 @@ public class ViewChangeMessage implements Message {
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
+
+        String query2 = "SELECT viewNum, seqNum, digest, operation, replica FROM Prepares";
+        PreparedStatement pstmt2 = preparedStatement.apply(query2);
+        List<PrepareMessage> prepareList = new ArrayList<>();
+
+        try (var ret = pstmt2.executeQuery()) {
+            while (ret.next()) {
+
+                PrepareMessage prepareMessage = PrepareMessage.makePrepareMsg(
+                        privateKey,
+                        ret.getInt(1),
+                        ret.getInt(2),
+                        ret.getString(3),
+                        replicaNum);
+                prepareList.add(prepareMessage);
+
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
 
 		/*throw new NotImplementedException("checkpointNum 보다 크커나 같은 각각의 sequence number n에 대하여 " +
