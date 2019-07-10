@@ -1,14 +1,6 @@
 package kr.ac.hongik.apl;
 
-import kr.ac.hongik.apl.Messages.CheckPointMessage;
-import kr.ac.hongik.apl.Messages.CommitMessage;
-import kr.ac.hongik.apl.Messages.Message;
-import kr.ac.hongik.apl.Messages.NewViewMessage;
-import kr.ac.hongik.apl.Messages.PrepareMessage;
-import kr.ac.hongik.apl.Messages.PreprepareMessage;
-import kr.ac.hongik.apl.Messages.ReplyMessage;
-import kr.ac.hongik.apl.Messages.RequestMessage;
-import kr.ac.hongik.apl.Messages.ViewChangeMessage;
+import kr.ac.hongik.apl.Messages.*;
 import kr.ac.hongik.apl.Operations.Operation;
 
 import java.io.File;
@@ -168,8 +160,9 @@ public class Logger {
 			cleanUpPrepareMsg(seqNum);
 			cleanUpCommitMsg(seqNum);
 			cleanUpCheckpointMsg(seqNum);
-			cleanUpExecutedMsg(seqNum);
 		} catch (SQLException e) {
+            if (e.getErrorCode() == CONSTRAINT_ERROR)
+                return;
 			e.printStackTrace();
 		}
 	}
@@ -201,14 +194,6 @@ public class Logger {
 		pstmt.setInt(1, seqNum);
 		pstmt.execute();
 	}
-
-	private void cleanUpExecutedMsg(int seqNum) throws SQLException {
-		String query = "DELETE FROM Executed WHERE seqNum <= ?";
-		PreparedStatement pstmt = conn.prepareStatement(query);
-		pstmt.setInt(1, seqNum);
-		pstmt.execute();
-	}
-
 	//new-view-msg 에서 digest(null)이 올 때 의도한 대로 null이 리턴되는지 확인이 필요함.
 	Operation getOperation(CommitMessage message) {
 		String baseQuery = new StringBuilder()
