@@ -14,6 +14,7 @@ public class Client extends Connector {
 	private HashMap<Long, Integer> replies = new HashMap<>();
 	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
 	private List<Long> ignoreList = new ArrayList<>();
+	private final Boolean DEBUG = true;
 
 	private Map<Long, Timer> timerMap = new HashMap<>();    /* Key: timestamp, value: timer  */
 
@@ -30,6 +31,9 @@ public class Client extends Connector {
 	protected void sendHeaderMessage(SocketChannel channel) {
 		HeaderMessage headerMessage = new HeaderMessage(-1, this.getPublicKey(), "client");
 		send(channel, headerMessage);
+		if(DEBUG) {
+			System.err.println("got headerMessage from " + headerMessage.getPublicKey().toString().substring(46, 66));
+		}
 	}
 
 	//Empty method.

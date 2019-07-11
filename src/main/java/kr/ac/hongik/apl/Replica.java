@@ -20,6 +20,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
+import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
@@ -71,12 +72,19 @@ public class Replica extends Connector {
 			}
 
 			for (message = super.receive(); isWaterMarkSensitive.test(message); message = super.receive()) {
+
 				int SeqNum = getSeqNumFromMsg(message);
 				if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
 					return message;
 				} else {
 					receiveBuffer.offer(message);
 				}
+			}
+			if(DEBUG){
+				if (message instanceof HeaderMessage) {
+					System.err.println("got headerMessage from " + ((HeaderMessage) message).getPublicKey().toString().substring(46, 66));
+				}
+
 			}
 			return message;
 		}
@@ -178,18 +186,31 @@ public class Replica extends Connector {
 		while (true) {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
-				if (DEBUG) {
-					System.err.println("got headerMessage from " + ((HeaderMessage) message).getPublicKey().toString().substring(46, 66));
-				}
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
 				if (DEBUG) {
-					System.err.println("got requestMessage from " + ((RequestMessage) message).getClientInfo().toString().substring(46, 66));
+					if(message instanceof RequestMessage){
+						if(!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo())){
+							System.err.println("loop RequestMessage from " + ((RequestMessage) message).getClientInfo().toString().substring(46, 66));
+							var loopback = this.getReplicaMap().get(getMyNumber());
+
+							TimerTask task = new TimerTask() {
+								@Override
+								public void run(){
+										send(loopback, message);
+								}
+							};
+							new Timer().schedule(task, 3000);
+							continue;
+						}
+					} else
+						System.err.println("got requestMessage from " + ((RequestMessage) message).getClientInfo().toString().substring(46, 66));
+
 				}
 				handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
 				if (DEBUG){
-					System.err.println("got pre-prepareMessage from "+ ((PreprepareMessage) message).getRequestMessage().getClientInfo().toString().substring(46,66));
+					System.err.println("got pre-prepareMessage #"+ ((PreprepareMessage) message).getSeqNum()+" from "+((PreprepareMessage) message).getRequestMessage().getClientInfo().toString().substring(46,66));
 				}
 				handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
@@ -198,7 +219,7 @@ public class Replica extends Connector {
 				handleCommitMessage((CommitMessage) message);
 			} else if (message instanceof CheckPointMessage) {
 				if (DEBUG) {
-					System.err.println("got CheckpointMessage #" + ((CheckPointMessage) message).getSeqNum() + "from " + ((CheckPointMessage) message).getReplicaNum());
+					System.err.println("got CheckpointMessage #" + ((CheckPointMessage) message).getSeqNum() + " from " + ((CheckPointMessage) message).getReplicaNum());
 				}
 				handleCheckPointMessage((CheckPointMessage) message);
 			} else if (message instanceof ViewChangeMessage) {

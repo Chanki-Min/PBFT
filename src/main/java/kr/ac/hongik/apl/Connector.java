@@ -59,7 +59,6 @@ abstract class Connector {
 				this.getReplicaMap().put(i, socketChannel);
 				socketChannel = null;
 			} catch(IOException e) {
-				// System.err.println(e);
 				closeWithoutException(socketChannel);
 				continue;
 			}

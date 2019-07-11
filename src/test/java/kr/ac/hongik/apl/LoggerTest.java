@@ -95,8 +95,8 @@ class LoggerTest {
             Arrays.stream(firstRet).forEach(x -> System.err.print(x + " "));
             System.err.println();
             var beg = Instant.now().toEpochMilli();
-            int maxClientNum = 7;
-            int manyClientRequestNum = 3;
+            int maxClientNum = 10;
+            int manyClientRequestNum = 2;
             List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
             for (int i = 0; i < maxClientNum; i++) {
 				Thread thread = new Thread(new CountlessClientGCThread(prop, i, manyClientRequestNum));
