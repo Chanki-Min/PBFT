@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -108,7 +109,7 @@ public class Replica extends Connector {
 	private Logger logger;
 	private int lowWatermark;
 
-	private Map<String, Timer> timerMap = new HashMap<>();
+	private Map<String, Timer> timerMap = new ConcurrentHashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 
 	public Replica(Properties prop, String serverIp, int serverPort) {
