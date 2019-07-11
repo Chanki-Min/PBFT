@@ -62,6 +62,7 @@ public class PreprepareMessage implements Message {
 		checklist[2] = checkUniqueTuple(prepareStatement);
 
         checklist[3] = requestMessage.verify(clientPublicKey);
+
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
