@@ -182,7 +182,14 @@ abstract class Connector {
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
-						channel.read(byteBuffer);
+                        int readn = 0;
+                        while (readn < length) {
+                            readn += channel.read(byteBuffer);
+                            if (DEBUG == true && readn != length) {
+                                System.err.println("readn != length error");
+                            }
+                        }
+
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage) message;
