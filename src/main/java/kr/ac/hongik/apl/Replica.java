@@ -41,7 +41,6 @@ public class Replica extends Connector {
 	/**
 	 * @return
 	 */
-	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
 	@Override
 	protected Message receive() {
 
@@ -142,7 +141,6 @@ public class Replica extends Connector {
 		}
 	}
 
-	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
 	private static int getSeqNumFromMsg(Message message) {
 		if (message instanceof  HeaderMessage) {
 			return -2;
