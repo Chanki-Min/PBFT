@@ -180,8 +180,14 @@ public class Replica extends Connector {
 		while (true) {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
+				if (DEBUG) {
+					System.err.println("got headerMessage from " + ((HeaderMessage) message).getPublicKey().toString().substring(46, 66));
+				}
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
+				if (DEBUG) {
+					System.err.println("got requestMessage from " + ((RequestMessage) message).getClientInfo().toString().substring(46, 66));
+				}
 				handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
 				handlePreprepareMessage((PreprepareMessage) message);
