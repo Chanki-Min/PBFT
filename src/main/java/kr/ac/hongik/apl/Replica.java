@@ -36,8 +36,7 @@ public class Replica extends Connector {
 	private ServerSocketChannel listener;
 	private List<SocketChannel> clients;
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
-	private PriorityQueue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
-	private Queue<Message> buffer = new LinkedList<>();
+	private Queue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
 
 	/**
 	 * @return
@@ -49,20 +48,9 @@ public class Replica extends Connector {
 		Message message;
 
 		if(!getviewChangePhase()) {
-			Class[] waterMarkSensitiveTypes = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
-			Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(waterMarkSensitiveTypes).anyMatch(msgType -> msgType.isInstance(msg));
 
-			while (!buffer.isEmpty()){
-				for (message = buffer.poll(); isWaterMarkSensitive.test(message); message = buffer.poll()) {
-					int SeqNum = getSeqNumFromMsg(message);
-					if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
-						return message;
-					} else {
-						receiveBuffer.offer(message);
-					}
-				}
-				return message;
-			}
+			Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
+			Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(shouldCheckWaterMark).anyMatch(msgType -> msgType.isInstance(msg));
 
 			while (!receiveBuffer.isEmpty()) {
 				message = receiveBuffer.peek();
@@ -93,13 +81,17 @@ public class Replica extends Connector {
 			}
 			return message;
 		}
+
 		else {
 			Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
-			Predicate<Message> isUnblockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).anyMatch(msgType -> msgType.isInstance(msg));
-
-			//headerMsg, requestMsg는 getSeqNumFromMsg가 정의 될 수 없어 receiveBuffer에는 넣을 수 없으므로 일반 큐에 넣는다
-			for (message = super.receive(); !isUnblockTypes.test(message); message = super.receive()) {
-				buffer.offer(message);
+			Predicate<Message> isBlockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
+			//First, get Msgs from buffer for just in case
+			message = receiveBuffer.stream()
+					.filter(msg -> !isBlockTypes.test(msg))
+					.findFirst()
+					.orElseGet(super::receive);
+			for (; isBlockTypes.test(message); message = super.receive()) {
+				receiveBuffer.offer(message);
 			}
 
 			return message;
@@ -152,19 +144,21 @@ public class Replica extends Connector {
 
 	//TODO: ViewChangeMessage branch와 병합 후 작동 확인
 	private static int getSeqNumFromMsg(Message message) {
-		if (message instanceof PreprepareMessage) {
+		if (message instanceof  HeaderMessage) {
+			return -2;
+		} else if (message instanceof  RequestMessage) {
+			return -1;
+		} else if (message instanceof PreprepareMessage) {
 			return ((PreprepareMessage) message).getSeqNum();
 		} else if (message instanceof PrepareMessage) {
 			return ((PrepareMessage) message).getSeqNum();
 		} else if (message instanceof CommitMessage) {
 			return ((CommitMessage) message).getSeqNum();
+		} else if (message instanceof CheckPointMessage) {
+			return ((CheckPointMessage) message).getSeqNum();
+		} else if (message instanceof  ViewChangeMessage) {
+			return ((ViewChangeMessage) message).getLastCheckpointNum();
 		}
-		/*
-		else if(message instanceof ViewChangMessage){
-			return ((ViewChangMessage) message).getSeqNum();
-		}
-
-		*/
 		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
 
@@ -696,7 +690,7 @@ public class Replica extends Connector {
 
 	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
 
-		Boolean[] checklist = new Boolean[3];
+		Boolean[] checklist = new Boolean[4];
 		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query1)) {
 			pstmt.setInt(1, this.myNumber);
