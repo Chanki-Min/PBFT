@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static kr.ac.hongik.apl.Util.*;
 
@@ -33,7 +32,7 @@ public class PreprepareMessage implements Message {
 	 * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
 	 * @param requestMessage
 	 */
-	//TODO: Operation 대신 Request msg 넣기.
+
 	public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, RequestMessage requestMessage) {
 		Data data = new Data(viewNum, seqNum, requestMessage);
 		byte[] sig = sign(privateKey, data);
@@ -43,28 +42,26 @@ public class PreprepareMessage implements Message {
 	/**
 	 * Checks for signature, watermark, current view, and duplication
 	 *
-	 * @param publicKey
+     * @param primaryPublicKey
 	 * @param currentPrimary
-	 * @param watermarkGetter
+     * @param clientPublicKey
 	 * @param prepareStatement
 	 * @return
 	 */
-	//TODO: Client의 Request 검증하기
-	public boolean isVerified(PublicKey publicKey,
-							  final int currentPrimary,
-							  Supplier<int[]> watermarkGetter,
-							  Function<String, PreparedStatement> prepareStatement) {
+
+    public boolean isVerified(PublicKey primaryPublicKey,
+                              final int currentPrimary,
+                              PublicKey clientPublicKey,
+                              Function<String, PreparedStatement> prepareStatement) {
 		Boolean[] checklist = new Boolean[4];
 
-		checklist[0] = verify(publicKey, this.data, this.signature);
+        checklist[0] = verify(primaryPublicKey, this.data, this.signature);
 
 		checklist[1] = getViewNum() == currentPrimary;
 
 		checklist[2] = checkUniqueTuple(prepareStatement);
 
-		int[] watermarks = watermarkGetter.get();
-		checklist[3] = (watermarks[0] <= getSeqNum()) && (getSeqNum() < watermarks[1]);
-
+        checklist[3] = requestMessage.verify(clientPublicKey);
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 

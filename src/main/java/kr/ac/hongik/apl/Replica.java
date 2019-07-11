@@ -26,7 +26,7 @@ import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
 
-	final static int WATERMARK_UNIT = 100;
+	final static int WATERMARK_UNIT = 20;
 
 
 	private final int myNumber;
@@ -327,14 +327,15 @@ public class Replica extends Connector {
 		return seqList.isEmpty() ? -1 : seqList.stream().max(Integer::compareTo).get();
 	}
 
-	//TODO: verify
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
-		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
-		boolean isVerified = message.isVerified(publicKey, this.getPrimary(), this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
+		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
+		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
+		boolean isVerified = message.isVerified(primaryPublicKey, this.getPrimary(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
 			logger.insertMessage(message);
+			logger.insertMessage(message.getRequestMessage());
 			PrepareMessage prepareMessage = makePrepareMsg(
 					this.getPrivateKey(),
 					message.getViewNum(),

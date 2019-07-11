@@ -185,9 +185,6 @@ abstract class Connector {
                         int readn = 0;
                         while (readn < length) {
                             readn += channel.read(byteBuffer);
-                            if (DEBUG == true && readn != length) {
-                                System.err.println("readn != length error");
-                            }
                         }
 
 						Serializable message = deserialize(receivedBytes);
