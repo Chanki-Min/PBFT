@@ -57,11 +57,11 @@ public class Logger {
 	 * Executed: (^seqNum, replyMessage)
 	 * <p>
 	 * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
-	 */
+	 * */
 	private void createTables() {
 		String[] queries = {
 				"CREATE TABLE Requests (client TEXT,timestamp DATE,operation TEXT, PRIMARY KEY(client, timestamp, operation))",
-				"CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, operation TEXT, PRIMARY KEY(viewNum, seqNum, digest))",
+				"CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, requestMessage TEXT, PRIMARY KEY(viewNum, seqNum, digest))",
 				"CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, " +
 						"seqNum, digest, replica))",
 				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
@@ -197,7 +197,7 @@ public class Logger {
 	//new-view-msg 에서 digest(null)이 올 때 의도한 대로 null이 리턴되는지 확인이 필요함.
 	Operation getOperation(CommitMessage message) {
 		String baseQuery = new StringBuilder()
-				.append("SELECT P.operation ")
+				.append("SELECT P.requestMessage ")
 				.append("FROM Preprepares AS P ")
 				.append("WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?")
 				.toString();
@@ -209,7 +209,7 @@ public class Logger {
 			try (var ret = pstmt.executeQuery()) {
 				ret.next();
 				String data = ret.getString(1);
-				Operation operation = desToObject(data, Operation.class);
+				Operation operation = desToObject(data, RequestMessage.class).getOperation();
 				return operation;
 			}
 		} catch (SQLException e) {
@@ -267,7 +267,7 @@ public class Logger {
 			pstmt.setInt(1, message.getViewNum());
 			pstmt.setInt(2, message.getSeqNum());
 			pstmt.setString(3, message.getDigest());
-			String data = serToString(message.getOperation());
+			String data = serToString(message.getRequestMessage());
 			pstmt.setString(4, data);
 
 			pstmt.execute();

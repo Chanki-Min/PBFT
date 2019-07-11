@@ -36,6 +36,7 @@ abstract class Connector {
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
 
+	private boolean DEBUG = true;
 
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();
@@ -181,7 +182,11 @@ abstract class Connector {
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
-						channel.read(byteBuffer);
+                        int readn = 0;
+                        while (readn < length) {
+                            readn += channel.read(byteBuffer);
+                        }
+
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage) message;

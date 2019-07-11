@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.*;
-import kr.ac.hongik.apl.Operations.Operation;
 import org.echocat.jsu.JdbcUtils;
 
 import java.io.IOException;
@@ -15,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -100,7 +100,7 @@ public class Replica extends Connector {
 	private Logger logger;
 	private int lowWatermark;
 
-	private Map<String, Timer> timerMap = new HashMap<>();
+	private Map<String, Timer> timerMap = new ConcurrentHashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 
 	public Replica(Properties prop, String serverIp, int serverPort) {
@@ -207,7 +207,7 @@ public class Replica extends Connector {
 	 * @return
 	 */
 	private void handleRequestMessage(RequestMessage message) {
-		ReplyMessage replyMessage = findReplyMessageOrNull(message.getOperation());
+		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
 			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 			send(destination, replyMessage);
@@ -248,9 +248,9 @@ public class Replica extends Connector {
 		}
 	}
 
-	private ReplyMessage findReplyMessageOrNull(Operation operation) {
-		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.operation = ?")) {
-			pstmt.setString(1, Util.serToString(operation));
+	private ReplyMessage findReplyMessageOrNull(RequestMessage requestMessage) {
+		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.requestMessage = ?")) {
+			pstmt.setString(1, Util.serToString(requestMessage));
 			var ret = pstmt.executeQuery();
 			if (ret.next()) {
 				int seqNum = ret.getInt(1);
@@ -286,8 +286,7 @@ public class Replica extends Connector {
 		try {
 			int seqNum = getLatestSequenceNumber() + 1;
 
-			Operation operation = message.getOperation();
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getPrimary(), seqNum, operation);
+			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getPrimary(), seqNum, message);
 			logger.insertMessage(preprepareMessage);
 
 			//Broadcast messages
@@ -325,11 +324,13 @@ public class Replica extends Connector {
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
-		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);
-		boolean isVerified = message.isVerified(publicKey, this.getPrimary(), this::getWatermarks, rethrow().wrap(logger::getPreparedStatement));
+		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
+		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
+		boolean isVerified = message.isVerified(primaryPublicKey, this.getPrimary(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
 			logger.insertMessage(message);
+			logger.insertMessage(message.getRequestMessage());
 			PrepareMessage prepareMessage = makePrepareMsg(
 					this.getPrivateKey(),
 					message.getViewNum(),
