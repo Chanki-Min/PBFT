@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.*;
-import kr.ac.hongik.apl.Operations.Operation;
 import org.echocat.jsu.JdbcUtils;
 
 import java.io.IOException;
@@ -27,7 +26,7 @@ import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
 
-	final static int WATERMARK_UNIT = 20;
+	final static int WATERMARK_UNIT = 100;
 
 
 	private final int myNumber;
@@ -213,7 +212,7 @@ public class Replica extends Connector {
 	 * @return
 	 */
 	private void handleRequestMessage(RequestMessage message) {
-		ReplyMessage replyMessage = findReplyMessageOrNull(message.getOperation());
+		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
 			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 			send(destination, replyMessage);
@@ -254,9 +253,9 @@ public class Replica extends Connector {
 		}
 	}
 
-	private ReplyMessage findReplyMessageOrNull(Operation operation) {
-		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.operation = ?")) {
-			pstmt.setString(1, Util.serToString(operation));
+	private ReplyMessage findReplyMessageOrNull(RequestMessage requestMessage) {
+		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.requestMessage = ?")) {
+			pstmt.setString(1, Util.serToString(requestMessage));
 			var ret = pstmt.executeQuery();
 			if (ret.next()) {
 				int seqNum = ret.getInt(1);
@@ -292,8 +291,7 @@ public class Replica extends Connector {
 		try {
 			int seqNum = getLatestSequenceNumber() + 1;
 
-			Operation operation = message.getOperation();
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getPrimary(), seqNum, operation);
+			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getPrimary(), seqNum, message);
 			logger.insertMessage(preprepareMessage);
 
 			//Broadcast messages
@@ -329,6 +327,7 @@ public class Replica extends Connector {
 		return seqList.isEmpty() ? -1 : seqList.stream().max(Integer::compareTo).get();
 	}
 
+	//TODO: verify
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
 		PublicKey publicKey = this.publicKeyMap.get(primaryChannel);

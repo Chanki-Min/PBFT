@@ -36,6 +36,7 @@ abstract class Connector {
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
 
+	private boolean DEBUG = true;
 
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();

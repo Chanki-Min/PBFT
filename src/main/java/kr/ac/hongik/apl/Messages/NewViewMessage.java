@@ -1,6 +1,5 @@
 package kr.ac.hongik.apl.Messages;
 
-import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.echocat.jsu.JdbcUtils;
@@ -124,11 +123,11 @@ public class NewViewMessage implements Message {
 					.map(pm -> pm.getPreprepareMessage())
 					.distinct();
 
-			Function<PrepareMessage, Operation> getOp = p -> received_pre_prepares
+			Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares
 					.filter(pp -> pp.getDigest().equals(p.getDigest()))
 					.findAny()
 					.get()
-					.getOperation();
+					.getRequestMessage();
 			/**
 				make Stream of Pre-prepare Msgs that has non-null Operation Op.
 			    Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience

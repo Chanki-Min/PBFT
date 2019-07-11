@@ -16,14 +16,14 @@ import java.util.function.Supplier;
 import static kr.ac.hongik.apl.Util.*;
 
 public class PreprepareMessage implements Message {
-	private final Operation operation;
+	private final RequestMessage requestMessage;
 	private final Data data;
 	private byte[] signature;
 
-	private PreprepareMessage(Data data, byte[] signature, Operation operation) {
+	private PreprepareMessage(Data data, byte[] signature, RequestMessage requestMessage) {
 		this.data = data;
 		this.signature = signature;
-		this.operation = operation;
+		this.requestMessage = requestMessage;
 	}
 
 	/**
@@ -31,13 +31,13 @@ public class PreprepareMessage implements Message {
 	 * @param viewNum    current view number represents current leader.
 	 *                   Each replicas can access .properties file to get its own number.
 	 * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
-	 * @param operation
+	 * @param requestMessage
 	 */
 	//TODO: Operation 대신 Request msg 넣기.
-	public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, Operation operation) {
-		Data data = new Data(viewNum, seqNum, operation);
+	public static PreprepareMessage makePrePrepareMsg(PrivateKey privateKey, int viewNum, int seqNum, RequestMessage requestMessage) {
+		Data data = new Data(viewNum, seqNum, requestMessage);
 		byte[] sig = sign(privateKey, data);
-		return new PreprepareMessage(data, sig, operation);
+		return new PreprepareMessage(data, sig, requestMessage);
 	}
 
 	/**
@@ -122,18 +122,21 @@ public class PreprepareMessage implements Message {
 	}
 
 	public Operation getOperation() {
-		return this.operation;
+		return this.requestMessage.getOperation();
 	}
 
+	public RequestMessage getRequestMessage() {
+		return this.requestMessage;
+	}
 	private static class Data implements Serializable {
 		private int viewNum;
 		private int seqNum;
 		private String digest;
 
-		private Data(final int viewNum, final int seqNum, Operation operation) {
+		private Data(final int viewNum, final int seqNum, RequestMessage requestMessage) {
 			this.viewNum = viewNum;
 			this.seqNum = seqNum;
-			this.digest = hash(operation);
+			this.digest = hash(requestMessage);
 		}
 	}
 
