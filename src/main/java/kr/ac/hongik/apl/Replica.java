@@ -188,6 +188,9 @@ public class Replica extends Connector {
 				}
 				handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
+				if (DEBUG){
+					System.err.println("got pre-prepareMessage from "+ ((PreprepareMessage) message).getRequestMessage().getClientInfo().toString().substring(46,66));
+				}
 				handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
@@ -695,7 +698,7 @@ public class Replica extends Connector {
 
 	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
 
-		Boolean[] checklist = new Boolean[4];
+		Boolean[] checklist = new Boolean[3];
 		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query1)) {
 			pstmt.setInt(1, this.myNumber);
