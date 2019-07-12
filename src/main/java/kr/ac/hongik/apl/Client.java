@@ -32,7 +32,7 @@ public class Client extends Connector {
 		HeaderMessage headerMessage = new HeaderMessage(-1, this.getPublicKey(), "client");
 		send(channel, headerMessage);
 		if(DEBUG) {
-			System.err.println("got headerMessage from " + headerMessage.getPublicKey().toString().substring(46, 66));
+			System.err.println("send headerMessage, key: " + headerMessage.getPublicKey().toString().substring(46, 66));
 		}
 	}
 
