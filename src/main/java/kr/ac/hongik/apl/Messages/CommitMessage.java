@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 
 import java.io.Serializable;
@@ -53,7 +54,7 @@ public class CommitMessage implements Message {
     }
 
 	public boolean isCommittedLocal(Function<String, PreparedStatement> prepareStatement, int maxFaulty, int replicaNum) {
-        Boolean[] checklist = new Boolean[2];
+        Boolean[] checklist = new Boolean[3];
         //Predicate isPrepared(m, v, n, i) is true
         String query = "SELECT count(*) FROM Commits WHERE seqNum =? AND replica= ?";
         try (var pstmt = prepareStatement.apply(query)) {
@@ -79,15 +80,31 @@ public class CommitMessage implements Message {
             try (var ret = pstmt.executeQuery()) {
                 ret.next();
                 var sameMessages = ret.getInt(1);
-                checklist[1] = sameMessages == maxFaulty * 2 + 1;
+                checklist[1] = sameMessages > maxFaulty * 2;
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
+        checklist[2] =  !isAlreadyExecuted(prepareStatement, this.getSeqNum());
 
         return Arrays.stream(checklist).allMatch(x -> x);
+    }
+    boolean isAlreadyExecuted(Function<String, PreparedStatement> prepareStatement, int sequenceNumber) {
+        String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
+        try (var pstmt = prepareStatement.apply(query)) {
+            pstmt.setInt(1, sequenceNumber);
+            try (var ret = pstmt.executeQuery()) {
+                if (ret.next())
+                    return ret.getInt(1) > 0;
+                else
+                    return false;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
 	private static class Data implements Serializable {

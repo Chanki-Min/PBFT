@@ -178,6 +178,8 @@ public class Replica extends Connector {
 		while (true) {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
+				if(DEBUG)
+					System.err.println("got Header Message : "+ ((HeaderMessage)message).getPublicKey().toString().substring(46,66));
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
 				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
@@ -185,6 +187,8 @@ public class Replica extends Connector {
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
+				if(DEBUG)
+					System.err.println("got Pre-prepareMessage #"+ ((PreprepareMessage) message).getSeqNum() +" :" + ((PreprepareMessage)message).getRequestMessage().getClientInfo().toString().substring(46,66));
 				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
 					loopback(message);
 				else
@@ -217,10 +221,8 @@ public class Replica extends Connector {
 				}
 			}
 		};
-		if (DEBUG) {
-			System.err.println("Loopback " + message.getClass().getName());
-		}
-		new Timer().schedule(task, 3000);
+
+		new Timer().schedule(task, 10000);
 	}
 
 	/**
@@ -423,34 +425,8 @@ public class Replica extends Connector {
 
 
 		if (isCommitted) {
-			/**
-			 * 이미 합의가 이루어져서 실행이 된 경우 executed table에 삽입이 될 것이므로,
-			 * 이를 이용하여 합의 여부를 감지한다.
-			 *
-			 * 이미 수행된 경우에는 수행된 값을 DB로부터 읽어 반환한다.
-			 */
-			if (isAlreadyExecuted(cmsg.getSeqNum())) {
-				try (var pstmt = logger.getPreparedStatement("SELECT replyMessage FROM Executed WHERE seqNum = ?")) {
-					pstmt.setInt(1, cmsg.getSeqNum());
-					var ret = pstmt.executeQuery();
-					ReplyMessage replyMessage = JdbcUtils.toStream(ret)
-							.map(rethrow().wrapFunction(x -> x.getString(1)))
-							.map(x -> Util.desToObject(x, ReplyMessage.class))
-							.findFirst()
-							.get();
-
-					SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
-					send(destination, replyMessage);
-					return;
-
-				} catch (SQLException e) {
-					e.printStackTrace();
-					return;
-				}
-			}
-
-
-			priorityQueue.add(cmsg);
+			if(priorityQueue.stream().noneMatch(x -> x.getSeqNum() == cmsg.getSeqNum()))
+				priorityQueue.add(cmsg);
 			try {
 				while(true){
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
@@ -465,7 +441,6 @@ public class Replica extends Connector {
 					Timer timer = timerMap.remove(key);
 					if (timer != null)
 						timer.cancel();
-
 
 					System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
 					Object ret = operation.execute(this.logger);
@@ -502,22 +477,6 @@ public class Replica extends Connector {
 				return;
 			}
 		}
-	}
-
-	boolean isAlreadyExecuted(int sequenceNumber) {
-		String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
-		try (var pstmt = logger.getPreparedStatement(query)) {
-			pstmt.setInt(1, sequenceNumber);
-			try (var ret = pstmt.executeQuery()) {
-				if (ret.next())
-					return ret.getInt(1) > 0;
-				else
-					return false;
-			}
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-
 	}
 
 	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
