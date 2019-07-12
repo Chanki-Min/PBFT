@@ -208,13 +208,13 @@ public class Replica extends Connector {
 	 * @return
 	 */
 	private void handleRequestMessage(RequestMessage message) {
-		Predicate<RequestMessage> notHasValidHeader = (reqMsg) -> !publicKeyMap.values().contains(reqMsg.getClientInfo());
+		Predicate<RequestMessage> notContainsHeader = (reqMsg) -> !publicKeyMap.values().contains(reqMsg.getClientInfo());
 
-		if(notHasValidHeader.test(message)) {
+		if(notContainsHeader.test(message)) {
 			TimerTask task = new TimerTask() {
 				@Override
 				public void run(){
-					loopBack(message);
+					send(getReplicaMap().get(getMyNumber()), message);
 				}
 			};
 			new Timer().schedule(task, 3000);
@@ -260,9 +260,6 @@ public class Replica extends Connector {
 				timerMap.put(key, timer);
 			}
 		}
-	}
-	private void loopBack(Message message){
-		send(getReplicaMap().get(getMyNumber()), message);
 	}
 
 	private ReplyMessage findReplyMessageOrNull(RequestMessage requestMessage) {
