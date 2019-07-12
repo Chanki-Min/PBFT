@@ -174,17 +174,21 @@ public class Replica extends Connector {
 
 
 	void start() {
-
-
 		//Assume that every connection is established
 		while (true) {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
-				handleRequestMessage((RequestMessage) message);
+				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
+					loopback(message);
+				else
+					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				handlePreprepareMessage((PreprepareMessage) message);
+				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
+					loopback(message);
+				else
+					handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
@@ -203,23 +207,26 @@ public class Replica extends Connector {
 		}
 	}
 
+	private void loopback(Message message) {
+		TimerTask task = new TimerTask() {
+			@Override
+			public void run() {
+				send(getReplicaMap().get(getMyNumber()), message);
+				if (DEBUG) {
+					System.err.println("Loopback: send " + message.getClass().getName());
+				}
+			}
+		};
+		if (DEBUG) {
+			System.err.println("Loopback " + message.getClass().getName());
+		}
+		new Timer().schedule(task, 3000);
+	}
+
 	/**
 	 * @return
 	 */
 	private void handleRequestMessage(RequestMessage message) {
-		Predicate<RequestMessage> notContainsHeader = (reqMsg) -> !publicKeyMap.values().contains(reqMsg.getClientInfo());
-
-		if(notContainsHeader.test(message)) {
-			TimerTask task = new TimerTask() {
-				@Override
-				public void run(){
-					send(getReplicaMap().get(getMyNumber()), message);
-				}
-			};
-			new Timer().schedule(task, 3000);
-			return;
-		}
-
 		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
 			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
