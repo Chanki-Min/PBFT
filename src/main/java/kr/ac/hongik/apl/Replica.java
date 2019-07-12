@@ -80,12 +80,7 @@ public class Replica extends Connector {
 					receiveBuffer.offer(message);
 				}
 			}
-			if(DEBUG){
-				if (message instanceof HeaderMessage) {
-					System.err.println("got headerMessage from " + ((HeaderMessage) message).getPublicKey().toString().substring(46, 66));
-				}
 
-			}
 			return message;
 		}
 
@@ -188,30 +183,8 @@ public class Replica extends Connector {
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
-				if (DEBUG) {
-					if(message instanceof RequestMessage){
-						if(!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo())){
-							System.err.println("loop RequestMessage from " + ((RequestMessage) message).getClientInfo().toString().substring(46, 66));
-							var loopback = this.getReplicaMap().get(getMyNumber());
-
-							TimerTask task = new TimerTask() {
-								@Override
-								public void run(){
-										send(loopback, message);
-								}
-							};
-							new Timer().schedule(task, 3000);
-							continue;
-						}
-					} else
-						System.err.println("got requestMessage from " + ((RequestMessage) message).getClientInfo().toString().substring(46, 66));
-
-				}
 				handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				if (DEBUG){
-					System.err.println("got pre-prepareMessage #"+ ((PreprepareMessage) message).getSeqNum()+" from "+((PreprepareMessage) message).getRequestMessage().getClientInfo().toString().substring(46,66));
-				}
 				handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
@@ -235,6 +208,19 @@ public class Replica extends Connector {
 	 * @return
 	 */
 	private void handleRequestMessage(RequestMessage message) {
+		Predicate<RequestMessage> notHasValidHeader = (reqMsg) -> !publicKeyMap.values().contains(reqMsg.getClientInfo());
+
+		if(notHasValidHeader.test(message)) {
+			TimerTask task = new TimerTask() {
+				@Override
+				public void run(){
+					loopBack(message);
+				}
+			};
+			new Timer().schedule(task, 3000);
+			return;
+		}
+
 		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
 			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
@@ -274,6 +260,9 @@ public class Replica extends Connector {
 				timerMap.put(key, timer);
 			}
 		}
+	}
+	private void loopBack(Message message){
+		send(getReplicaMap().get(getMyNumber()), message);
 	}
 
 	private ReplyMessage findReplyMessageOrNull(RequestMessage requestMessage) {
