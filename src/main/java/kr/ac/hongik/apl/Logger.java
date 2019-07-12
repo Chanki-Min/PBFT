@@ -57,15 +57,20 @@ public class Logger {
 	 * Executed: (^seqNum, replyMessage)
 	 * <p>
 	 * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
-	 * */
+	 */
 	private void createTables() {
 		String[] queries = {
 				"CREATE TABLE Requests (client TEXT,timestamp DATE,operation TEXT, PRIMARY KEY(client, timestamp, operation))",
-				"CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, requestMessage TEXT, PRIMARY KEY(viewNum, seqNum, digest))",
-				"CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(viewNum, " +
+				"CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, requestMessage TEXT, data TEXT, " +
+						"PRIMARY " +
+						"KEY" +
+						"(viewNum, seqNum, digest))",
+				"CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, data TEXT, PRIMARY KEY" +
+						"(viewNum, " +
 						"seqNum, digest, replica))",
 				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
-				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT, PRIMARY KEY(seqNum, stateDigest, replica))",
+				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT,data TEXT, PRIMARY KEY(seqNum, " +
+						"stateDigest, replica))",
 				"CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, checkpointNum, replica))",
@@ -260,7 +265,7 @@ public class Logger {
 	}
 
 	private void insertPreprepareMessage(PreprepareMessage message) {
-		String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ? )";
+		String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ?, ?)";
 		try {
 			PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
@@ -269,6 +274,7 @@ public class Logger {
 			pstmt.setString(3, message.getDigest());
 			String data = serToString(message.getRequestMessage());
 			pstmt.setString(4, data);
+			pstmt.setString(5, serToString(message));
 
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -279,7 +285,7 @@ public class Logger {
 	}
 
 	private void insertPrepareMessage(PrepareMessage message) {
-		String baseQuery = "INSERT INTO Prepares VALUES ( ?, ?, ?, ? )";
+		String baseQuery = "INSERT INTO Prepares VALUES ( ?, ?, ?, ?, ?)";
 		try {
 			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
@@ -287,6 +293,7 @@ public class Logger {
 			preparedStatement.setInt(2, message.getSeqNum());
 			preparedStatement.setString(3, message.getDigest());
 			preparedStatement.setInt(4, message.getReplicaNum());
+			preparedStatement.setString(5, serToString(message));
 
 			preparedStatement.execute();
 		} catch (SQLException e) {
@@ -313,13 +320,14 @@ public class Logger {
 	}
 
 	private void insertCheckPointMessage(CheckPointMessage message) {
-		String baseQuery = "INSERT INTO Checkpoints VALUES (? , ? , ?)";
+		String baseQuery = "INSERT INTO Checkpoints VALUES (? , ? , ?, ?)";
 		try {
 			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
 			preparedStatement.setInt(1, message.getSeqNum());
 			preparedStatement.setString(2, message.getDigest());
 			preparedStatement.setInt(3, message.getReplicaNum());
+			preparedStatement.setString(4, serToString(message));
 
 			preparedStatement.execute();
 
