@@ -189,7 +189,7 @@ public class Logger {
 	}
 
 	private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
-		String query = "DELETE FROM Checkpoints WHERE seqNum <= ?";
+		String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
 		PreparedStatement pstmt = conn.prepareStatement(query);
 		pstmt.setInt(1, seqNum);
 		pstmt.execute();
