@@ -178,8 +178,6 @@ public class Replica extends Connector {
 		while (true) {
 			Message message = receive();              //Blocking method
 			if (message instanceof HeaderMessage) {
-				if(DEBUG)
-					System.err.println("got Header Message : "+ ((HeaderMessage)message).getPublicKey().toString().substring(46,66));
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
 				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
@@ -341,7 +339,7 @@ public class Replica extends Connector {
 				.map(rethrow().wrapFunction(x -> x.getInt(1)))
 				.collect(Collectors.toList());
 
-		return seqList.isEmpty() ? -1 : seqList.stream().max(Integer::compareTo).get();
+		return seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
 	}
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
