@@ -20,7 +20,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
-import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
@@ -558,6 +557,10 @@ public class Replica extends Connector {
 
 		logger.insertMessage(message);
 
+		if (message.getSeqNum() < getWatermarks()[0]) {
+			return;
+		}
+
 		try {
 			/* Check whether my checkpoint exists */
 			String query = "SELECT count(*) FROM Checkpoints C WHERE C.seqNum = ? AND C.replica = ?";
@@ -586,7 +589,7 @@ public class Replica extends Connector {
 							.max(Comparator.comparingInt(x -> x))
 							.orElse(0);
 
-					if (max == 2 * getMaximumFaulty() + 1 && message.getSeqNum() > this.lowWatermark) {
+					if (max > 2 * getMaximumFaulty() && message.getSeqNum() > this.lowWatermark) {
 						if(DEBUG){
 							System.err.println("start Garbage Collection");
 						}
