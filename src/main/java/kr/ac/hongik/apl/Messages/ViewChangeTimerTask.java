@@ -2,7 +2,6 @@ package kr.ac.hongik.apl.Messages;
 
 import kr.ac.hongik.apl.Replica;
 
-import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,11 +51,12 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		keySet.removeAll(keySet);
 		var getPreparedStatementFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		try {
-			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getPrivateKey(),
-					checkpointNum, newViewNum, replica.getMyNumber(), getPreparedStatementFn, replica::getWatermarks);
+			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(checkpointNum, newViewNum, getPreparedStatementFn);
 			replica.getReplicaMap().values().forEach(sock -> replica.send(sock, viewChangeMessage));
-		} catch (SQLException e) {
-			e.printStackTrace();
+		} finally {
+
 		}
 	}
+
+
 }
