@@ -235,7 +235,7 @@ abstract class Connector {
 		return this.publicKey;
 	}
 
-	final int getMaximumFaulty() {
+	public final int getMaximumFaulty() {
 		return this.replicaAddresses.size() / 3;
 	}
 
