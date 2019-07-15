@@ -428,28 +428,26 @@ public class Replica extends Connector {
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 					var operation = logger.getOperation(rightNextCommitMsg);
 
-
-					if (operation == null)
-						return;
-
 					// Release backup's view-change timer
 					String key = makeKeyForTimer(rightNextCommitMsg);
 					Timer timer = timerMap.remove(key);
 					if (timer != null)
 						timer.cancel();
 
-					System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
-					Object ret = operation.execute(this.logger);
+					if (operation != null) {
+						System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
+						Object ret = operation.execute(this.logger);
 
-					var viewNum = cmsg.getViewNum();
-					var timestamp = operation.getTimestamp();
-					var clientInfo = operation.getClientInfo();
-					ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
-							clientInfo, myNumber, ret, operation.isDistributed());
+						var viewNum = cmsg.getViewNum();
+						var timestamp = operation.getTimestamp();
+						var clientInfo = operation.getClientInfo();
+						ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
+								clientInfo, myNumber, ret, operation.isDistributed());
 
-					logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
-					SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
-					send(destination, replyMessage);
+						logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
+						SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
+						send(destination, replyMessage);
+					}
 
 					/****** Checkpoint Phase *******/
 					if (rightNextCommitMsg.getSeqNum() == getWatermarks()[1] - 1) {
