@@ -185,8 +185,6 @@ public class Replica extends Connector {
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				if(DEBUG)
-					System.err.println("got Pre-prepareMessage #"+ ((PreprepareMessage) message).getSeqNum() +" :" + ((PreprepareMessage)message).getRequestMessage().getClientInfo().toString().substring(46,66));
 				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
 					loopback(message);
 				else
