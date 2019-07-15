@@ -645,9 +645,9 @@ public class Replica extends Connector {
 
 				if (newViewList.size() == getMaximumFaulty() + 1) {
 					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
-					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(getPrivateKey(),
-							message.getLastCheckpointNum(), newViewList.get(0), getMyNumber(),
-							getPreparedStatementFn, this::getWatermarks);
+					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
+							message.getLastCheckpointNum(), getMyNumber(),
+							getPreparedStatementFn);
 					getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
 				}
 			}
