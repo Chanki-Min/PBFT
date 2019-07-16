@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -36,8 +37,8 @@ public class Replica extends Connector {
 	private ServerSocketChannel listener;
 	private List<SocketChannel> clients;
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
-	private Queue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
-
+	//private Queue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
+	private PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getSeqNumFromMsg));
 	/**
 	 * @return
 	 */
@@ -47,12 +48,17 @@ public class Replica extends Connector {
 		Message message;
 
 		if(!getviewChangePhase()) {
-
 			Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
 			Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(shouldCheckWaterMark).anyMatch(msgType -> msgType.isInstance(msg));
 
-			while (!receiveBuffer.isEmpty()) {
-				message = receiveBuffer.peek();
+			while (true) {
+				if (receiveBuffer.isEmpty()) {
+					continue;
+				}
+				if (DEBUG) {
+					System.err.println("Queue not empty");
+				}
+				message = receiveBuffer.poll();
 
 				if(!isWaterMarkSensitive.test(message)){
 					return message;
@@ -60,29 +66,16 @@ public class Replica extends Connector {
 
 				int SeqNum = getSeqNumFromMsg(message);
 				if (SeqNum < this.getWatermarks()[0]) {
-					receiveBuffer.poll();
+					continue;
 				}
 				else if (SeqNum < this.getWatermarks()[1]) {
-					return receiveBuffer.poll();
+					return message;
 				}
 				else {
-					break;
-				}
-			}
-
-			for (message = super.receive(); isWaterMarkSensitive.test(message); message = super.receive()) {
-
-				int SeqNum = getSeqNumFromMsg(message);
-				if (this.getWatermarks()[0] <= SeqNum && SeqNum < this.getWatermarks()[1]) {
-					return message;
-				} else {
 					receiveBuffer.offer(message);
 				}
 			}
-
-			return message;
 		}
-
 		else {
 			Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
 			Predicate<Message> isBlockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
@@ -91,7 +84,7 @@ public class Replica extends Connector {
 					.filter(msg -> !isBlockTypes.test(msg))
 					.findFirst()
 					.orElseGet(super::receive);
-			for (; isBlockTypes.test(message); message = super.receive()) {
+			for (message = super.receive(); isBlockTypes.test(message); message = super.receive()) {
 				receiveBuffer.offer(message);
 			}
 
@@ -172,11 +165,17 @@ public class Replica extends Connector {
 		throw new RuntimeException("Unauthorized replica");
 	}
 
+	public Message offerQueue() {
+		return super.receive();
+	}
 
 	void start() {
 		//Assume that every connection is established
+		ReceiveQueue receiveQueue = new ReceiveQueue(this);
+		receiveQueue.run(receiveBuffer);
+
 		while (true) {
-			Message message = receive();              //Blocking method
+			Message message = receive();
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
