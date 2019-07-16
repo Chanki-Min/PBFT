@@ -163,6 +163,10 @@ public class ViewChangeMessage implements Message {
 		return data.replicaNum;
 	}
 
+	public boolean verify(PublicKey publicKey) {
+		return Util.verify(publicKey, this.data, this.signature);
+	}
+
 	public boolean isVerified(PublicKey publicKey, int maximumFaulty, int WATERMARK_UNIT) {
 
 		Boolean[] checkList = new Boolean[6];
@@ -172,7 +176,7 @@ public class ViewChangeMessage implements Message {
 				.get()
 				.getDigest();
 
-		checkList[0] = Util.verify(publicKey, this.data, this.signature);
+		checkList[0] = verify(publicKey);
 
 		//verify the set C has own checkPointMsg
 		checkList[1] = data.checkPointMessages.stream().anyMatch(cpMsg -> cpMsg.getReplicaNum() == data.replicaNum);

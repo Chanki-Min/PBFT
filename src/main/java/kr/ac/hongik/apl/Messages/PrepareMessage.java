@@ -1,5 +1,7 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Util;
+
 import java.io.Serializable;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -66,7 +68,7 @@ public class PrepareMessage implements Message {
 	public boolean isVerified(PublicKey publicKey, final int currentPrimary, Supplier<int[]> watermarkGetter) {
         Boolean[] checklist = new Boolean[3];
 
-        checklist[0] = verify(publicKey, this.data, this.signature);
+        checklist[0] = this.verify(publicKey);
 
         checklist[1] = currentPrimary == this.getViewNum();
 
@@ -129,6 +131,16 @@ public class PrepareMessage implements Message {
         checklist[2] = matchedPrepareMessages.stream().anyMatch(x -> x == replicaNum);
 
         return Arrays.stream(checklist).allMatch(x -> x);
+    }
+
+    public boolean equals(PreprepareMessage pp) {
+        return  this.getViewNum() == pp.getViewNum() &&
+                this.getDigest().equals(pp.getDigest()) &&
+                this.getSeqNum() == pp.getSeqNum();
+    }
+
+    public boolean verify(PublicKey publicKey){
+        return Util.verify(publicKey, this.data, this.signature);
     }
 
     private static class Data implements Serializable {
