@@ -51,7 +51,7 @@ public class InsertionOperation extends Operation {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
-		if(!esRestClient.isIndexExists("block_chain"+" replica"+ )){
+		if(!esRestClient.isIndexExists("block_chain")){
 			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
 			mappingBuilder.startObject();
 			{
@@ -95,7 +95,7 @@ public class InsertionOperation extends Operation {
 			esRestClient.createIndex("test_block_chain",mappingBuilder,settingsBuilder);
 		}
 
-		esRestClient.bulkInsertDocument("block_chain", blockNumber, encryptedList);
+		esRestClient.bulkInsertDocument("block_chain", blockNumber, encryptedList, 1);
 
 		esRestClient.disConnectToEs();
 

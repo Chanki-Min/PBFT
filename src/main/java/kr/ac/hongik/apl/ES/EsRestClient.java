@@ -24,6 +24,7 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -106,7 +107,7 @@ public class EsRestClient {
 		}
 	}
 
-	public void bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas) throws IOException, SQLException{
+	public void bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, int versionNumber) throws IOException, SQLException{
 		Base64.Encoder encoder = Base64.getEncoder();
 		Boolean[] checkList = new Boolean[3];
 		checkList[0] = this.isIndexExists(indexName);
@@ -130,7 +131,7 @@ public class EsRestClient {
 				builder.field("encrypt_data", base64EncodedData);
 			}
 			builder.endObject();
-			request.add(new IndexRequest(indexName).id(id).source(builder));
+			request.add(new IndexRequest(indexName).id(id).source(builder).version(versionNumber).versionType(VersionType.EXTERNAL));
 
 			//if Bulk request's size equals to BULKBUFFER size. execute request
 			if(entryNumber%BULKBUFFER == BULKBUFFER-1){

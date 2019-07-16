@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -181,11 +182,11 @@ public class ElasticSearchTest {
 				String data = "test" + i;
 				testBinaryList.add(data.getBytes());
 			}
-			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList);
+			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList, 1);
 
 			sleep(sleepTime);
 
-			Assertions.assertEquals(true, isBlockExists("test_block_chain",blockNumber));
+			Assertions.assertTrue(isBlockExists("test_block_chain",blockNumber));
 			Assertions.assertEquals(entrySize, getBlockEntrySize("test_block_chain", blockNumber));
 
 			esRestClient.deleteIndex("test_block_chain");
@@ -263,21 +264,13 @@ public class ElasticSearchTest {
 				String data = "test" + i;
 				testBinaryList.add(data.getBytes());
 			}
-			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList);
+			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList, 1);
 
 			sleep(sleepTime);
 
-			List<byte[]> restoredByteList = new ArrayList<>();
-			restoredByteList = esRestClient.getBlockByteArray("test_block_chain",0);
+			List<byte[]> restoredByteList = esRestClient.getBlockByteArray("test_block_chain",0);
 
-			List<String> testStringList = new ArrayList<>();
-			List<String> restoredStringList = new ArrayList<>();
-			for(int i = 0; i<testBinaryList.size(); i++){
-				testStringList.add(new String(testBinaryList.get(i)));
-				restoredStringList.add(new String(restoredByteList.get(i)));
-			}
-			Assertions.assertEquals(true, restoredStringList.containsAll(testStringList)
-															&& restoredStringList.size() == testStringList.size());
+			Assertions.assertTrue(isDataEquals(testBinaryList, restoredByteList));
 
 
 			esRestClient.deleteIndex("test_block_chain");
@@ -355,7 +348,7 @@ public class ElasticSearchTest {
 				String data = "test" + i;
 				testBinaryList.add(data.getBytes());
 			}
-			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList);
+			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList, 1);
 
 			sleep(sleepTime);
 
@@ -472,7 +465,7 @@ public class ElasticSearchTest {
 			for (int i = 0; i < entrySize; i++) {
 				testBinaryList.add(fileArray);
 			}
-			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList);
+			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList, 1);
 
 			sleep(sleepTime);
 
@@ -499,6 +492,40 @@ public class ElasticSearchTest {
 		}
 	}
 
+	@Test
+	void concurrentBulkInsertTest(){
+		int entrySize = 5;
+		int sleepTime = 3000;
+		int maxThreadNum = 2;
+
+		String indexName = "test_block_chain";
+		int blockNumber = 0;
+		List<byte[]> testBinaryList = new ArrayList<>();
+
+		System.err.println("EStest: concurrentBulkInsert");
+
+		for (int i = 0; i < entrySize; i++) {
+			//String data = "test" + i;
+			String data = "test";
+			testBinaryList.add(data.getBytes());
+		}
+		List<Thread> threadList = new ArrayList<>(maxThreadNum);
+
+		try {
+			for(int i=0; i<maxThreadNum; i++){
+				Thread thread = new Thread(new ConcurrentBulkInsertThread(indexName,blockNumber,testBinaryList,sleepTime,1,i));
+				threadList.add(thread);
+			}
+			for(var t : threadList){
+				t.start();
+			}
+			for(var t : threadList){
+				t.join();
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
 
 	private static EsRestClient esRestClient;
 
@@ -556,6 +583,12 @@ public class ElasticSearchTest {
 		builder.query(QueryBuilders.matchQuery("block_number", blockNumber));
 		CountResponse response = esRestClient.getClient().count(request, RequestOptions.DEFAULT);
 		return (int) response.getCount();
+	}
+
+	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
+		return arr1.stream().allMatch(by1 -> arr2.stream().anyMatch(by2 -> Arrays.equals(by1, by2))) &&
+				arr2.stream().allMatch(by2 -> arr1.stream().anyMatch(by1 -> Arrays.equals(by2, by1))) &&
+				arr1.size() == arr2.size();
 	}
 
 
