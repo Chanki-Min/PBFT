@@ -5,6 +5,7 @@ import kr.ac.hongik.apl.Util;
 import org.echocat.jsu.JdbcUtils;
 
 import java.io.Serializable;
+import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,6 +13,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -31,8 +33,8 @@ public class NewViewMessage implements Message {
 
 	public static NewViewMessage makeNewViewMessage(Replica replica, int newViewNum) throws SQLException {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
-		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
-		List<PreprepareMessage> operationList = getOperationList(replica, newViewNum);
+		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
+		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
 
@@ -40,35 +42,48 @@ public class NewViewMessage implements Message {
 		return new NewViewMessage(data, signature);
 	}
 
-	public boolean isVerified(PublicKey key) {
-		Boolean[] checklist = new Boolean[3];
+	public boolean isVerified(Replica replica) {
+		Map<SocketChannel, PublicKey> keymap = replica.getPublicKeyMap();
+		int newPrimaryNum = getNewViewNum() % replica.getReplicaMap().size();
 
-		checklist[0] = this.verify(key);
+		Boolean[] checklist = new Boolean[4];
+
+		checklist[0] = this.verify(keymap.get(newPrimaryNum));
+
+		checklist[1] = this.getViewChangeMessageList().stream()
+				.allMatch(v -> verify(keymap.get(v.getReplicaNum())));
 
 		var agreed_prepares = this.getViewChangeMessageList()
 				.stream()
 				.flatMap(v -> v.getMessageList().stream())
 				.flatMap(pm -> pm.getPrepareMessages().stream());
 
-		checklist[1] = this.getOperationList()
-				.stream()
-				.filter(pp -> pp.getDigest() != null)
-				.allMatch(pp -> agreed_prepares.anyMatch(p -> p.getDigest().equals(pp.getDigest())));
-
 		checklist[2] = this.getOperationList()
 				.stream()
-				.filter(pp -> pp.getDigest() == null)
-				.noneMatch(pp -> agreed_prepares.anyMatch(p -> p.getDigest().equals(pp.getDigest())));
+				.filter(pp -> pp.getDigest() != null)
+				.filter(pp -> agreed_prepares
+						.filter(p -> p.equals(pp))
+						.filter(p -> p.verify(keymap.get(p.getReplicaNum())))
+						.count() > 2 * replica.getMaximumFaulty()
+				)
+				.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();
 
-		return Arrays.stream(checklist).allMatch(x -> x);
+		checklist[3] = this.getOperationList()
+				.stream()
+				.filter(pp -> pp.getDigest() == null)
+				.noneMatch(pp -> agreed_prepares.anyMatch(p -> p.equals(pp)));
+
+		return Arrays.stream(checklist).allMatch(Boolean::booleanValue);
 	}
 
-	private static List<ViewChangeMessage> getViewChangeMessages(Function<String, PreparedStatement> queryFn) throws SQLException {
+	private static List<ViewChangeMessage> getViewChangeMessages(Function<String, PreparedStatement> queryFn, int newViewNum) throws SQLException {
 		/* Replica.canMakeNewViewMessage에서 replica 자신의 view-change 메시지가 있는지, 2f개의 다른 backup들의 메시지가 있는지 이미 검증한다. */
 
-		String query = "SELECT V1.data FROM ViewChanges V1 " +
-				"WHERE AND V1.newViewNum = (SELECT MAX(V2.newViewNum) FROM ViewChanges V2 ) ";	/* newViewNum은 단조증가함! */
+		String query = "SELECT V.data FROM ViewChanges V " +
+				"WHERE V.newViewNum = ? " +
+				"AND V.checkpointNum = (SELECT MAX(V3.checkpointNum) FROM ViewChanges V3)";	/* newViewNum은 단조증가함! */
 		try (var pstmt = queryFn.apply(query)) {
+			pstmt.setInt(1, newViewNum);
 			var ret = pstmt.executeQuery();
 			List<ViewChangeMessage> viewChangeMessages = JdbcUtils.toStream(ret)
 					.map(rethrow().wrapFunction(rs -> Util.desToObject(rs.getString(1), ViewChangeMessage.class)))
@@ -78,74 +93,62 @@ public class NewViewMessage implements Message {
 		}
 	}
 
-	private static List<PreprepareMessage> getOperationList(Replica replica, int newViewNum) throws SQLException {
-		String query = "SELECT V.data FROM ViewChanges V " +
-				"WHERE V.newViewNum = ? " +
-				"AND V.checkpointNum = (SELECT MAX(V3.checkpointNum) FROM ViewChanges V3)";
-		try (var pstmt = replica.getLogger().getPreparedStatement(query)) {
-			pstmt.setInt(1, newViewNum);
-			ResultSet rs = pstmt.executeQuery();
-
-			List<ViewChangeMessage> viewChangeMessages = JdbcUtils.toStream(rs)
-					.map(rethrow().wrapFunction(x -> x.getString(1)))
-					.map(x -> Util.desToObject(x, ViewChangeMessage.class))
-					.collect(Collectors.toList());
-
-			List<PrepareMessage> prepareList = viewChangeMessages.stream()
-					.flatMap(v -> v.getMessageList().stream())
-					.flatMap(pm -> pm.getPrepareMessages().stream())
-					.sorted(Comparator.comparingInt(PrepareMessage::getSeqNum))
-					.collect(Collectors.toList());
+	private static List<PreprepareMessage> getOperationList(Replica replica, List<ViewChangeMessage> viewChangeMessages, int newViewNum){
+		List<PrepareMessage> prepareList = viewChangeMessages.stream()
+				.flatMap(v -> v.getMessageList().stream())
+				.flatMap(pm -> pm.getPrepareMessages().stream())
+				.sorted(Comparator.comparingInt(PrepareMessage::getSeqNum))
+				.collect(Collectors.toList());
 
 
-            int min_s = prepareList.stream()
-                    .min(Comparator.comparingInt(PrepareMessage::getSeqNum))
-                    .get()
-                    .getSeqNum();
+		int min_s = prepareList.stream()
+				.min(Comparator.comparingInt(PrepareMessage::getSeqNum))
+				.get()
+				.getSeqNum();
 
-			int max_s = prepareList.stream()
-					.max(Comparator.comparingInt(PrepareMessage::getSeqNum))
-					.get()
-					.getSeqNum();
-			/*
-				nullPre_preparesStream: Stream of Pre-prepare Msg with Diget = null (second case of paper)
-			 */
-			Stream<PreprepareMessage> nullPre_preparesStream = IntStream.rangeClosed(min_s, max_s)
-					.filter(n -> prepareList.stream().noneMatch(p -> p.getSeqNum() == n))
-					.sorted()
-					.mapToObj(n -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, n, null));
-			/*
-				received_pre_prepares: Stream of Pre-prepare Msg that was in set of viewChangeMessages
-			 */
-			Stream<PreprepareMessage> received_pre_prepares = viewChangeMessages.stream()
-					.map(v -> v.getMessageList())
-					.flatMap(pm -> pm.stream())
-					.map(pm -> pm.getPreprepareMessage())
-					.distinct();
+		int max_s = prepareList.stream()
+				.max(Comparator.comparingInt(PrepareMessage::getSeqNum))
+				.get()
+				.getSeqNum();
+		/*
+			nullPre_preparesStream: Stream of Pre-prepare Msg with Diget = null (second case of paper)
+		 */
+		Stream<PreprepareMessage> nullPre_preparesStream = IntStream.rangeClosed(min_s, max_s)
+				.filter(n -> prepareList.stream().noneMatch(p -> p.getSeqNum() == n))
+				.sorted()
+				.mapToObj(n -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, n, null));
+		/*
+			received_pre_prepares: Stream of Pre-prepare Msg that was in set of viewChangeMessages
+		 */
+		Stream<PreprepareMessage> received_pre_prepares = viewChangeMessages.stream()
+				.map(v -> v.getMessageList())
+				.flatMap(pm -> pm.stream())
+				.map(pm -> pm.getPreprepareMessage())
+				.distinct();
 
-			Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares
-					.filter(pp -> pp.getDigest().equals(p.getDigest()))
-					.findAny()
-					.get()
-					.getRequestMessage();
-			/**
-				make Stream of Pre-prepare Msgs that has non-null Operation Op.
-			    Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience
-			 */
-			Stream<PreprepareMessage> pre_preparesStream = prepareList.stream()
-					.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)));
-			/*
-				make Sorted Set that has null-Pre-pre & not-null-Pre-pre
-			 */
-			List<PreprepareMessage> pre_prepares = Stream.concat(nullPre_preparesStream, pre_preparesStream)
-					.sorted(Comparator.comparingInt(PreprepareMessage::getSeqNum))
-					.collect(Collectors.toList());
+		Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares
+				.filter(pp -> pp.equals(p))
+				.findAny()
+				.get()
+				.getRequestMessage();
+		/**
+			make Stream of Pre-prepare Msgs that has non-null Operation Op.
+			Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience
+		 */
+		Stream<PreprepareMessage> pre_preparesStream = prepareList.stream()
+				.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)));
+		/*
+			make Sorted Set that has null-Pre-pre & not-null-Pre-pre
+		 */
+		List<PreprepareMessage> pre_prepares = Stream.concat(nullPre_preparesStream, pre_preparesStream)
+				.sorted(Comparator.comparingInt(PreprepareMessage::getSeqNum))
+				.collect(Collectors.toList());
 
 
-			return pre_prepares;
-		}
-
+		return pre_prepares;
 	}
+
+
 
 	public int getNewViewNum() {
 		return data.newViewNum;
@@ -162,6 +165,7 @@ public class NewViewMessage implements Message {
 	public List<PreprepareMessage> getOperationList() {
 		return data.operationList;
 	}
+
 
 	private static class Data implements Serializable {
 		private final int newViewNum;
