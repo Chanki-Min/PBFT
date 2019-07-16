@@ -55,9 +55,7 @@ public class Replica extends Connector {
 				if (receiveBuffer.isEmpty()) {
 					continue;
 				}
-				if (DEBUG) {
-					System.err.println("Queue not empty");
-				}
+
 				message = receiveBuffer.poll();
 
 				if(!isWaterMarkSensitive.test(message)){
@@ -165,14 +163,17 @@ public class Replica extends Connector {
 		throw new RuntimeException("Unauthorized replica");
 	}
 
-	public Message offerQueue() {
-		return super.receive();
-	}
 
 	void start() {
 		//Assume that every connection is established
-		ReceiveQueue receiveQueue = new ReceiveQueue(this);
-		receiveQueue.run(receiveBuffer);
+
+		new Thread() {
+			public void run() {
+				while (true) {
+					receiveBuffer.put(Replica.super.receive());
+				}
+			}
+		}.start();
 
 		while (true) {
 			Message message = receive();
