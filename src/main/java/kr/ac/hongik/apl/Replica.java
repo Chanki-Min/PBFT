@@ -39,56 +39,29 @@ public class Replica extends Connector {
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
 	//private Queue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
 	private PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getSeqNumFromMsg));
-	/**
-	 * @return
-	 */
-	@Override
-	protected Message receive() {
 
-		Message message;
-
-		if(!getviewChangePhase()) {
-			Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
-			Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(shouldCheckWaterMark).anyMatch(msgType -> msgType.isInstance(msg));
-
-			while (true) {
-				if (receiveBuffer.isEmpty()) {
-					continue;
-				}
-
-				message = receiveBuffer.poll();
-
-				if(!isWaterMarkSensitive.test(message)){
-					return message;
-				}
-
-				int SeqNum = getSeqNumFromMsg(message);
-				if (SeqNum < this.getWatermarks()[0]) {
-					continue;
-				}
-				else if (SeqNum < this.getWatermarks()[1]) {
-					return message;
-				}
-				else {
-					receiveBuffer.offer(message);
-				}
-			}
+	private static int getSeqNumFromMsg(Message message) {
+		if (message instanceof HeaderMessage) {
+			return -3;
+		} else if (message instanceof NewViewMessage) {
+			return -2;
+		} else if (message instanceof RequestMessage) {
+			return -1;
+		} else if (message instanceof PreprepareMessage) {
+			return ((PreprepareMessage) message).getSeqNum();
+		} else if (message instanceof PrepareMessage) {
+			return ((PrepareMessage) message).getSeqNum();
+		} else if (message instanceof CommitMessage) {
+			return ((CommitMessage) message).getSeqNum();
+		} else if (message instanceof CheckPointMessage) {
+			return ((CheckPointMessage) message).getSeqNum();
+		} else if (message instanceof ViewChangeMessage) {
+			return ((ViewChangeMessage) message).getLastCheckpointNum();
 		}
-		else {
-			Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
-			Predicate<Message> isBlockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
-			//First, get Msgs from buffer for just in case
-			message = receiveBuffer.stream()
-					.filter(msg -> !isBlockTypes.test(msg))
-					.findFirst()
-					.orElseGet(super::receive);
-			for (message = super.receive(); isBlockTypes.test(message); message = super.receive()) {
-				receiveBuffer.offer(message);
-			}
-
-			return message;
-		}
+		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
+
+
 	private Logger logger;
 	private int lowWatermark;
 
@@ -134,23 +107,42 @@ public class Replica extends Connector {
 		}
 	}
 
-	private static int getSeqNumFromMsg(Message message) {
-		if (message instanceof  HeaderMessage) {
-			return -2;
-		} else if (message instanceof  RequestMessage) {
-			return -1;
-		} else if (message instanceof PreprepareMessage) {
-			return ((PreprepareMessage) message).getSeqNum();
-		} else if (message instanceof PrepareMessage) {
-			return ((PrepareMessage) message).getSeqNum();
-		} else if (message instanceof CommitMessage) {
-			return ((CommitMessage) message).getSeqNum();
-		} else if (message instanceof CheckPointMessage) {
-			return ((CheckPointMessage) message).getSeqNum();
-		} else if (message instanceof  ViewChangeMessage) {
-			return ((ViewChangeMessage) message).getLastCheckpointNum();
+	/**
+	 * @return
+	 */
+	@Override
+	protected Message receive() throws InterruptedException {
+
+		Message message;
+
+		Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
+		Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(shouldCheckWaterMark).anyMatch(msgType -> msgType.isInstance(msg));
+		Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
+		Predicate<Message> isBlockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
+
+		while (true) {
+			message = receiveBuffer.take();
+
+			if (getviewChangePhase()) {
+				if (isBlockTypes.test(message)) {
+					receiveBuffer.offer(message);
+					continue;
+				}
+				return message;
+			} else {
+				if (!isWaterMarkSensitive.test(message)) {
+					return message;
+				}
+				int SeqNum = getSeqNumFromMsg(message);
+				if (SeqNum < this.getWatermarks()[0]) {
+					continue;
+				} else if (SeqNum < this.getWatermarks()[1]) {
+					return message;
+				} else {
+					receiveBuffer.offer(message);
+				}
+			}
 		}
-		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
 
 	private int getMyNumberFromProperty(Properties prop, String serverIp, int serverPort) {
@@ -163,20 +155,26 @@ public class Replica extends Connector {
 		throw new RuntimeException("Unauthorized replica");
 	}
 
-
 	void start() {
 		//Assume that every connection is established
 
-		new Thread() {
-			public void run() {
-				while (true) {
+		new Thread(() -> {
+			while (true) {
+				try {
 					receiveBuffer.put(Replica.super.receive());
+				} catch (InterruptedException e) {
+					continue;
 				}
 			}
-		}.start();
+		}).start();
 
 		while (true) {
-			Message message = receive();
+			Message message = null;
+			try {
+				message = receive();
+			} catch (InterruptedException e) {
+				continue;
+			}
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {

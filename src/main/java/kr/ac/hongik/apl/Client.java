@@ -56,7 +56,12 @@ public class Client extends Connector {
 	Object getReply() {
 		ReplyMessage replyMessage;
 		while (true) {
-			Message message = receive();
+			Message message = null;
+			try {
+				message = receive();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 				continue;

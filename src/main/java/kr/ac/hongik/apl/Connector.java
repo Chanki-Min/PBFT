@@ -142,7 +142,7 @@ abstract class Connector {
 	 * Receive mehtod also handles public key sharing situation
 	 * @return Message
 	 */
-	protected Message receive() {
+	protected Message receive() throws InterruptedException {
 		//Selector must not hold acceptable or writable replicas
 		while (true) {
 			try {
