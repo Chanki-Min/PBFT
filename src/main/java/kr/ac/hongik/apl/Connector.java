@@ -247,4 +247,8 @@ abstract class Connector {
 	public final PrivateKey getPrivateKey() {
 		return this.privateKey;
 	}
+
+	public Map<SocketChannel, PublicKey> getPublicKeyMap(){
+		return publicKeyMap;
+	}
 }
