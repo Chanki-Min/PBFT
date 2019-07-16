@@ -34,7 +34,7 @@ public class ViewChangeMessage implements Message {
 													  Function<String, PreparedStatement> preparedStatement) {
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum,
-				replica.getMyNumber(), replica.getMaximumFaulty());
+				replica.getMaximumFaulty());
 		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum, replica.getWatermarks(),
 				replica.getMaximumFaulty());
 
@@ -71,7 +71,7 @@ public class ViewChangeMessage implements Message {
 		int maxViewNum;
 
 
-		String query = "SELECT PP1.digest, P1.data, P1.viewNum FROM Preprepares P1 " +
+		String query = "SELECT P1.digest, P1.data, P1.viewNum FROM Preprepares P1 " +
 				"WHERE AND P1.viewNum = (SELECT MAX(P2.viewNum) FROM Preprepares P2 WHERE P2.seqNum=?)";
 
 		try (var pstmt = preparedStatement.apply(query)) {
@@ -115,7 +115,7 @@ public class ViewChangeMessage implements Message {
 		return numList;
 	}
 
-	private static List<CheckPointMessage> getCheckpointMessages(Function<String, PreparedStatement> preparedStatement, int checkpointNum, int replicaNum, int getMaximumFaulty) {
+	private static List<CheckPointMessage> getCheckpointMessages(Function<String, PreparedStatement> preparedStatement, int checkpointNum, int getMaximumFaulty) {
 
 		String query = "SELECT data FROM Checkpoints " +
 				"WHERE seqNum = ?" +
