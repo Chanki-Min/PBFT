@@ -699,8 +699,7 @@ public class Replica extends Connector {
 	}
 
 	private void handleNewViewMessage(NewViewMessage message) {
-		PublicKey key = publicKeyMap.get(getReplicaMap().get(message.getNewViewNum()));
-		if (!message.isVerified(key) || message.getNewViewNum() <= this.getViewNum())
+		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum())
 			return;
 
 		setViewChangePhase(false);
