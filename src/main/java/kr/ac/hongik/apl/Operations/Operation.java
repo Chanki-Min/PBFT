@@ -7,18 +7,12 @@ import java.util.UUID;
 
 public abstract class Operation implements Serializable {
     final private PublicKey clientInfo;
-    private long timestamp;
-    final private boolean isDistributed;
-    private String random = UUID.randomUUID().toString(); //This random string guarantee uniqueness
+    final private long timestamp;
+    final private String random = UUID.randomUUID().toString(); //This random string guarantee uniqueness
 
-    protected Operation(PublicKey clientInfo, boolean isDistributed) {
+	protected Operation(PublicKey clientInfo) {
         this.clientInfo = clientInfo;
         this.timestamp = Instant.now().toEpochMilli();
-        this.isDistributed = isDistributed;
-    }
-
-    protected Operation(PublicKey clientInfo) {
-        this(clientInfo, false);
     }
 
     public Operation update() {
@@ -34,9 +28,5 @@ public abstract class Operation implements Serializable {
 
 	public long getTimestamp() {
         return this.timestamp;
-    }
-
-    public boolean isDistributed() {
-        return this.isDistributed;
     }
 }

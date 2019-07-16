@@ -27,7 +27,7 @@ class ReplyMessageTest {
         Object result = new ReplyResult(clientInfo, timestamp);
         PrivateKey privateKey = keyPair.getPrivate();
         ReplyMessage replyMessage = ReplyMessage.makeReplyMsg(privateKey, 0, 0,
-                clientInfo, 0, result, false);
+                clientInfo, 0, result);
         System.out.println("ReplyMessage Class Unit Test Success");
     }
 }

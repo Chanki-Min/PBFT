@@ -540,7 +540,7 @@ public class Replica extends Connector {
 							System.err.println("	clientInfo :" + clientInfo.toString().substring(45, 60));
 						}
 						ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
-								clientInfo, myNumber, ret, operation.isDistributed());
+								clientInfo, myNumber, ret);
 
 						logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 						SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());

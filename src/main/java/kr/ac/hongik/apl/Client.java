@@ -79,57 +79,42 @@ public class Client extends Connector {
 			// check client info
 			PublicKey publicKey = this.publicKeyMap.get(getReplicaMap().get(replyMessage.getReplicaNum()));
 			if (replyMessage.verifySignature(publicKey)) {
-
 				Long uniqueKey = replyMessage.getTime();
 				Integer[] checkReplica;
-				if (replyMessage.isDistributed()) {
-					/******    각 레플리카가 각기 다른 메시지를 전달할 경우, 2f + 1개의 메시지를 수집한다.    ******/
-					List<Object> replyMsgs = distributedReplies.getOrDefault(uniqueKey, new ArrayList<>());
-					distributedReplies.put(uniqueKey, replyMsgs);
 
-					replyMsgs.add(replyMessage.getResult());
+				/*
+				 * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
+				 * Timestamp값을 이용하여 여러 요청들을 구분한다.
+				 */
 
-					if (replyMsgs.size() > 2 * getMaximumFaulty()) {
-						if (!ignoreList.contains(uniqueKey)) {
-							ignoreList.add(uniqueKey);
-							return replyMsgs;
-						}
-					}
-				} else {
-					/*
-					 * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
-					 * Timestamp값을 이용하여 여러 요청들을 구분한다.
-					 */
-
-					if (replies.containsKey(uniqueKey)) {
-						checkReplica = replies.get(uniqueKey);
-					} else {
-						checkReplica = new Integer[]{0, 0, 0, 0};
-					}
-
-					checkReplica[replyMessage.getReplicaNum()] = 1;
-					replies.put(uniqueKey, checkReplica);
+				if (replies.containsKey(uniqueKey)) {
 					checkReplica = replies.get(uniqueKey);
+				} else {
+					checkReplica = new Integer[]{0, 0, 0, 0};
+				}
 
-					if (Arrays.stream(checkReplica).filter(x -> x.intValue() == 1).count() > 2 * this.getMaximumFaulty()) {
-						if (!ignoreList.contains(uniqueKey)) {
-							ignoreList.add(uniqueKey);
+				checkReplica[replyMessage.getReplicaNum()] = 1;
+				replies.put(uniqueKey, checkReplica);
+				checkReplica = replies.get(uniqueKey);
 
-							//Release timer
-							if (Replica.DEBUG) {
-								System.err.println("Got reply : " + replyMessage.getTime());
-								System.err.print("Before Timer cancel\n\t");
-								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
-							}
-							timerMap.get(replyMessage.getTime()).cancel();
-							timerMap.remove(replyMessage.getTime());
-							if (Replica.DEBUG) {
-								System.err.print("\nAfter Timer cancel\n\t");
-								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
-								System.err.println(" ");
-							}
-							return replyMessage.getResult();
+				if (Arrays.stream(checkReplica).filter(x -> x.intValue() == 1).count() > 2 * this.getMaximumFaulty()) {
+					if (!ignoreList.contains(uniqueKey)) {
+						ignoreList.add(uniqueKey);
+
+						//Release timer
+						if (Replica.DEBUG) {
+							System.err.println("Got reply : " + replyMessage.getTime());
+							System.err.print("Before Timer cancel\n\t");
+							timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
 						}
+						timerMap.get(replyMessage.getTime()).cancel();
+						timerMap.remove(replyMessage.getTime());
+						if (Replica.DEBUG) {
+							System.err.print("\nAfter Timer cancel\n\t");
+							timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
+							System.err.println(" ");
+						}
+						return replyMessage.getResult();
 					}
 				}
 			} else {
