@@ -25,7 +25,7 @@ import static kr.ac.hongik.apl.Util.*;
  * Caution: It doesn't handle server's listening socket
  */
 abstract class Connector {
-	public final static long TIMEOUT = 99999000;    //Unit: milliseconds
+	public final static long TIMEOUT = 30000;    //Unit: milliseconds
 
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
@@ -142,7 +142,7 @@ abstract class Connector {
 	 * Receive mehtod also handles public key sharing situation
 	 * @return Message
 	 */
-	protected Message receive() {
+	protected Message receive() throws InterruptedException {
 		//Selector must not hold acceptable or writable replicas
 		while (true) {
 			try {
