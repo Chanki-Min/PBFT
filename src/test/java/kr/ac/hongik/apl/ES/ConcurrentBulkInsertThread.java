@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Assertions;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -46,67 +47,24 @@ public class ConcurrentBulkInsertThread extends Thread{
 		}
 		try {
 			if (!isIndexExists(indexName)) {
-
-				XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-				mappingBuilder.startObject();
-				{
-					mappingBuilder.startObject("properties");
-					{
-						mappingBuilder.startObject("block_number");
-						{
-							mappingBuilder.field("type", "long");
-							mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-							mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-						}
-						mappingBuilder.endObject();
-
-						mappingBuilder.startObject("entry_number");
-						{
-							mappingBuilder.field("type", "long");
-							mappingBuilder.field("coerce", false);
-							mappingBuilder.field("ignore_malformed", true);
-						}
-						mappingBuilder.endObject();
-
-						mappingBuilder.startObject("encrypt_data");
-						{
-							mappingBuilder.field("type", "binary");
-						}
-						mappingBuilder.endObject();
-					}
-					mappingBuilder.endObject();
-					mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-				}
-				mappingBuilder.endObject();
-				XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-				settingsBuilder.startObject();
-				{
-					settingsBuilder.field("index.number_of_shards", 4);
-					settingsBuilder.field("index.number_of_replicas", 3);
-					settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-				}
-				settingsBuilder.endObject();
 				try {
-					esRestClient.createIndex("test_block_chain", mappingBuilder, settingsBuilder);
+					esRestClient.createIndex("test_block_chain");
 				}catch (Exception e){
 					System.err.println("Thread #"+threadID+"index insertion corrupted, cancel creation");
 				}
 			}
-
-			if (!isBlockExists(indexName, block_number)) {
-				esRestClient.bulkInsertDocument(indexName, block_number, encrypt_data, versionNumber);
-				sleep(sleepTime);
-				restoredData = esRestClient.getBlockByteArray(indexName, block_number);
-			}else {
-				System.err.println("Thread #"+threadID+" :block #"+block_number+" already exists");
-			}
+			esRestClient.bulkInsertDocument(indexName, block_number, encrypt_data, versionNumber);
+			sleep(sleepTime);
+			restoredData = esRestClient.getBlockByteArray(indexName, block_number);
 
 			Assertions.assertTrue(isDataEquals(encrypt_data, restoredData));
 			esRestClient.deleteIndex(indexName);
 			esRestClient.disConnectToEs();
 
-		} catch (IOException | SQLException | InterruptedException e) {
+		} catch (SQLException | InterruptedException e) {
 			e.printStackTrace();
+		} catch (IOException e){
+			throw new IOError(e);
 		}
 	}
 	private boolean isIndexExists(String indexName) throws IOException{

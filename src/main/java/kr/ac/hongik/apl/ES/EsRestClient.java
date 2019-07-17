@@ -1,10 +1,9 @@
 package kr.ac.hongik.apl.ES;
 
 
-
 import com.owlike.genson.Genson;
 import org.apache.http.HttpHost;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -107,17 +106,74 @@ public class EsRestClient {
 		}
 	}
 
-	public void bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, int versionNumber) throws IOException, SQLException{
-		Base64.Encoder encoder = Base64.getEncoder();
-		Boolean[] checkList = new Boolean[3];
-		checkList[0] = this.isIndexExists(indexName);
-		checkList[1] = !this.isBlockExists(indexName,blockNumber);
-		checkList[2] = blockNumber == (getMaximumBlockNumber(indexName) + 1);
+	public void createIndex(String indexName) throws IOException, SQLException{
 
-		if(Arrays.stream(checkList).anyMatch(x -> !x)){
-			throw new ElasticsearchException("Request does not fulfil checkList");
+		if (!isIndexExists(indexName)) {
+
+			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
+			mappingBuilder.startObject();
+			{
+				mappingBuilder.startObject("properties");
+				{
+					mappingBuilder.startObject("block_number");
+					{
+						mappingBuilder.field("type", "long");
+						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
+						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
+					}
+					mappingBuilder.endObject();
+
+					mappingBuilder.startObject("entry_number");
+					{
+						mappingBuilder.field("type", "long");
+						mappingBuilder.field("coerce", false);
+						mappingBuilder.field("ignore_malformed", true);
+					}
+					mappingBuilder.endObject();
+
+					mappingBuilder.startObject("encrypt_data");
+					{
+						mappingBuilder.field("type", "binary");
+					}
+					mappingBuilder.endObject();
+				}
+				mappingBuilder.endObject();
+				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
+			}
+			mappingBuilder.endObject();
+			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
+			settingsBuilder.startObject();
+			{
+				settingsBuilder.field("index.number_of_shards", 4);
+				settingsBuilder.field("index.number_of_replicas", 3);
+				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
+			}
+			settingsBuilder.endObject();
+
+			CreateIndexRequest request = new CreateIndexRequest(indexName);
+			request.mapping(mappingBuilder);
+			request.settings(settingsBuilder);
+
+			CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
+			if(response.isAcknowledged()){
+				System.out.println(indexName + " CREATED to Cluster");
+			}else{
+				throw new SQLException("Cannot CREATE "+indexName);
+			}
+		}
+	}
+
+	public void bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, int versionNumber) throws IOException, SQLException{
+		if(!this.isIndexExists(indexName))
+			throw new SQLException("Request does not fulfil checkList");
+
+		try {
+			restHighLevelClient.index(getHeadDocument(indexName,blockNumber,versionNumber), RequestOptions.DEFAULT);
+		}catch (ElasticsearchStatusException e) {
+			throw new SQLException("inserting already executing by other replica");
 		}
 
+		Base64.Encoder encoder = Base64.getEncoder();
 		BulkRequest request = new BulkRequest();
 		for(int entryNumber = 0; entryNumber<encDatas.size(); entryNumber++) {
 
@@ -156,7 +212,6 @@ public class EsRestClient {
 				throw new SQLException(responses.buildFailureMessage());
 			}
 		}
-
 	}
 
 	public List<byte[]> getBlockByteArray(String indexName, int blockNumber) throws IOException, SQLException{
@@ -167,13 +222,13 @@ public class EsRestClient {
 		if(!isBlockExists(indexName,blockNumber)){
 			throw new SQLException(blockNumber+ " does not exists in "+indexName);
 		}
-
 		Base64.Decoder decoder = Base64.getDecoder();
 		SearchRequest request = new SearchRequest(indexName);
 		SearchSourceBuilder builder = new SearchSourceBuilder();
 		builder.query(QueryBuilders.matchQuery("block_number", blockNumber));
+		builder.query(QueryBuilders.boolQuery().mustNot(QueryBuilders.matchQuery("_id", idGenerator(indexName,blockNumber,-1))));	//do not search headDocument
 		builder.from(0);
-		builder.size(getBlockEntrySize(indexName, blockNumber));		//set search range to [0, index Size]
+		builder.size(getBlockEntrySize(indexName, blockNumber) -1);		//set search range to [0, index Size]
 
 		request.source(builder);
 		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
@@ -273,7 +328,7 @@ public class EsRestClient {
 		return response.getCount() != 0;
 	}
 
-	private int getMaximumBlockNumber(String indexName) throws IOException{
+	private int getRightNextBlockNumber(String indexName) throws IOException{
 
 
 
@@ -307,6 +362,20 @@ public class EsRestClient {
 		StringBuilder builder = new StringBuilder();
 		builder.append(indexName).append("_").append(blockNumber).append("_").append(entryNumber);
 		return String.valueOf(builder);
+	}
+
+	private IndexRequest getHeadDocument(String indexName, int blockNumber, int versionNumber) throws IOException{
+		XContentBuilder builder = new XContentFactory().jsonBuilder();
+		builder.startObject();
+		{
+			builder.field("block_number", blockNumber);
+			builder.field("entry_number", -1);
+			builder.field("encrypt_data", "");
+		}
+		builder.endObject();
+
+		return new IndexRequest(indexName).id(idGenerator(indexName,blockNumber,-1))
+				.source(builder).version(versionNumber).versionType(VersionType.EXTERNAL);
 	}
 
 }

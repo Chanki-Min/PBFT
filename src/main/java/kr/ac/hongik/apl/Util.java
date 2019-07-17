@@ -4,6 +4,7 @@ import com.codahale.shamir.Scheme;
 import com.owlike.genson.GensonBuilder;
 import org.apache.commons.lang3.SerializationUtils;
 
+import javax.crypto.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
@@ -171,4 +172,53 @@ public class Util {
 		Set<Object> seen = ConcurrentHashMap.newKeySet();
 		return t -> seen.add(keyExtractor.apply(t));
 	}
+
+	public static SecretKey makeSymmetricKey(String seed) {
+		KeyGenerator gen;
+		try {
+			gen = KeyGenerator.getInstance("AES");
+			SecureRandom rand = null;
+			rand = SecureRandom.getInstance("SHA1PRNG");
+			rand.setSeed(seed.getBytes());
+			gen.init(128, rand);
+
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
+		}
+
+		return gen.generateKey();
+	}
+
+	public static byte[] encrypt(byte[] plain, SecretKey key) throws EncryptionException {
+		try {
+			Cipher cipher = Cipher.getInstance("AES");
+			cipher.init(Cipher.ENCRYPT_MODE, key);
+			return cipher.doFinal(plain);
+
+		} catch (IllegalBlockSizeException | BadPaddingException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+			throw new EncryptionException(e);
+		}
+	}
+
+	public static byte[] decrypt(byte[] encrypted, SecretKey key) throws EncryptionException {
+		try {
+			Cipher cipher = Cipher.getInstance("AES");
+			cipher.init(Cipher.DECRYPT_MODE, key);
+			return cipher.doFinal(encrypted);
+
+		} catch (IllegalBlockSizeException | BadPaddingException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+			throw new EncryptionException(e);
+		}
+	}
+
+	/**
+	 * EncryptionException raises when encryption or decryption is failed.
+	 */
+	public static class EncryptionException extends Exception {
+
+		public EncryptionException(Throwable reason) {
+			super(reason);
+		}
+	}
+
 }

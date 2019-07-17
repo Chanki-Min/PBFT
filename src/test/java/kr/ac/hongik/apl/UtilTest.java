@@ -7,6 +7,7 @@ import kr.ac.hongik.apl.Messages.PrepareMessage;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.SecretKey;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -14,6 +15,7 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,7 +57,7 @@ class UtilTest {
         String expected = "hi";
         Map<Integer, byte[]> dt = scheme.split(expected.getBytes());
 
-        Thread.sleep(100);
+        sleep(100);
 
         Scheme newScheme = new Scheme(new SecureRandom(), 5, 3);
         Map<Integer, byte[]> dt2 = newScheme.split(expected.getBytes());
@@ -88,6 +90,27 @@ class UtilTest {
         String expected = "hello, guys!";
         var splitted = Util.split(expected, 3, 2);
         Assertions.assertEquals(expected, new String(splitted.values().stream().reduce(Util::concat).get()));
+    }
+
+    @Test
+    public void symmetricKeyTest() throws InterruptedException, Util.EncryptionException {
+        String seed = "Hello, world!",
+                wrongSeed = "What's up!";
+
+        String plain = "Picky people pick peter pan peanuts butter.";
+
+        SecretKey key = Util.makeSymmetricKey(seed),
+                wrongKey = Util.makeSymmetricKey(wrongSeed);
+        sleep(100);
+        SecretKey restoredKey = Util.makeSymmetricKey(seed);
+        Assertions.assertEquals(key, restoredKey);
+
+        byte[] encryped = Util.encrypt(plain.getBytes(), key);
+
+        Assertions.assertEquals(plain, new String(Util.decrypt(encryped, restoredKey)));
+        Assertions.assertThrows(Util.EncryptionException.class, () -> Util.decrypt(encryped, wrongKey));
+
+
     }
 
 }
