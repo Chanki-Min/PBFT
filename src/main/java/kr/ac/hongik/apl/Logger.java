@@ -297,6 +297,8 @@ public class Logger {
 
 			preparedStatement.execute();
 		} catch (SQLException e) {
+			if (e.getErrorCode() == CONSTRAINT_ERROR)
+				return;
 			e.printStackTrace();
 		}
 	}
