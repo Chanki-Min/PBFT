@@ -11,12 +11,12 @@ import java.security.PublicKey;
 import java.util.*;
 
 public class Client extends Connector {
-	private HashMap<Long, Integer> replies = new HashMap<>();
+	private HashMap<Long, Integer[]> replies = new HashMap<>();
 	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
 	private List<Long> ignoreList = new ArrayList<>();
 	private final Boolean DEBUG = true;
-
 	private Map<Long, Timer> timerMap = new HashMap<>();    /* Key: timestamp, value: timer  */
+
 
 
 	public Client(Properties prop) {
@@ -55,6 +55,8 @@ public class Client extends Connector {
 
 	Object getReply() {
 		ReplyMessage replyMessage;
+
+
 		while (true) {
 			Message message = null;
 			try {
@@ -70,7 +72,9 @@ public class Client extends Connector {
 			// check client info
 			PublicKey publicKey = this.publicKeyMap.get(this.getReplicaMap().get(replyMessage.getReplicaNum()));
 			if (replyMessage.verifySignature(publicKey)) {
-				long uniqueKey = replyMessage.getTime();
+
+				Long uniqueKey = replyMessage.getTime();
+				Integer[] checkReplica;
 				if (replyMessage.isDistributed()) {
 					/******    각 레플리카가 각기 다른 메시지를 전달할 경우, 2f + 1개의 메시지를 수집한다.    ******/
 					List<Object> replyMsgs = distributedReplies.getOrDefault(uniqueKey, new ArrayList<>());
@@ -89,9 +93,18 @@ public class Client extends Connector {
 					 * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
 					 * Timestamp값을 이용하여 여러 요청들을 구분한다.
 					 */
-					Integer numOfValue = replies.getOrDefault(uniqueKey, 0);
-					replies.put(uniqueKey, numOfValue + 1);
-					if (replies.get(uniqueKey) > this.getMaximumFaulty()) {
+
+					if (replies.containsKey(uniqueKey)) {
+						checkReplica = replies.get(uniqueKey);
+					} else {
+						checkReplica = new Integer[]{0, 0, 0, 0};
+					}
+
+					checkReplica[replyMessage.getReplicaNum()] = 1;
+					replies.put(uniqueKey, checkReplica);
+					checkReplica = replies.get(uniqueKey);
+
+					if (Arrays.stream(checkReplica).filter(x -> x.intValue() == 1).count() > 2 * this.getMaximumFaulty()) {
 						if (!ignoreList.contains(uniqueKey)) {
 							ignoreList.add(uniqueKey);
 
