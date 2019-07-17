@@ -9,8 +9,6 @@ import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -47,16 +45,11 @@ public class InsertionOperation extends Operation {
 			List<byte[]> encryptedList = pair.getLeft();
 			int blockNumber = pair.getRight();
 
-			BulkResponse results = storeToES(encryptedList, blockNumber);
+			BulkResponse bulkResponse = storeToES(encryptedList, blockNumber);
 
-		} catch (Util.EncryptionException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (SQLException e) {
-			e.printStackTrace();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
+		} catch (Util.EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException e) {
+			throw new Error(e);
+		} catch (EsRestClient.EsConcurrencyException ignored) {
 		}
 
 		return null;
@@ -154,59 +147,25 @@ public class InsertionOperation extends Operation {
 	}
 
 
-	private BulkResponse storeToES(List<byte[]> encryptedList, int blockNumber) throws NoSuchFieldException, IOException, SQLException{
+	/**
+	 * @param encryptedList
+	 * @param blockNumber
+	 * @return ElasticSearch's BulkResponse instance of  data-insertion
+	 * @throws NoSuchFieldException
+	 * @throws IOException
+	 * @throws EsRestClient.EsException
+	 * @throws EsRestClient.EsConcurrencyException throws when other replica already inserting (Indexes or Documents) that has same (indexName,blockNumber,versionNumber)
+	 */
+	private BulkResponse storeToES(List<byte[]> encryptedList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
 		if(!esRestClient.isIndexExists("block_chain")){
-			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-			mappingBuilder.startObject();
-			{
-				mappingBuilder.startObject("properties");
-				{
-					mappingBuilder.startObject("block_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("entry_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);
-						mappingBuilder.field("ignore_malformed", true);
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("encrypt_data");
-					{
-						mappingBuilder.field("type", "binary");
-					}
-					mappingBuilder.endObject();
-				}
-				mappingBuilder.endObject();
-				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-			}
-			mappingBuilder.endObject();
-
-			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-			settingsBuilder.startObject();
-			{
-				settingsBuilder.field("index.number_of_shards", 4);
-				settingsBuilder.field("index.number_of_replicas", 3);
-				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-			}
-			settingsBuilder.endObject();
-			esRestClient.createIndex("test_block_chain",mappingBuilder,settingsBuilder);
+			esRestClient.createIndex("block_chain");
 		}
 
-		esRestClient.bulkInsertDocument("block_chain", blockNumber, encryptedList, 1);
-
+		BulkResponse bulkResponse = esRestClient.bulkInsertDocument("block_chain", blockNumber, encryptedList, 1);
 		esRestClient.disConnectToEs();
-
-
-		return null;
+		return bulkResponse;
 	}
 }

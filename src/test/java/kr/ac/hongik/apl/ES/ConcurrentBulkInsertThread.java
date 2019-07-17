@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.ES;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
@@ -42,15 +43,12 @@ public class ConcurrentBulkInsertThread extends Thread{
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
-		}
-		try {
+
 			if (!isIndexExists(indexName)) {
 				try {
 					esRestClient.createIndex("test_block_chain");
-				}catch (Exception e){
-					System.err.println("Thread #"+threadID+"index insertion corrupted, cancel creation");
+				}catch (EsRestClient.EsConcurrencyException e){
+					System.err.println("Thread #"+threadID+" "+e.getClass().toString()+" "+e.getMessage());
 				}
 			}
 			esRestClient.bulkInsertDocument(indexName, block_number, encrypt_data, versionNumber);
@@ -61,12 +59,14 @@ public class ConcurrentBulkInsertThread extends Thread{
 			esRestClient.deleteIndex(indexName);
 			esRestClient.disConnectToEs();
 
-		} catch (SQLException | InterruptedException e) {
-			e.printStackTrace();
 		} catch (IOException e){
 			throw new IOError(e);
+		} catch (InterruptedException | NoSuchFieldException | EsRestClient.EsException | EsRestClient.EsConcurrencyException e) {
+			System.err.println("Thread #"+threadID+" "+e.getMessage());
 		}
 	}
+
+
 	private boolean isIndexExists(String indexName) throws IOException{
 		GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);
 		return esRestClient.getClient().indices().exists(getIndexRequest, RequestOptions.DEFAULT);

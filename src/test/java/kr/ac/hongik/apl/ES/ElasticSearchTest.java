@@ -116,67 +116,16 @@ public class ElasticSearchTest {
 		}
 	}
 
-
 	@Test
 	void BulkInsertTest(){
 		int blockNumber = 0;
 		int entrySize = 1000;
-		int sleepTime = 3000;
+		int sleepTime = 1000;
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
-		}
+			esRestClient.createIndex("test_block_chain");
 
-		try {
-			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-			mappingBuilder.startObject();
-			{
-				mappingBuilder.startObject("properties");
-				{
-					mappingBuilder.startObject("block_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("entry_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);
-						mappingBuilder.field("ignore_malformed", true);
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("encrypt_data");
-					{
-						mappingBuilder.field("type", "binary");
-					}
-					mappingBuilder.endObject();
-				}
-				mappingBuilder.endObject();
-				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-			}
-			mappingBuilder.endObject();
-			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-			settingsBuilder.startObject();
-			{
-				settingsBuilder.field("index.number_of_shards", 4);
-				settingsBuilder.field("index.number_of_replicas", 3);
-				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-			}
-			settingsBuilder.endObject();
-			esRestClient.createIndex("test_block_chain",mappingBuilder,settingsBuilder);
-
-
-
-		}catch (Exception e){
-			e.printStackTrace();
-		}
-		try {
 			List<byte[]> testBinaryList = new ArrayList<>();
 			for (int i = 0; i < entrySize; i++) {
 				String data = "test" + i;
@@ -187,15 +136,13 @@ public class ElasticSearchTest {
 			sleep(sleepTime);
 
 			Assertions.assertTrue(isBlockExists("test_block_chain",blockNumber));
-			Assertions.assertEquals(entrySize, getBlockEntrySize("test_block_chain", blockNumber));
+			Assertions.assertEquals(entrySize, getBlockEntrySize("test_block_chain", blockNumber) -1);
 
 			esRestClient.deleteIndex("test_block_chain");
-		} catch (IOException e) {
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
 			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (SQLException e) {
-			e.printStackTrace();
+		} catch (IOException e){
+			throw new IOError(e);
 		}
 	}
 
@@ -203,62 +150,12 @@ public class ElasticSearchTest {
 	void getBlockByteArrayTest(){
 		int blockNumber = 0;
 		int entrySize = 10000;
-		int sleepTime = 10000;
+		int sleepTime = 1000;
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
-		}
+			esRestClient.createIndex("test_block_chain");
 
-		try {
-			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-			mappingBuilder.startObject();
-			{
-				mappingBuilder.startObject("properties");
-				{
-					mappingBuilder.startObject("block_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("entry_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);
-						mappingBuilder.field("ignore_malformed", true);
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("encrypt_data");
-					{
-						mappingBuilder.field("type", "binary");
-					}
-					mappingBuilder.endObject();
-				}
-				mappingBuilder.endObject();
-				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-			}
-			mappingBuilder.endObject();
-			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-			settingsBuilder.startObject();
-			{
-				settingsBuilder.field("index.number_of_shards", 4);
-				settingsBuilder.field("index.number_of_replicas", 3);
-				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-			}
-			settingsBuilder.endObject();
-			esRestClient.createIndex("test_block_chain",mappingBuilder,settingsBuilder);
-
-
-
-		}catch (Exception e){
-			e.printStackTrace();
-		}
-		try {
 			List<byte[]> testBinaryList = new ArrayList<>();
 			for (int i = 0; i < entrySize; i++) {
 				String data = "test" + i;
@@ -274,12 +171,10 @@ public class ElasticSearchTest {
 
 
 			esRestClient.deleteIndex("test_block_chain");
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+			e.printStackTrace();
 		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (SQLException e) {
-			e.printStackTrace();
+			throw new IOError(e);
 		}
 	}
 
@@ -287,62 +182,12 @@ public class ElasticSearchTest {
 	void getBlockEntryByteArrayTest(){
 		int blockNumber = 0;
 		int entrySize = 5000;
-		int sleepTime = 3000;
+		int sleepTime = 1000;
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
-		}
+			esRestClient.createIndex("test_block_chain");
 
-		try {
-			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-			mappingBuilder.startObject();
-			{
-				mappingBuilder.startObject("properties");
-				{
-					mappingBuilder.startObject("block_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("entry_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);
-						mappingBuilder.field("ignore_malformed", true);
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("encrypt_data");
-					{
-						mappingBuilder.field("type", "binary");
-					}
-					mappingBuilder.endObject();
-				}
-				mappingBuilder.endObject();
-				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-			}
-			mappingBuilder.endObject();
-			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-			settingsBuilder.startObject();
-			{
-				settingsBuilder.field("index.number_of_shards", 4);
-				settingsBuilder.field("index.number_of_replicas", 3);
-				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-			}
-			settingsBuilder.endObject();
-			esRestClient.createIndex("test_block_chain",mappingBuilder,settingsBuilder);
-
-
-
-		}catch (Exception e){
-			e.printStackTrace();
-		}
-		try {
 			List<byte[]> testBinaryList = new ArrayList<>();
 			for (int i = 0; i < entrySize; i++) {
 				String data = "test" + i;
@@ -359,12 +204,10 @@ public class ElasticSearchTest {
 					restoredByteList.add(esRestClient.getBlockEntryByteArray("test_block_chain", blockNumber, i));
 				} catch (IOException e) {
 					e.printStackTrace();
-				} catch (SQLException e) {
+				} catch (EsRestClient.EsException e) {
 					e.printStackTrace();
 				}
 			});
-
-
 			List<String> testStringList = new ArrayList<>();
 			List<String> restoredStringList = new ArrayList<>();
 			for(int i = 0; i<testBinaryList.size(); i++){
@@ -376,12 +219,10 @@ public class ElasticSearchTest {
 
 
 			esRestClient.deleteIndex("test_block_chain");
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+			e.printStackTrace();
 		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (SQLException e) {
-			e.printStackTrace();
+			throw new IOError(e);
 		}
 	}
 
@@ -389,64 +230,12 @@ public class ElasticSearchTest {
 	void largeBinaryFileBulkInsertTest(){
 		int blockNumber = 0;
 		int entrySize = 5000;
-		int sleepTime = 5000;
+		int sleepTime = 1000;
 		String filePath = "C:\\Users\\Chanki_Min\\Desktop\\ESmodule\\src\\main\\resources\\sample_binary_4kb";
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace();
-		}
-
-		try {
-			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-			mappingBuilder.startObject();
-			{
-				mappingBuilder.startObject("properties");
-				{
-					mappingBuilder.startObject("block_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("entry_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);
-						mappingBuilder.field("ignore_malformed", true);
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("encrypt_data");
-					{
-						mappingBuilder.field("type", "binary");
-					}
-					mappingBuilder.endObject();
-				}
-				mappingBuilder.endObject();
-				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-			}
-			mappingBuilder.endObject();
-			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-			settingsBuilder.startObject();
-			{
-				settingsBuilder.field("index.number_of_shards", 4);
-				settingsBuilder.field("index.number_of_replicas", 3);
-				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-			}
-			settingsBuilder.endObject();
-			esRestClient.createIndex("test_block_chain",mappingBuilder,settingsBuilder);
-
-
-
-		}catch (Exception e){
-			e.printStackTrace();
-		}
-		try {
-
+			esRestClient.createIndex("test_block_chain");
 
 			List<byte[]> testBinaryList = new ArrayList<>();
 			File file = new File(filePath);
@@ -483,33 +272,29 @@ public class ElasticSearchTest {
 
 
 			esRestClient.deleteIndex("test_block_chain");
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+			e.printStackTrace();
 		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (SQLException e) {
-			e.printStackTrace();
+			throw new IOError(e);
 		}
 	}
 
 	@Test
 	void concurrentBulkInsertTest(){
-		int entrySize = 5;
-		int sleepTime = 3000;
-		int maxThreadNum = 2;
-
+		int entrySize = 1000;
+		int sleepTime = 1000;
+		int maxThreadNum = 10;
+		List<byte[]> testBinaryList = new ArrayList<>();
+		List<Thread> threadList = new ArrayList<>(maxThreadNum);
 		String indexName = "test_block_chain";
 		int blockNumber = 0;
-		List<byte[]> testBinaryList = new ArrayList<>();
 
 		System.err.println("EStest: concurrentBulkInsert");
-
 		for (int i = 0; i < entrySize; i++) {
 			//String data = "test" + i;
 			String data = "test";
 			testBinaryList.add(data.getBytes());
 		}
-		List<Thread> threadList = new ArrayList<>(maxThreadNum);
 
 		try {
 			for(int i=0; i<maxThreadNum; i++){

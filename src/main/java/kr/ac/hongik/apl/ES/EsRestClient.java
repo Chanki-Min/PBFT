@@ -33,16 +33,15 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.SQLException;
 import java.util.*;
 
 public class EsRestClient {
 
-	private final int BULKBUFFER = 500;
 	private List<String> hostNames = new ArrayList<>();
 	private List<Integer> ports = new ArrayList<>();
 	private List<String> hostSchemes = new ArrayList<>();
 	private RestHighLevelClient restHighLevelClient = null;
+	private final boolean DEBUG = false;
 
 	public EsRestClient(){
 	}
@@ -71,10 +70,10 @@ public class EsRestClient {
 		return response;
 	}
 
-	public void deleteIndex(String indexName) throws IOException, SQLException{
+	public void deleteIndex(String indexName) throws IOException, EsException{
 		boolean isIndexExists = this.isIndexExists(indexName);
 		if(!isIndexExists){
-			throw new SQLException(indexName+ " does not exists");
+			throw new EsException(indexName+ " does not exists");
 		}
 
 
@@ -83,30 +82,46 @@ public class EsRestClient {
 		if(response.isAcknowledged()){
 			System.out.println(indexName + " DELETED from Cluster");
 		}else{
-			throw new SQLException("Cannot DELETE "+indexName);
+			throw new EsException("Cannot DELETE "+indexName);
 		}
 	}
 
-	public void createIndex(String indexName , XContentBuilder mapping, XContentBuilder setting) throws IOException, SQLException{
+	/**
+	 * @param indexName
+	 * @throws IOException
+	 * @throws EsException	throws when creadtion failed
+	 * @throws EsConcurrencyException throws when index already created by other replicas
+	 */
+	public void createIndex(String indexName , XContentBuilder mapping, XContentBuilder setting) throws IOException, EsException, EsConcurrencyException{
 
 
 		boolean isIndexExists = this.isIndexExists(indexName);
 		if(isIndexExists){
-			throw new SQLException(indexName+ " is Already exists");
+			throw new EsException(indexName+ " is Already exists");
 		}
 		CreateIndexRequest request = new CreateIndexRequest(indexName);
 		request.mapping(mapping);
 		request.settings(setting);
 
-		CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
-		if(response.isAcknowledged()){
-			System.out.println(indexName + " CREATED to Cluster");
-		}else{
-			throw new SQLException("Cannot CREATE "+indexName);
+		try {
+			CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
+			if(response.isAcknowledged()){
+				System.out.println(indexName + " CREATED to Cluster");
+			}else{
+				throw new EsException("Cannot CREATE "+indexName);
+			}
+		}catch (ElasticsearchStatusException e){
+			throw new EsConcurrencyException(e.getMessage());
 		}
 	}
 
-	public void createIndex(String indexName) throws IOException, SQLException{
+	/**
+	 * @param indexName
+	 * @throws IOException
+	 * @throws EsException	throws when creadtion failed
+	 * @throws EsConcurrencyException throws when index already created by other replicas
+	 */
+	public void createIndex(String indexName) throws IOException, EsException, EsConcurrencyException{
 
 		if (!isIndexExists(indexName)) {
 
@@ -154,27 +169,51 @@ public class EsRestClient {
 			request.mapping(mappingBuilder);
 			request.settings(settingsBuilder);
 
-			CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
-			if(response.isAcknowledged()){
-				System.out.println(indexName + " CREATED to Cluster");
-			}else{
-				throw new SQLException("Cannot CREATE "+indexName);
+			try {
+				CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
+				if(response.isAcknowledged()){
+					System.out.println(indexName + " CREATED to Cluster");
+				}else{
+					throw new EsException("Cannot CREATE "+indexName);
+				}
+			}catch (ElasticsearchStatusException e){
+				throw new EsConcurrencyException(e.getMessage());
 			}
+
 		}
 	}
 
-	public void bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, int versionNumber) throws IOException, SQLException{
+	/**
+	 * @param indexName
+	 * @param blockNumber
+	 * @param encDatas
+	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
+	 * @return	ElasticSearch's BulkResponse instance of  data-insertion
+	 * @throws IOException
+	 * @throws EsException throws when (index not exists, some of insertion failed)
+	 * @throws EsConcurrencyException throws when headDocument of (indexName,BlockNumber) already exists
+ 	 */
+	public BulkResponse bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, int versionNumber) throws IOException, EsException, EsConcurrencyException{
+		final int BULKBUFFER;
+		if(DEBUG)
+			BULKBUFFER = 500;
+		else
+			BULKBUFFER = encDatas.size() + 1;
+
+		BulkResponse bulkResponse = null;
+
 		if(!this.isIndexExists(indexName))
-			throw new SQLException("Request does not fulfil checkList");
+			throw new EsException("index :"+indexName+" does not exists");
 
 		try {
 			restHighLevelClient.index(getHeadDocument(indexName,blockNumber,versionNumber), RequestOptions.DEFAULT);
 		}catch (ElasticsearchStatusException e) {
-			throw new SQLException("inserting already executing by other replica");
+			throw new EsConcurrencyException("inserting already executing by other replica");
 		}
 
 		Base64.Encoder encoder = Base64.getEncoder();
 		BulkRequest request = new BulkRequest();
+		request.setRefreshPolicy("wait_for");	//do not refresh (searchable) index until bulk request finish
 		for(int entryNumber = 0; entryNumber<encDatas.size(); entryNumber++) {
 
 			String id = idGenerator(indexName,blockNumber,entryNumber);
@@ -191,36 +230,44 @@ public class EsRestClient {
 
 			//if Bulk request's size equals to BULKBUFFER size. execute request
 			if(entryNumber%BULKBUFFER == BULKBUFFER-1){
-				BulkResponse responses = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
+				bulkResponse = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
 				request = new BulkRequest();
-				System.out.println("BULK_CREATED, status: "+responses.status());
-				System.out.println(responses.buildFailureMessage());
+				System.out.println("BULK_CREATED, status: "+bulkResponse.status());
+				System.out.println(bulkResponse.buildFailureMessage());
 				System.out.println("Request sent | Cause: BULKBUFFER EXCEED | Entry Number: "+entryNumber);
-				if(responses.hasFailures()){
-					throw new SQLException(responses.buildFailureMessage());
+				if(bulkResponse.hasFailures()){
+					throw new EsException(bulkResponse.buildFailureMessage());
 				}
 			}
 
 		}
 		//if Bulk request has left IndexRequest, execute last of them
 		if(request.requests().size() != 0){
-			BulkResponse responses = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
-			System.out.println("Created, status: "+responses.status());
-			System.out.println(responses.buildFailureMessage());
+			bulkResponse = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
+			System.out.println("Created, status: "+bulkResponse.status());
+			System.out.println(bulkResponse.buildFailureMessage());
 			System.out.println("Request sent | Cause: This is Last buffer |");
-			if(responses.hasFailures()){
-				throw new SQLException(responses.buildFailureMessage());
+			if(bulkResponse.hasFailures()){
+				throw new EsException(bulkResponse.buildFailureMessage());
 			}
 		}
+		return bulkResponse;
 	}
 
-	public List<byte[]> getBlockByteArray(String indexName, int blockNumber) throws IOException, SQLException{
+	/**
+	 * @param indexName
+	 * @param blockNumber
+	 * @return encrypted_data in #blockNumber th block EXCEPT headDocument
+	 * @throws IOException
+	 * @throws EsException
+	 */
+	public List<byte[]> getBlockByteArray(String indexName, int blockNumber) throws IOException, EsException{
 
 		if(!isIndexExists(indexName)){
-			throw new SQLException(indexName+ " does not exists");
+			throw new EsException(indexName+ " does not exists");
 		}
 		if(!isBlockExists(indexName,blockNumber)){
-			throw new SQLException(blockNumber+ " does not exists in "+indexName);
+			throw new EsException(blockNumber+ " does not exists in "+indexName);
 		}
 		Base64.Decoder decoder = Base64.getDecoder();
 		SearchRequest request = new SearchRequest(indexName);
@@ -242,16 +289,16 @@ public class EsRestClient {
 		return restoredBytes;
 	}
 
-	public byte[] getBlockEntryByteArray(String indexName, int blockNumber, int entryNumber) throws IOException, SQLException{
+	public byte[] getBlockEntryByteArray(String indexName, int blockNumber, int entryNumber) throws IOException, EsException{
 
 		if(!isIndexExists(indexName)){
-			throw new SQLException(indexName+ " does not exists");
+			throw new EsException(indexName+ " does not exists");
 		}
 		if(!isBlockExists(indexName,blockNumber)){
-			throw new SQLException(blockNumber+ " does not exists in "+indexName);
+			throw new EsException(blockNumber+ " does not exists in "+indexName);
 		}
 		if(!isEntryExists(indexName, blockNumber, entryNumber)){
-			throw new SQLException(entryNumber+ " does not exists in block "+blockNumber);
+			throw new EsException(entryNumber+ " does not exists in block "+blockNumber);
 		}
 
 		Base64.Decoder decoder = Base64.getDecoder();
@@ -270,6 +317,10 @@ public class EsRestClient {
 		return restoredByte;
 	}
 
+	/**
+	 * read "resources/master.json" and parse to httpHost format
+	 * @throws NoSuchFieldException
+	 */
 	private void getMasterNodeInfo() throws NoSuchFieldException{
 		try {
 			Genson genson = new Genson();
@@ -358,12 +409,33 @@ public class EsRestClient {
 		return (int) response.getCount();
 	}
 
+	/**
+	 * @param indexName
+	 * @param blockNumber
+	 * @param entryNumber
+	 * @return	String that format : indexName_blockNumber_entryNumber
+	 */
 	private String idGenerator(String indexName,int blockNumber, int entryNumber){
 		StringBuilder builder = new StringBuilder();
 		builder.append(indexName).append("_").append(blockNumber).append("_").append(entryNumber);
 		return String.valueOf(builder);
 	}
 
+	/**
+	 * @param indexName
+	 * @param blockNumber
+	 * @param versionNumber
+	 * @return	IndexRequest of indexing headDocument by given params
+	 * <pre>{@code
+	 * PUT indexName/_doc/indexName_blockNumber_-1?version=versionNumber&version_type="external"
+	 * {
+	 *	"block_number", blockNumber,
+	 *	"entry_number", -1
+	 *	"encrypt_data", ""
+	 * }
+	 * }</pre>
+	 * @throws IOException
+	 */
 	private IndexRequest getHeadDocument(String indexName, int blockNumber, int versionNumber) throws IOException{
 		XContentBuilder builder = new XContentFactory().jsonBuilder();
 		builder.startObject();
@@ -378,6 +450,19 @@ public class EsRestClient {
 				.source(builder).version(versionNumber).versionType(VersionType.EXTERNAL);
 	}
 
+	public static class EsException extends Exception {
+
+		public EsException(String s){
+			super(s);
+		}
+	}
+
+	public static class EsConcurrencyException extends Exception {
+
+		public EsConcurrencyException(String s){
+			super(s);
+		}
+	}
 }
 
 
