@@ -681,11 +681,12 @@ public class Replica extends Connector {
 							.sorted()
 							.collect(Collectors.toList());
 				}
-				//TODO : how to get min value in newViewList
+				int minNewViewNum = newViewList.stream().min(Integer::min).get();
+
 				if (newViewList.size() == getMaximumFaulty() + 1) {
 					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
 					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
-							message.getLastCheckpointNum(), getMyNumber(), this,
+							message.getLastCheckpointNum(), minNewViewNum, this,
 							getPreparedStatementFn);
 					getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
 				}
