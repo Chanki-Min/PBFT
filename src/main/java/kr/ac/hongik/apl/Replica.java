@@ -318,8 +318,8 @@ public class Replica extends Connector {
 				/*
 					make primary replica faulty
 				 */
-				int errno = 1;
-				int primaryErrSeqNum = 5;
+				int errno = 0;
+				int primaryErrSeqNum = 7;
 				if (seqNum == primaryErrSeqNum) {
 					if (errno == 1) { //primary stops suddenly
 						primaryStopCase();
@@ -419,6 +419,10 @@ public class Replica extends Connector {
 		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
+		SocketChannel PublicKeySocket = getChannelFromClientInfo(clientPublicKey);
+		clientPublicKey = publicKeyMap.get(PublicKeySocket);
+
+
 		boolean isVerified = message.isVerified(primaryPublicKey, this.getPrimary(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
