@@ -60,7 +60,7 @@ public class Client extends Connector {
 		send(sock, msg);
 	}
 
-	Object getReply() {
+	public Object getReply() {
 		ReplyMessage replyMessage;
 
 

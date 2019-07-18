@@ -20,10 +20,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
-import static kr.ac.hongik.apl.Util.encrypt;
-import static kr.ac.hongik.apl.Util.makeSymmetricKey;
+import static kr.ac.hongik.apl.Util.*;
 
 public class InsertionOperation extends Operation {
+	private final boolean DEBUG = true;
+	private final int sleepTime = 3000;
 	private List<byte[]> infoList;
 	private static final String tableName = "BlockChain";
 
@@ -55,10 +56,11 @@ public class InsertionOperation extends Operation {
 
 		//verification stack
 		try {
-			sleep(5000);
+			sleep(sleepTime);
 			checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber,encryptedList);
 			return true;
 		} catch (NoSuchFieldException | EsRestClient.EsException | IOException | InterruptedException e) {
+			System.err.print(e.getMessage());
 			throw new Error(e);
 		}
 	}
@@ -189,6 +191,15 @@ public class InsertionOperation extends Operation {
 	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
+		if(DEBUG){
+			System.err.print("InsertionOp::checkEsBlolck::Ori :[ "); encryptList.stream()
+					.forEach(x -> System.err.print(hash(x).substring(0,10)+", "));
+			System.err.println(" ]");
+			System.err.print("InsertionOp::checkEsBlolck::Res :[ "); esRestClient.getBlockByteArray(indexName, blockNumber).stream()
+					.forEach(x -> System.err.print(hash(x).substring(0,10)+", "));
+			System.err.println(" ]");
+			System.err.println("InsertionOp::isSame? :"+esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber)));
+		}
 
 		if (esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber)))
 			return true;

@@ -4,6 +4,8 @@ import com.codahale.shamir.Scheme;
 import kr.ac.hongik.apl.Messages.CommitMessage;
 import kr.ac.hongik.apl.Messages.Message;
 import kr.ac.hongik.apl.Messages.PrepareMessage;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -12,8 +14,12 @@ import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,12 +49,22 @@ class UtilTest {
 
         Message expected = PrepareMessage.makePrepareMsg(privateKey, 0, 0, "hi", 0);
 
-        byte[] ser = Util.serialize(expected);
-        assertEquals(expected, Util.deserialize(ser));
+        byte[] ser = Util.serToString(expected).getBytes();
+        //assertEquals(expected, Util.desToObject(new String(ser), PrepareMessage.class));
 
         expected = CommitMessage.makeCommitMsg(privateKey, 1, 1, "hello", 1);
         ser = Util.serialize(expected);
-        assertEquals(expected, Util.deserialize(ser));
+        //assertEquals(expected, Util.deserialize(ser));
+
+        Triple<byte[], byte[], byte[]> expected1 = new ImmutableTriple<>("hi".getBytes(), "hello".getBytes(), "yoyo".getBytes());
+        byte[] ser1 = Util.serToString(expected1).getBytes();
+        Triple<byte[], byte[], byte[]> deser1 = Util.desToObject(new String(ser1), Triple.class);
+
+        boolean isTripleEquals = Arrays.equals(expected1.getLeft(), deser1.getLeft()) &&
+                                Arrays.equals(expected1.getMiddle(), deser1.getMiddle()) &&
+                                Arrays.equals(expected1.getRight(), deser1.getRight());
+
+        assertTrue(isTripleEquals);
     }
 
     @Test
@@ -112,5 +128,4 @@ class UtilTest {
 
 
     }
-
 }

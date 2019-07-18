@@ -24,6 +24,7 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -255,7 +256,7 @@ public class EsRestClient {
 		//if Bulk request has left IndexRequest, execute last of them
 		if(request.requests().size() != 0){
 			bulkResponse = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
-			System.out.println("Created, status: "+bulkResponse.status());
+			System.out.println("BULK_Created, status: "+bulkResponse.status());
 			System.out.println(bulkResponse.buildFailureMessage());
 			System.out.println("Request sent | Cause: This is Last buffer |");
 		}
@@ -279,17 +280,19 @@ public class EsRestClient {
 		}
 		Base64.Decoder decoder = Base64.getDecoder();
 		SearchRequest request = new SearchRequest(indexName);
-		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(QueryBuilders.matchQuery("block_number", blockNumber));
-		builder.query(QueryBuilders.boolQuery().mustNot(QueryBuilders.matchQuery("_id", idGenerator(indexName,blockNumber,-1))));	//do not search headDocument
+		SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+		BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
-		builder.sort("entry_number", SortOrder.ASC);	//set sort option to "entry_number" ascending
+		boolQueryBuilder.must(QueryBuilders.matchQuery("block_number", blockNumber));
+		boolQueryBuilder.mustNot(QueryBuilders.matchQuery("_id", idGenerator(indexName,blockNumber, -1)));
 
-		builder.from(0);
-		builder.size(getBlockEntrySize(indexName, blockNumber) -1);		//set search range to [0, index Size]
+		searchSourceBuilder.query(boolQueryBuilder);
+		searchSourceBuilder.sort("entry_number", SortOrder.ASC);	//set sort option to "entry_number" ascending
 
+		searchSourceBuilder.from(0);
+		searchSourceBuilder.size(getBlockEntrySize(indexName, blockNumber) -1);		//set search range to [0, index Size], without headDoc
 
-		request.source(builder);
+		request.source(searchSourceBuilder);
 		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
 		SearchHit[] searchHits = response.getHits().getHits();
 		List<byte[]> restoredBytes = new ArrayList<>();
@@ -402,9 +405,6 @@ public class EsRestClient {
 	}
 
 	private int getRightNextBlockNumber(String indexName) throws IOException{
-
-
-
 		SearchRequest searchMaxRequest = new SearchRequest(indexName);
 		SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
 		maxBuilder.query(QueryBuilders.matchAllQuery());
@@ -417,8 +417,6 @@ public class EsRestClient {
 		if(response.getHits().getTotalHits().value == 0){
 			return -1;
 		}
-
-
 		ParsedMax maxValue = response.getAggregations().get("maxValueAgg");	//get max_aggregation from response
 		return (int) maxValue.getValue();
 	}
@@ -426,7 +424,8 @@ public class EsRestClient {
 	private int getBlockEntrySize(String indexName, int blockNumber) throws IOException{
 		CountRequest request = new CountRequest(indexName);
 		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(QueryBuilders.matchQuery("block_number", blockNumber));
+		builder.query(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("block_number", blockNumber)));
+		request.source(builder);
 		CountResponse response = restHighLevelClient.count(request, RequestOptions.DEFAULT);
 		return (int) response.getCount();
 	}
