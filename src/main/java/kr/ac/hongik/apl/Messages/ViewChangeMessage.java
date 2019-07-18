@@ -23,15 +23,19 @@ public class ViewChangeMessage implements Message {
 	private static Replica replica;
 	final Data data;
 	final byte[] signature;
-
+	static private boolean DEBUG = true;
 	private ViewChangeMessage(Data data, byte[] signature, Replica replica) {
 		this.data = data;
 		this.signature = signature;
 		ViewChangeMessage.replica = replica;
 	}
 
-	public static ViewChangeMessage makeViewChangeMsg(int lastCheckpointNum, int newViewNum,
+	public static ViewChangeMessage makeViewChangeMsg(int lastCheckpointNum, int newViewNum, Replica replica,
 													  Function<String, PreparedStatement> preparedStatement) {
+		if (DEBUG) {
+			System.err.println("lastCheckpointNum : " + lastCheckpointNum + " newViewNum : " + newViewNum + " getMaximumFaulty : " + 1);//replica.getMaximumFaulty());
+		}
+		ViewChangeMessage.replica = replica;
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum,
 				replica.getMaximumFaulty());
@@ -40,7 +44,9 @@ public class ViewChangeMessage implements Message {
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replica.getMyNumber());
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
-
+		if (DEBUG) {
+			System.err.println("Checkpoint size : " + checkPointMessages.size() + " Pm size : " + messageList.size());
+		}
 		return new ViewChangeMessage(data, signature, replica);
 	}
 
@@ -72,7 +78,7 @@ public class ViewChangeMessage implements Message {
 
 
 		String query = "SELECT P1.digest, P1.data, P1.viewNum FROM Preprepares P1 " +
-				"WHERE AND P1.viewNum = (SELECT MAX(P2.viewNum) FROM Preprepares P2 WHERE P2.seqNum=?)";
+				"WHERE P1.viewNum = (SELECT MAX(P2.viewNum) FROM Preprepares P2 WHERE P2.seqNum = ?)";
 
 		try (var pstmt = preparedStatement.apply(query)) {
 			pstmt.setInt(1, seqNum);
@@ -91,8 +97,7 @@ public class ViewChangeMessage implements Message {
 		try (var pstmt = preparedStatement.apply(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, maxViewNum);
-			pstmt.setString(3, preprepareMessage.getDigest());
-			pstmt.setInt(4, 2 * getMaximumFaulty);
+			pstmt.setInt(3, 2 * getMaximumFaulty);
 			try (var ret = pstmt.executeQuery()) {
 
 				prepareList = JdbcUtils.toStream(ret)
@@ -116,30 +121,29 @@ public class ViewChangeMessage implements Message {
 	}
 
 	private static List<CheckPointMessage> getCheckpointMessages(Function<String, PreparedStatement> preparedStatement, int checkpointNum, int getMaximumFaulty) {
-
-		String query = "SELECT data FROM Checkpoints " +
-				"WHERE seqNum = ?" +
-				"GROUP BY digest" +
-				"HAVING count(*) > ?";
-		List<CheckPointMessage> checkpointList;
+		String query = "SELECT data FROM Checkpoints cp1 " +
+				"where cp1.stateDigest = (select stateDigest from Checkpoints cp2 " +
+				"WHERE seqNum = ? " +
+				"GROUP BY stateDigest " +
+				"HAVING count(*) > ?)";
+		List<CheckPointMessage> checkpointList = null;
 
 		try (var pstmt = preparedStatement.apply(query)) {
 			pstmt.setInt(1, checkpointNum - 1);
 			pstmt.setInt(2, 2 * getMaximumFaulty);
 			try (var ret = pstmt.executeQuery()) {
-
 				checkpointList = JdbcUtils.toStream(ret)
 						.map(suppress().wrapWithDefault(x -> x.getString(1), null))
 						.filter(Objects::nonNull)
 						.map(x -> desToObject(x, CheckPointMessage.class))
 						.collect(Collectors.toList());
-
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
 			return null;
 		}
-		return checkpointList.isEmpty() ? null : checkpointList;
+
+		return checkpointList;
 
 	}
 
