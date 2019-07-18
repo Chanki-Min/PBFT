@@ -9,6 +9,7 @@ import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -119,8 +120,9 @@ public class ElasticSearchTest {
 	@Test
 	void BulkInsertTest(){
 		int blockNumber = 0;
-		int entrySize = 1000;
+		int entrySize = 5;
 		int sleepTime = 1000;
+		int versionNuber = 1;
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
@@ -131,13 +133,11 @@ public class ElasticSearchTest {
 				String data = "test" + i;
 				testBinaryList.add(data.getBytes());
 			}
-			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList, 1);
-
+			esRestClient.bulkInsertDocument("test_block_chain", blockNumber, testBinaryList, versionNuber);
 			sleep(sleepTime);
 
 			Assertions.assertTrue(isBlockExists("test_block_chain",blockNumber));
 			Assertions.assertEquals(entrySize, getBlockEntrySize("test_block_chain", blockNumber) -1);
-
 			esRestClient.deleteIndex("test_block_chain");
 		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
 			e.printStackTrace();
@@ -365,17 +365,20 @@ public class ElasticSearchTest {
 	private int getBlockEntrySize(String indexName, int blockNumber) throws IOException{
 		CountRequest request = new CountRequest(indexName);
 		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(QueryBuilders.matchQuery("block_number", blockNumber));
+		builder.query(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("block_number", blockNumber)));
+		request.source(builder);
 		CountResponse response = esRestClient.getClient().count(request, RequestOptions.DEFAULT);
 		return (int) response.getCount();
 	}
 
 	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
-		return arr1.stream().allMatch(by1 -> arr2.stream().anyMatch(by2 -> Arrays.equals(by1, by2))) &&
-				arr2.stream().allMatch(by2 -> arr1.stream().anyMatch(by1 -> Arrays.equals(by2, by1))) &&
-				arr1.size() == arr2.size();
+		if(arr1.size() != arr2.size())
+			return false;
+		Boolean[] checkList = new Boolean[arr1.size()];
+
+		for(int i=0; i<arr1.size(); i++){
+			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
+		}
+		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
-
-
-
 }

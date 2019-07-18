@@ -16,10 +16,10 @@ import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Util.encrypt;
 import static kr.ac.hongik.apl.Util.makeSymmetricKey;
 
@@ -34,6 +34,8 @@ public class InsertionOperation extends Operation {
 
 	@Override
 	public Object execute(Object obj) {
+		List<byte[]> encryptedList = null;
+		int blockNumber = 0;
 		try {
 			Logger logger = (Logger) obj;
 			createTableIfNotExists(logger);
@@ -42,17 +44,23 @@ public class InsertionOperation extends Operation {
 
 			Pair<List<byte[]>, Integer> pair = storeHeaderAndReturnData(tripleList, logger);
 
-			List<byte[]> encryptedList = pair.getLeft();
-			int blockNumber = pair.getRight();
+			encryptedList = pair.getLeft();
+			blockNumber = pair.getRight();
 
-			BulkResponse bulkResponse = storeToES(encryptedList, blockNumber);
-
+			storeToES(encryptedList, blockNumber);
 		} catch (Util.EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException e) {
 			throw new Error(e);
 		} catch (EsRestClient.EsConcurrencyException ignored) {
 		}
 
-		return null;
+		//verification stack
+		try {
+			sleep(5000);
+			checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber,encryptedList);
+			return true;
+		} catch (NoSuchFieldException | EsRestClient.EsException | IOException | InterruptedException e) {
+			throw new Error(e);
+		}
 	}
 
 	/**
@@ -62,8 +70,8 @@ public class InsertionOperation extends Operation {
 	 */
 	private void createTableIfNotExists(Logger logger) {
 		try {
-			logger.getPreparedStatement("CREATE TABLE " + tableName + " (idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev)").execute();
-			logger.getPreparedStatement("INSERT INTO " + tableName + "VALUES (0, FIRST_ROOT, PREV)").execute();
+			logger.getPreparedStatement("CREATE TABLE " + tableName + " (idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev)) ").execute();
+			logger.getPreparedStatement("INSERT INTO " + tableName + " VALUES (0, 'FIRST_ROOT', 'PREV')").execute();
 		} catch (SQLException ignored) {
 		}
 
@@ -74,13 +82,12 @@ public class InsertionOperation extends Operation {
 	 * If current item is at the edge, then a side item will be null.
 	 */
 	private List<Triple<byte[], byte[], byte[]>> preprocess() {
-		List<Optional<byte[]>> input = infoList.stream().map(Optional::of).collect(Collectors.toList());
 
 		return IntStream.range(0, infoList.size())
 				.mapToObj(i -> new ImmutableTriple<>(
-						input.get(i - 1).orElse(null),
-						input.get(i).get(),
-						input.get(i + 1).orElse(null)))
+						i - 1 >= 0 ? infoList.get(i - 1) : null,
+						infoList.get(i),
+						i + 1 < infoList.size() ? infoList.get(i + 1) : null))
 				.collect(Collectors.toList());
 	}
 
@@ -114,7 +121,7 @@ public class InsertionOperation extends Operation {
 	 * @throws SQLException
 	 */
 	private int storeHeaderAndReturnIdx(String root, Logger logger) throws SQLException {
-		String query = "INSERT INTO " + tableName + "VALUES ( ?, ?, ? )";
+		String query = "INSERT INTO " + tableName + " VALUES ( ?, ?, ? )";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			Triple<Integer, String, String> previousBlock = getLatestBlock(logger);
 			String prevHash = Util.hash(previousBlock.toString());
@@ -135,7 +142,7 @@ public class InsertionOperation extends Operation {
 	 * @throws SQLException
 	 */
 	private Triple<Integer, String, String> getLatestBlock(Logger logger) throws SQLException {
-		String query = "SELECT MAX(idx) FROM " + tableName;
+		String query = "SELECT idx, root, prev FROM " + tableName + " b WHERE b.idx = (SELECT MAX(idx) from "+tableName+ " b2)";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			var ret = psmt.executeQuery();
 			if (ret.next())
@@ -168,4 +175,34 @@ public class InsertionOperation extends Operation {
 		esRestClient.disConnectToEs();
 		return bulkResponse;
 	}
+
+	/**
+	 * Get Encrypted blockData from Es, and compare with original data. when Es-data isn't equals with original-data, update block with origin-data with currVersionNumber+1
+	 * @param indexName
+	 * @param blockNumber
+	 * @param encryptList List<> of encrypted blockData that originally intended to insert in Es
+	 * @return encryptList.equals(esRestClient.getBlockByteArray(indexName, blockNumber))
+	 * @throws NoSuchFieldException
+	 * @throws IOException
+	 * @throws EsRestClient.EsException
+	 */
+	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException{
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+
+		if (esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber)))
+			return true;
+
+		long currHeadDocVersion = esRestClient.getDocumentVersion(indexName, blockNumber, -1);
+		try {
+			esRestClient.bulkInsertDocument(indexName, blockNumber, encryptList, currHeadDocVersion + 1);
+		}catch (EsRestClient.EsConcurrencyException ignore) {
+		}
+		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber));
+
+	}
+
+
+
+
 }

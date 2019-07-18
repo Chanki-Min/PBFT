@@ -73,10 +73,16 @@ public class ConcurrentBulkInsertThread extends Thread{
 	}
 
 	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
-		return arr1.stream().allMatch(by1 -> arr2.stream().anyMatch(by2 -> Arrays.equals(by1, by2))) &&
-				arr2.stream().allMatch(by2 -> arr1.stream().anyMatch(by1 -> Arrays.equals(by2, by1))) &&
-				arr1.size() == arr2.size();
+		if(arr1.size() != arr2.size())
+			return false;
+		Boolean[] checkList = new Boolean[arr1.size()];
+
+		for(int i=0; i<arr1.size(); i++){
+			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
+		}
+		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
+
 	private boolean isBlockExists(String indexName, int blockNumber) throws IOException{
 		CountRequest getCorrupedCount = new CountRequest(indexName);
 		SearchSourceBuilder builder = new SearchSourceBuilder();

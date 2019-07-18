@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -191,25 +192,35 @@ public class EsRestClient {
 	 * @return	ElasticSearch's BulkResponse instance of  data-insertion
 	 * @throws IOException
 	 * @throws EsException throws when (index not exists, some of insertion failed)
-	 * @throws EsConcurrencyException throws when headDocument of (indexName,BlockNumber) already exists
+	 * @throws EsConcurrencyException
+	 * throws when headDocument of (indexName,BlockNumber) already exists.
+	 * that means other replica already bulkInserting to certain version, so cancel method
  	 */
-	public BulkResponse bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, int versionNumber) throws IOException, EsException, EsConcurrencyException{
+	public BulkResponse bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, long versionNumber) throws IOException, EsException, EsConcurrencyException{
+		if(versionNumber <= getDocumentVersion(indexName,blockNumber,-1))
+			throw new EsConcurrencyException("current version is higher than this");
+
+		BulkResponse bulkResponse = null;
 		final int BULKBUFFER;
 		if(DEBUG)
 			BULKBUFFER = 500;
 		else
 			BULKBUFFER = encDatas.size() + 1;
 
-		BulkResponse bulkResponse = null;
-
 		if(!this.isIndexExists(indexName))
 			throw new EsException("index :"+indexName+" does not exists");
 
+		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
 		try {
 			restHighLevelClient.index(getHeadDocument(indexName,blockNumber,versionNumber), RequestOptions.DEFAULT);
 		}catch (ElasticsearchStatusException e) {
-			throw new EsConcurrencyException("inserting already executing by other replica");
+			StringBuilder builder = new StringBuilder();
+			builder.append(this.getClass().getName()).append("::bulkInsertDocument").append(" ConcurrencyException");
+			builder.append(" indexName :").append(indexName).append(" BlockNum :").append(blockNumber);
+			builder.append(" Cause :Document inserting already executing by other replica");
+			throw new EsConcurrencyException(builder.toString());
 		}
+
 
 		Base64.Encoder encoder = Base64.getEncoder();
 		BulkRequest request = new BulkRequest();
@@ -247,9 +258,6 @@ public class EsRestClient {
 			System.out.println("Created, status: "+bulkResponse.status());
 			System.out.println(bulkResponse.buildFailureMessage());
 			System.out.println("Request sent | Cause: This is Last buffer |");
-			if(bulkResponse.hasFailures()){
-				throw new EsException(bulkResponse.buildFailureMessage());
-			}
 		}
 		return bulkResponse;
 	}
@@ -274,13 +282,16 @@ public class EsRestClient {
 		SearchSourceBuilder builder = new SearchSourceBuilder();
 		builder.query(QueryBuilders.matchQuery("block_number", blockNumber));
 		builder.query(QueryBuilders.boolQuery().mustNot(QueryBuilders.matchQuery("_id", idGenerator(indexName,blockNumber,-1))));	//do not search headDocument
+
+		builder.sort("entry_number", SortOrder.ASC);	//set sort option to "entry_number" ascending
+
 		builder.from(0);
 		builder.size(getBlockEntrySize(indexName, blockNumber) -1);		//set search range to [0, index Size]
+
 
 		request.source(builder);
 		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
 		SearchHit[] searchHits = response.getHits().getHits();
-
 		List<byte[]> restoredBytes = new ArrayList<>();
 
 		for(SearchHit searchHit : searchHits){
@@ -379,6 +390,17 @@ public class EsRestClient {
 		return response.getCount() != 0;
 	}
 
+	public boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
+		if(arr1.size() != arr2.size())
+			return false;
+		Boolean[] checkList = new Boolean[arr1.size()];
+
+		for(int i=0; i<arr1.size(); i++){
+			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
+		}
+		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
+	}
+
 	private int getRightNextBlockNumber(String indexName) throws IOException{
 
 
@@ -436,7 +458,7 @@ public class EsRestClient {
 	 * }</pre>
 	 * @throws IOException
 	 */
-	private IndexRequest getHeadDocument(String indexName, int blockNumber, int versionNumber) throws IOException{
+	private IndexRequest getHeadDocument(String indexName, int blockNumber, long versionNumber) throws IOException{
 		XContentBuilder builder = new XContentFactory().jsonBuilder();
 		builder.startObject();
 		{
@@ -448,6 +470,28 @@ public class EsRestClient {
 
 		return new IndexRequest(indexName).id(idGenerator(indexName,blockNumber,-1))
 				.source(builder).version(versionNumber).versionType(VersionType.EXTERNAL);
+	}
+
+	public long getDocumentVersion(String indexName, int blockNumber, int entryNumber) throws IOException{
+		long version;
+		String id = idGenerator(indexName,blockNumber,entryNumber);
+		SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+		searchSourceBuilder.query(QueryBuilders.termQuery("_id", id));
+		searchSourceBuilder.version(true);
+		SearchRequest request = new SearchRequest();
+		request.indices(indexName);
+		request.source(searchSourceBuilder);
+
+		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
+		SearchHit[] searchHits = response.getHits().getHits();
+
+		if(searchHits.length == 0){
+			version = 0;
+		}else {
+			version = searchHits[0].getVersion();
+		}
+		return version;
+
 	}
 
 	public static class EsException extends Exception {
