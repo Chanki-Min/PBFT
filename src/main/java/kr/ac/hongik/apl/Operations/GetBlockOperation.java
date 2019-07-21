@@ -6,6 +6,7 @@ import org.apache.commons.lang3.tuple.Triple;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.security.InvalidKeyException;
 import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -34,23 +35,21 @@ public class GetBlockOperation extends Operation{
 	}
 
 	private List<byte[]> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException{
-
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
-		List<Triple<byte[], byte[], byte[]>> tripleList = new ArrayList<>();
-		SecretKey key = getSecretKey(blockNumber, logger);
+		List<byte[]> originalData = new ArrayList<>();
 		List<byte[]> encryptedData = esRestClient.getBlockByteArray("block_chain", blockNumber);
-
+		SecretKey key = getSecretKey(blockNumber, logger);
+		if(key == null){
+			throw new EncryptionException(new InvalidKeyException("key cannot be null"));
+		}
 
 		for(byte[] x: encryptedData){
-			byte[] decrypt = decrypt(x, key);
-			tripleList.add(desToObject(new String(decrypt), Triple.class) );	//2번째로 실행하는 deserial 단계부터 java.io.EOFException이 발생함
+			byte[] decryptDataByKey = decrypt(x, key);
+			originalData.add(desToObject(new String(decryptDataByKey), byte[].class) );
 		}
-		List<byte[]> originalData = new ArrayList<>();
-		for(var x : tripleList){
-			originalData.add(x.getMiddle());
-		}
+
 		esRestClient.disConnectToEs();
 		return originalData;
 	}
@@ -65,9 +64,9 @@ public class GetBlockOperation extends Operation{
 			if (ret.next()) {
 				root = ret.getString(1);
 			}
-			if(root == null)
+			if(root == null) {
 				return null;
-
+			}
 			return makeSymmetricKey(root);
 		} catch (SQLException e) {
 			e.printStackTrace();

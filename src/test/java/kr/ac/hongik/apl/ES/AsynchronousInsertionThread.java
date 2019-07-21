@@ -1,7 +1,6 @@
-package kr.ac.hongik.apl;
+package kr.ac.hongik.apl.ES;
 
-import kr.ac.hongik.apl.ES.AsynchronousInsertionThread;
-import kr.ac.hongik.apl.ES.EsRestClient;
+import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.GetBlockOperation;
 import kr.ac.hongik.apl.Operations.InsertionOperation;
@@ -15,7 +14,6 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,78 +21,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
-import java.util.stream.LongStream;
 
-import static java.lang.Thread.sleep;
+public class AsynchronousInsertionThread extends Thread{
+	String indexName = "block_chain";
+	int maxEntryNumber = 128;
+	int threadID;
 
-public class InsertionOperationTest {
-	@Test
-	public void SynchronizedInsertionTest(){
-		final int loop = 25;
-		Boolean[] checkList = new Boolean[loop];
-
-		for(int i=0; i<loop; i++){
-			checkList[i] = oneClientInsertionTester();
-		}
-		Assertions.assertTrue(Arrays.stream(checkList).allMatch(Boolean::booleanValue));
+	public AsynchronousInsertionThread(String indexName, int maxEntryNumber, int threadID){
+		this.indexName = indexName;
+		this.maxEntryNumber = maxEntryNumber;
+		this.threadID = threadID;
 	}
 
-	@Test
-	public void ManyManyAsyncInsertionTest(){
-		final int loop = 1;
-
-		long[] eachTookTime = new long[loop];
-		for(int i=0; i<loop; i++){
-			long originTime = System.currentTimeMillis();
-			AsynchronousInsertionTest();
-			eachTookTime[i] = (System.currentTimeMillis() - originTime);
-		}
-		double average = Arrays.stream(eachTookTime).average().getAsDouble();
-
-		System.err.println("All AsyncInsertionTest FINISH");
-		System.err.print("EachTookTime : [");
-		Arrays.stream(eachTookTime).forEach(t -> System.err.print(t + "ms, ")); System.err.println("]");
-
-		System.err.println("AverageTookTime of Test :" + average);
-		System.err.println("AverageTookTime of One Insertion & GetDecrypt :" + (average/10.0) );
-	}
-
-	@Test
-	public void AsynchronousInsertionTest(){
-		final int maxEntryNum = 128;
-		final int maxThreadNum = 10;
-		List<Thread> threadList = new ArrayList<>(maxThreadNum);
-		String indexName = "block_chain";
-
-		System.err.println("InsertionOpTest::Asynchronous");
-		try {
-			for(int i=0; i<maxThreadNum; i++){
-				Thread thread = new Thread(new AsynchronousInsertionThread(indexName,maxEntryNum,i));
-				threadList.add(thread);
-			}
-			for(var t : threadList){
-				t.start();
-			}
-			for(var t : threadList){
-				t.join();
-			}
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-	}
-
-	public boolean oneClientInsertionTester(){
-		final String indexName = "block_chain";
-		final int entryNumber = 128;
-		final long sleepTime = 0;
-		int blockNumberToGet;
+	public void run(){
+		System.err.println("Thread #" + threadID + " Started");
 
 		List<byte[]> testData = new ArrayList<>();
 		try {
-			blockNumberToGet = getLatestBlockNumber(indexName) +1;
-			System.err.println("blockNumber2Get :"+blockNumberToGet);
-			for (int i = 0; i < entryNumber; i++) {
-				String str = "test" + (i+blockNumberToGet);
+			for (int i = 0; i < maxEntryNumber; i++) {
+				String str = "test" + (i+threadID);
 				testData.add(str.getBytes());
 			}
 
@@ -107,39 +52,25 @@ public class InsertionOperationTest {
 			Operation insertionOp = new InsertionOperation(client.getPublicKey(), testData);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertionOp);
 			client.request(insertRequestMsg);
-			int  result = (int) client.getReply();
 
-			sleep(sleepTime);
+			int insertedBlockNum = (int) client.getReply();
 
-			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), blockNumberToGet);
+			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), insertedBlockNum);
 			RequestMessage getBlockRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getBlockOp);
 			client.request(getBlockRequestMsg);
 			List<byte[]> restoredData = (List<byte[]>) client.getReply();
 
-			System.err.print("Original Data : [");
+			System.err.print("Thread #" + threadID + " : Original Data : [");
 			testData.stream().forEach(x -> System.err.print(new String(x)+", "));
 			System.err.print(" ] \n");
-			System.err.print("Restored Data : [");
+			System.err.print("Thread #" + threadID + " : Restored Data : [");
 			restoredData.stream().forEach(x -> System.err.print(new String(x)+", "));
 			System.err.print(" ] \n");
 
-			Assertions.assertEquals(blockNumberToGet, result);
 			Assertions.assertTrue(isDataEquals(testData, restoredData));
-			if(isDataEquals(testData, restoredData))
-				return true;
 
-		} catch (IOException | InterruptedException | NoSuchFieldException e) {
+		} catch (IOException e) {
 			throw new Error(e);
-		}
-		return false;
-	}
-
-	public void clearEsDB(String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException{
-		EsRestClient esRestClient = new EsRestClient();
-		esRestClient.connectToEs();
-		if(esRestClient.isIndexExists(indexName)){
-			esRestClient.deleteIndex(indexName);
-			System.err.println("clearEsDB::index :"+indexName+" was already exists, DELETE index");
 		}
 	}
 
@@ -178,5 +109,5 @@ public class InsertionOperationTest {
 		}
 		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
-
 }
+

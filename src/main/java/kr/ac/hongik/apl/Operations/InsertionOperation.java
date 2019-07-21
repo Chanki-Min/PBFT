@@ -33,6 +33,10 @@ public class InsertionOperation extends Operation {
 		this.infoList = infoList;
 	}
 
+	/**
+	 * @param obj
+	 * @return Integer value of inserted BlockNumber#
+	 */
 	@Override
 	public Object execute(Object obj) {
 		List<byte[]> encryptedList = null;
@@ -41,9 +45,7 @@ public class InsertionOperation extends Operation {
 			Logger logger = (Logger) obj;
 			createTableIfNotExists(logger);
 
-			List<Triple<byte[], byte[], byte[]>> tripleList = preprocess();
-
-			Pair<List<byte[]>, Integer> pair = storeHeaderAndReturnData(tripleList, logger);
+			Pair<List<byte[]>, Integer> pair = storeHeaderAndReturnData(infoList, logger);
 
 			encryptedList = pair.getLeft();
 			blockNumber = pair.getRight();
@@ -57,8 +59,10 @@ public class InsertionOperation extends Operation {
 		//verification stack
 		try {
 			sleep(sleepTime);
-			checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber,encryptedList);
-			return true;
+			if(checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber,encryptedList))
+				return blockNumber;
+			else
+				throw new EsRestClient.EsException("checkEsBlockAndUpdate failed");
 		} catch (NoSuchFieldException | EsRestClient.EsException | IOException | InterruptedException e) {
 			System.err.print(e.getMessage());
 			throw new Error(e);
@@ -80,34 +84,20 @@ public class InsertionOperation extends Operation {
 	}
 
 	/**
-	 * @return A list of (previous item, current item, next item).
-	 * If current item is at the edge, then a side item will be null.
-	 */
-	private List<Triple<byte[], byte[], byte[]>> preprocess() {
-
-		return IntStream.range(0, infoList.size())
-				.mapToObj(i -> new ImmutableTriple<>(
-						i - 1 >= 0 ? infoList.get(i - 1) : null,
-						infoList.get(i),
-						i + 1 < infoList.size() ? infoList.get(i + 1) : null))
-				.collect(Collectors.toList());
-	}
-
-	/**
-	 * @param tripleList
+	 * @param infoList
 	 * @param logger
 	 * @return A pair of (encrypted entry list, its block number)
 	 * @throws Util.EncryptionException
 	 * @throws SQLException
 	 */
-	private Pair<List<byte[]>, Integer> storeHeaderAndReturnData(List<Triple<byte[], byte[], byte[]>> tripleList, Logger logger) throws Util.EncryptionException, SQLException {
-		HashTree tree = new HashTree(tripleList.stream().map(Util::hash).toArray(String[]::new));
+	private Pair<List<byte[]>, Integer> storeHeaderAndReturnData(List<byte[]> infoList, Logger logger) throws Util.EncryptionException, SQLException {
+		HashTree tree = new HashTree(infoList.stream().map(Util::hash).toArray(String[]::new));
 		String root = tree.toString();
 		SecretKey key = makeSymmetricKey(root);
 
 		List<byte[]> encryptedList = new ArrayList<>();
 
-		for (Triple<byte[], byte[], byte[]> x : tripleList) {
+		for (byte[] x : infoList) {
 			byte[] encrypt = encrypt(Util.serToString(x).getBytes(), key);
 			encryptedList.add(encrypt);
 		}
@@ -193,10 +183,10 @@ public class InsertionOperation extends Operation {
 		esRestClient.connectToEs();
 		if(DEBUG){
 			System.err.print("InsertionOp::checkEsBlolck::Ori :[ "); encryptList.stream()
-					.forEach(x -> System.err.print(hash(x).substring(0,10)+", "));
+					.forEach(x -> System.err.print(hash(x).substring(0,5)+", "));
 			System.err.println(" ]");
 			System.err.print("InsertionOp::checkEsBlolck::Res :[ "); esRestClient.getBlockByteArray(indexName, blockNumber).stream()
-					.forEach(x -> System.err.print(hash(x).substring(0,10)+", "));
+					.forEach(x -> System.err.print(hash(x).substring(0,5)+", "));
 			System.err.println(" ]");
 			System.err.println("InsertionOp::isSame? :"+esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber)));
 		}
