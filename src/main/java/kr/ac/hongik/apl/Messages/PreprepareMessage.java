@@ -66,10 +66,10 @@ public class PreprepareMessage implements Message {
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
-	public boolean equals(PreprepareMessage obj) {
-		return this.data.digest.equals(obj.data.digest) &&
-				this.data.seqNum == obj.data.seqNum &&
-				this.data.viewNum == obj.data.viewNum;
+	public boolean equals(PrepareMessage obj) {
+		return this.data.digest.equals(obj.getDigest()) &&
+				this.data.seqNum == obj.getSeqNum() &&
+				this.data.viewNum == obj.getViewNum();
 	}
 
 	public int getViewNum() {

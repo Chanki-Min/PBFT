@@ -191,6 +191,9 @@ public class Replica extends Connector {
 				else
 					handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
+				if (DEBUG) {
+					System.err.println("got prepareMessage #" + ((PrepareMessage) message).getSeqNum() + "viewNum : " + ((PrepareMessage) message).getViewNum() + " from " + ((PrepareMessage) message).getReplicaNum());
+				}
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
@@ -659,6 +662,7 @@ public class Replica extends Connector {
 					System.err.println("I'm New Primary!");
 				}
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
+				logger.insertMessage(newViewMessage);
 				getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
 			} else if (hasTwoFPlusOneMessages(message)) {
 				/* 2f + 1개 이상의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
@@ -666,16 +670,25 @@ public class Replica extends Connector {
 				Timer timer = new Timer();
 				timer.schedule(task, TIMEOUT * (message.getNewViewNum() + 1 - this.getViewNum()));
 
-				String key = "view: " + (message.getNewViewNum() + 1);
-				timerMap.put(key, timer);
+				timerMap.put(generateTimerKey(message.getNewViewNum() + 1), timer);
 			} else {
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
+				String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ? ";
+				try (var pstmt = logger.getPreparedStatement(isAlreadyInsertedQuery)) {
+					pstmt.setInt(1, message.getNewViewNum());
+					pstmt.setInt(2, getMyNumber());
+					ResultSet rs = pstmt.executeQuery();
+					rs.next();
+					if (rs.getInt(1) != 0) {
+						return;
+					}
+				}
 
 				List<Integer> newViewList;
 				String query = "SELECT V.newViewNum from Viewchanges V WHERE V.newViewNum > ?";
 				try (var pstmt = logger.getPreparedStatement(query)) {
-					pstmt.setInt(1, this.getMyNumber());
+					pstmt.setInt(1, this.getViewNum());
 					ResultSet rs = pstmt.executeQuery();
 					newViewList = JdbcUtils.toStream(rs)
 							.map(rethrow().wrapFunction(x -> x.getString(1)))
@@ -691,6 +704,7 @@ public class Replica extends Connector {
 							message.getLastCheckpointNum(), minNewViewNum, this,
 							getPreparedStatementFn);
 					getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
+					removeViewChangeTimer();
 				}
 			}
 		} catch (SQLException e) {
@@ -698,6 +712,9 @@ public class Replica extends Connector {
 		}
 	}
 
+	public String generateTimerKey(int newViewNum) {
+		return "view: " + (newViewNum);
+	}
 	public int getMyNumber() {
 		return this.myNumber;
 	}
@@ -783,6 +800,11 @@ public class Replica extends Connector {
 	private void handleNewViewMessage(NewViewMessage message) {
 		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum())
 			return;
+		if (DEBUG) {
+			System.err.println("Pass newview verify");
+		}
+		removeViewChangeTimer();
+		removeNewViewTimer(message.getNewViewNum());
 
 		setViewChangePhase(false);
 
@@ -805,5 +827,29 @@ public class Replica extends Connector {
 
 	public Map<String, Timer> getTimerMap() {
 		return timerMap;
+	}
+
+	public void removeNewViewTimer(int newViewNum) {
+		List<String> deletableKeys = getTimerMap()
+				.entrySet()
+				.stream()
+				.filter(x -> x.getKey().equals(generateTimerKey(newViewNum)))
+				.peek(x -> x.getValue().cancel())
+				.map(x -> x.getKey())
+				.collect(Collectors.toList());
+
+		getTimerMap().entrySet().removeAll(deletableKeys);
+	}
+
+	public void removeViewChangeTimer() {
+		List<String> deletableKeys = getTimerMap()
+				.entrySet()
+				.stream()
+				.filter(x -> !x.getKey().startsWith("view: "))
+				.peek(x -> x.getValue().cancel())
+				.map(x -> x.getKey())
+				.collect(Collectors.toList());
+
+		getTimerMap().entrySet().removeAll(deletableKeys);
 	}
 }

@@ -2,9 +2,6 @@ package kr.ac.hongik.apl.Messages;
 
 import kr.ac.hongik.apl.Replica;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import static com.diffplug.common.base.Errors.rethrow;
 
 public class ViewChangeTimerTask extends java.util.TimerTask {
@@ -27,28 +24,9 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 			System.err.println("Enter ViewChange Phase");
 		}
 		//Cancel and remove newViewNum'th timer
-		List<String> deletableKeys = replica.getTimerMap()
-				.entrySet()
-				.stream()
-				.filter(x -> x.getKey().equals("view: " + newViewNum))
-				.peek(x -> x.getValue().cancel())
-				.map(x -> x.getKey())
-				.collect(Collectors.toList());
 
-		replica.getTimerMap().entrySet().removeAll(deletableKeys);
-
-		//Cancel and remove view change timers made by backups
-		deletableKeys = replica.getTimerMap()
-				.entrySet()
-				.stream()
-				.filter(x -> !x.getKey().startsWith("view: "))
-				.peek(x -> x.getValue().cancel())
-				.map(x -> x.getKey())
-				.collect(Collectors.toList());
-
-		replica.getTimerMap().entrySet().removeAll(deletableKeys);
-
-
+		replica.removeNewViewTimer(newViewNum);
+		replica.removeViewChangeTimer();
 
 		var keySet = replica.getTimerMap().keySet();
 		keySet.removeAll(keySet);
