@@ -61,11 +61,11 @@ public class ViewChangeMessage implements Message {
 			pmList.add(makePmOrNull(i, preparedStatement, getMaximumFaulty));
 		}
 
-		pmList = Arrays.stream(watermarkRange)
+		/*pmList = Arrays.stream(watermarkRange)
 				.boxed()
 				.map(suppress().wrapWithDefault(i -> makePmOrNull(i, preparedStatement, getMaximumFaulty), null))
 				.collect(Collectors.toList());
-
+		*/
 		return pmList.stream().filter(Objects::nonNull).collect(Collectors.toList());
 	}
 
@@ -76,12 +76,12 @@ public class ViewChangeMessage implements Message {
 		List<PrepareMessage> prepareList;
 		int maxViewNum;
 
-
 		String query = "SELECT P1.digest, P1.data, P1.viewNum FROM Preprepares P1 " +
-				"WHERE P1.viewNum = (SELECT MAX(P2.viewNum) FROM Preprepares P2 WHERE P2.seqNum = ?)";
+				"where P1.seqNum = ? and P1.viewNum = (SELECT MAX(viewNum) from Preprepares P2 where P2.seqNum = ?)";
 
 		try (var pstmt = preparedStatement.apply(query)) {
 			pstmt.setInt(1, seqNum);
+			pstmt.setInt(2, seqNum);
 			var ret = pstmt.executeQuery();
 			if (ret.next()) {
 				maxViewNum = ret.getInt(3);
@@ -186,7 +186,7 @@ public class ViewChangeMessage implements Message {
 		checkList[1] = data.checkPointMessages.stream().anyMatch(cpMsg -> cpMsg.getReplicaNum() == data.replicaNum);
 		//verify the set C has over 2f+1 checkPointMsgs. that has same digest with (own checkPointMsg) & (lastCheckPointNum)
 		checkList[2] = data.checkPointMessages.stream()
-				.filter(cpMsg -> cpMsg.getDigest() == replicaDigest)
+				.filter(cpMsg -> cpMsg.getDigest().equals(replicaDigest))
 				.filter(cpMsg -> cpMsg.getSeqNum() == data.lastCheckpointNum - 1)
 				.count() > 2 * maximumFaulty;
 
@@ -200,11 +200,11 @@ public class ViewChangeMessage implements Message {
 						.count() == pm.prepareMessages.size());
 
 		//check each Pm has valid prepareMsg for corresponding	pre-prepareMsg
-		checkList[5] = data.messageList.parallelStream()
+		checkList[5] = data.messageList.stream()
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getViewNum() == pm.preprepareMessage.getViewNum()))
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getSeqNum() == pm.preprepareMessage.getSeqNum()))
-				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getDigest() == pm.preprepareMessage.getDigest()))
-				.collect(Collectors.toList()).size() == data.messageList.size();
+				.count() == data.messageList.size();
+
 		return Arrays.stream(checkList).allMatch(x -> x);
 	}
 
