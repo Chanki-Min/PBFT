@@ -804,7 +804,7 @@ public class Replica extends Connector {
 			System.err.println("Pass newview verify");
 		}
 		removeViewChangeTimer();
-		removeNewViewTimer(message.getNewViewNum());
+		removeNewViewTimer(message.getNewViewNum() + 1);
 
 		setViewChangePhase(false);
 
