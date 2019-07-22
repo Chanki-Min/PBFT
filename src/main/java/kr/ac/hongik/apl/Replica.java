@@ -200,9 +200,6 @@ public class Replica extends Connector {
 				}
 				handleCheckPointMessage((CheckPointMessage) message);
 			} else if (message instanceof ViewChangeMessage) {
-				if (DEBUG) {
-					System.err.println("got ViewChangeMessage : new view #" + ((ViewChangeMessage) message).getNewViewNum() + " from " + ((ViewChangeMessage) message).getReplicaNum());
-				}
 				handleViewChangeMessage((ViewChangeMessage) message);
 			} else if (message instanceof NewViewMessage) {
 				if (DEBUG) {
@@ -650,12 +647,17 @@ public class Replica extends Connector {
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT))
 			return;
-
+		if (DEBUG) {
+			System.err.println("got ViewChangeMessage : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
+		}
 		logger.insertMessage(message);
 
 		try {
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {
 				/* 정확히 2f + 1개일 때만 broadcast */
+				if (DEBUG) {
+					System.err.println("I'm New Primary!");
+				}
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
 				getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
 			} else if (hasTwoFPlusOneMessages(message)) {

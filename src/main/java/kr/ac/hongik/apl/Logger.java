@@ -339,7 +339,7 @@ public class Logger {
 	}
 
 	private void insertViewChangeMessage(ViewChangeMessage message) {
-		String query = "INSERT INTO ViewChanges (?, ?, ?, ?, ?, ?)";
+		String query = "INSERT INTO ViewChanges VALUES (?, ?, ?, ?, ?, ?)";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			pstmt.setInt(2, message.getLastCheckpointNum());
@@ -355,7 +355,7 @@ public class Logger {
 	}
 
 	private void insertNewViewMessage(NewViewMessage message) {
-		String query = "INSERT INTO NewViewMessages (?, ?)";
+		String query = "INSERT INTO NewViewMessages VALUES (?, ?)";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			pstmt.setString(2, serToString(message));
