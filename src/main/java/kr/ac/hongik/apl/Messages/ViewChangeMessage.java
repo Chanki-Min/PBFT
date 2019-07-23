@@ -91,13 +91,15 @@ public class ViewChangeMessage implements Message {
 		} catch (SQLException e) {
 			return null;
 		}
-		//TODO : PrepareList size가 3이어야 하는데 1이 나옴
-		query = "SELECT data FROM Prepares " +
-				"WHERE seqNum = ? AND viewNum = ? GROUP BY digest HAVING count(*) > ? ";
+		query = "SELECT p1.data FROM Prepares AS p1 " +
+				"WHERE p1.seqNum = ? AND p1.viewNum = ? AND " +
+				"p1.digest = (SELECT digest FROM Prepares AS p2 WHERE p2.seqNum = ? AND p2.viewNum = ? GROUP BY p2.digest HAVING count(digest) > ?)";
 		try (var pstmt = preparedStatement.apply(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, maxViewNum);
-			pstmt.setInt(3, 2 * getMaximumFaulty);
+			pstmt.setInt(3, seqNum);
+			pstmt.setInt(4, maxViewNum);
+			pstmt.setInt(5, 2 * getMaximumFaulty);
 			try (var ret = pstmt.executeQuery()) {
 
 				prepareList = JdbcUtils.toStream(ret)
@@ -174,24 +176,34 @@ public class ViewChangeMessage implements Message {
 	public boolean isVerified(PublicKey publicKey, int maximumFaulty, int WATERMARK_UNIT) {
 
 		Boolean[] checkList = new Boolean[6];
-		String replicaDigest = data.checkPointMessages.stream()
-				.filter(x -> x.getReplicaNum() == data.replicaNum)
-				.findFirst()
-				.get()
-				.getDigest();
 
 		checkList[0] = verify(publicKey);
 
-		//verify the set C has own checkPointMsg
-		checkList[1] = data.checkPointMessages.stream().anyMatch(cpMsg -> cpMsg.getReplicaNum() == data.replicaNum);
-		//verify the set C has over 2f+1 checkPointMsgs. that has same digest with (own checkPointMsg) & (lastCheckPointNum)
-		checkList[2] = data.checkPointMessages.stream()
-				.filter(cpMsg -> cpMsg.getDigest().equals(replicaDigest))
-				.filter(cpMsg -> cpMsg.getSeqNum() == data.lastCheckpointNum - 1)
-				.count() > 2 * maximumFaulty;
+		if (this.getLastCheckpointNum() != 0) {
+			String replicaDigest = data.checkPointMessages.stream()
+					.filter(x -> x.getReplicaNum() == data.replicaNum)
+					.findFirst()
+					.get()
+					.getDigest();
 
-		//check messageList aren't bigger than WATERMARK_UNIT. !!!!need more verification!!!!
-		checkList[3] = data.messageList.size() <= WATERMARK_UNIT;
+			//verify the set C has own checkPointMsg
+			checkList[1] = data.checkPointMessages.stream().anyMatch(cpMsg -> cpMsg.getReplicaNum() == data.replicaNum);
+			//verify the set C has over 2f+1 checkPointMsgs. that has same digest with (own checkPointMsg) & (lastCheckPointNum)
+			checkList[2] = data.checkPointMessages.stream()
+					.filter(cpMsg -> cpMsg.getDigest().equals(replicaDigest))
+					.filter(cpMsg -> cpMsg.getSeqNum() == data.lastCheckpointNum - 1)
+					.count() > 2 * maximumFaulty;
+		} else if (this.getCheckPointMessages().size() == 0) {
+			//when lastCheckPointNum == 0, check whether CheckPointMsgs's size is 0. to cover case when viewChange occurs before first GC
+			checkList[1] = checkList[2] = true;
+		} else {
+			checkList[1] = checkList[2] = false;
+		}
+
+		//check All Pm's pre-prepare messages are in range [lastCheckPointNumber , lastCheckPointNumber + WATERMARK_UNIT)
+		checkList[3] = data.messageList.stream()
+				.map(Pm -> Pm.getPreprepareMessage())
+				.allMatch(pp -> this.getLastCheckpointNum() <= pp.getSeqNum() && pp.getSeqNum() < this.getLastCheckpointNum() + WATERMARK_UNIT);
 
 		//check each Pm's prePareMsg has distinct replica number (i)
 		checkList[4] = data.messageList.stream()
