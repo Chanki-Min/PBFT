@@ -16,7 +16,11 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		this.newViewNum = newViewNum;
 	}
 
-
+	/*
+	TODO:
+	 비동기로 터지다보니 GC 하는 중에 터져서 다른 레플리카들이랑 stable checkpoint가 다름(Checkpoint message list size = 0)
+	 이 경우 처리해줘야 함
+	 */
 	@Override
 	public void run() {
 		replica.setViewChangePhase(true);

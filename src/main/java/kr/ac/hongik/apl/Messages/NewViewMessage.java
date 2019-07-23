@@ -32,10 +32,14 @@ public class NewViewMessage implements Message {
 		this.signature = signature;
 	}
 
+	//TODO: Timeout 돼서 재전송된 request 메시지의 prepre를 newviewmessage에 담지 못함
 	public static NewViewMessage makeNewViewMessage(Replica replica, int newViewNum) throws SQLException {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
+		if (DEBUG) {
+			System.err.println("making new view message operationList size : " + operationList.size());
+		}
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
 
@@ -71,6 +75,7 @@ public class NewViewMessage implements Message {
 		/*
 			received_pre_prepares: Stream of Pre-prepare Msg that was in set of viewChangeMessages
 		 */
+		//TODO: distinct가 안 돼서 received_pre_prepares size가 6이 나옴. 원래 2이어야 함
 		List<PreprepareMessage> received_pre_prepares = viewChangeMessages.stream()
 				.map(v -> v.getMessageList())
 				.flatMap(pm -> pm.stream())
@@ -127,7 +132,7 @@ public class NewViewMessage implements Message {
 		checklist[0] = this.verify(keymap.get(replica.getReplicaMap().get(newPrimaryNum)));
 
 		checklist[1] = this.getViewChangeMessageList().stream()
-				.allMatch(v -> verify(keymap.get(replica.getReplicaMap().get(v.getReplicaNum()))));
+				.allMatch(v -> v.verify(keymap.get(replica.getReplicaMap().get(v.getReplicaNum()))));
 
 		List<PrepareMessage> agreed_prepares = this.getViewChangeMessageList()
 				.stream()
@@ -140,9 +145,8 @@ public class NewViewMessage implements Message {
 				.filter(pp -> pp.getDigest() != null)
 				.filter(pp -> agreed_prepares.stream()
 						.filter(p -> p.equals(pp))
-						.filter(p -> p.verify(keymap.get(p.getReplicaNum())))
-						.count() > 2 * replica.getMaximumFaulty()
-				)
+						.filter(p -> p.verify(keymap.get(replica.getReplicaMap().get(p.getReplicaNum()))))
+						.count() > 2 * replica.getMaximumFaulty())
 				.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();
 
 		checklist[3] = this.getOperationList()

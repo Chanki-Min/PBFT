@@ -91,7 +91,7 @@ public class ViewChangeMessage implements Message {
 		} catch (SQLException e) {
 			return null;
 		}
-
+		//TODO : PrepareList size가 3이어야 하는데 1이 나옴
 		query = "SELECT data FROM Prepares " +
 				"WHERE seqNum = ? AND viewNum = ? GROUP BY digest HAVING count(*) > ? ";
 		try (var pstmt = preparedStatement.apply(query)) {
