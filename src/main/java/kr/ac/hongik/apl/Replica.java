@@ -118,7 +118,7 @@ public class Replica extends Connector {
 
 		Message message;
 
-		Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class, ViewChangeMessage.class};
+		Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class};
 		Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(shouldCheckWaterMark).anyMatch(msgType -> msgType.isInstance(msg));
 		Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
 		Predicate<Message> isBlockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
@@ -672,9 +672,11 @@ public class Replica extends Connector {
 
 				timerMap.put(generateTimerKey(message.getNewViewNum() + 1), timer);
 			} else {
+				//TODO: isAlreadyInsertedQuerty 삭제, 대신 viewChangeFlag가 high이면 리턴시킬 것 (이 단계는 아직 viewChangeMsg를 보내지 않았을 경우에 실행해야 함
+
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
-				String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ? ";
+				String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ?";
 				try (var pstmt = logger.getPreparedStatement(isAlreadyInsertedQuery)) {
 					pstmt.setInt(1, message.getNewViewNum());
 					pstmt.setInt(2, getMyNumber());
@@ -685,20 +687,21 @@ public class Replica extends Connector {
 					}
 				}
 
-				List<Integer> newViewList;
+				List<Integer> newViewNumList;
 				String query = "SELECT V.newViewNum from Viewchanges V WHERE V.newViewNum > ?";
 				try (var pstmt = logger.getPreparedStatement(query)) {
 					pstmt.setInt(1, this.getViewNum());
 					ResultSet rs = pstmt.executeQuery();
-					newViewList = JdbcUtils.toStream(rs)
+					newViewNumList = JdbcUtils.toStream(rs)
 							.map(rethrow().wrapFunction(x -> x.getString(1)))
 							.map(Integer::valueOf)
 							.sorted()
 							.collect(Collectors.toList());
 				}
-				int minNewViewNum = newViewList.stream().min(Integer::min).get();
+				int minNewViewNum = newViewNumList.stream().min(Integer::min).get();
 
-				if (newViewList.size() == getMaximumFaulty() + 1) {
+				if (newViewNumList.size() == getMaximumFaulty() + 1) {
+					this.setViewChangePhase(true);
 					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
 					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
 							message.getLastCheckpointNum(), minNewViewNum, this,
@@ -734,9 +737,10 @@ public class Replica extends Connector {
 
 	/**
 	 * @param message View-change message
-	 * @return true if DB has f + 1 same view number messages else false
+	 * @return true if DB has 2f + 1 same view number messages else false
 	 */
 	private boolean hasTwoFPlusOneMessages(ViewChangeMessage message) {
+		//TODO: 같은 replica로부터 newViewNum이 같지만, 내용이 다른 메세지를 받을 경우의 핸들링 (newViewNum 같고, replica 같으면 메세지 1개로 쳐서 계산해야 함)
 		String query = "SELECT V.newViewNum FROM Viewchanges V WHERE V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query)) {
 			pstmt.setInt(1, message.getNewViewNum());
@@ -776,7 +780,7 @@ public class Replica extends Connector {
 			if (ret.next())
 				checklist[0] = ret.getInt(1) == 1;
 		}
-
+		//TODO: 같은 replica로부터 newViewNum이 같지만, 내용이 다른 메세지를 받을 경우의 핸들링 (newViewNum 같고, replica 같으면 메세지 1개로 쳐서 계산해야 함)
 		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query2)) {
 			pstmt.setInt(1, this.myNumber);
@@ -798,8 +802,12 @@ public class Replica extends Connector {
 	}
 
 	private void handleNewViewMessage(NewViewMessage message) {
-		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum())
+		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum()) {
+			if (DEBUG) {
+				System.err.println("Fail newview verify");
+			}
 			return;
+		}
 		if (DEBUG) {
 			System.err.println("Pass newview verify");
 		}
