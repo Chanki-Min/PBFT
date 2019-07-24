@@ -1,0 +1,50 @@
+/*
+ElasticSearch index settings(systemic options) V.alpha
+
+this setting includes system options for this index(mapping)
+
+NOTE: Json Format does not allow comments. So Please Remove comments
+      before use this .json in other applications
+*/
+
+/*
+Description of various options that used at bellow
+
+
+"number_of_shards": "4",
+set number of maximum number of primary_shards.
+if this number BIGGER than actual logical data nodes,
+primary_shards's number will set as number of data nodes.
+and data nodes increases, number of primary_shards will increase until it become same to
+original setting number (4 in this case)
+
+"number_of_replicas": "3"
+set number of maximum number of replica_shards.
+if this number BIGGER than actual logical (data nodes - 1),
+replica_shards's number will set as number of (data nodes - 1).
+and data nodes increases, number of replica_shards will increase until it become same to
+original setting number (3 in this case)
+
+"merge.scheduler.max_thread_count": "1"
+The maximum number of threads on a single shard that may be merging at once.
+Defaults to Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2))
+which works well for a good solid-state-disk (SSD).
+If your index is on spinning platter drives instead, decrease this to 1.
+
+Reference:
+https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html
+https://www.elastic.co/guide/en/elasticsearch/reference/7.2/indices-create-index.html
+*/
+{
+//"settings": {
+    "index": {
+      "number_of_shards": "4",
+      "number_of_replicas": "3",
+      "merge": {
+        "scheduler": {
+          "max_thread_count": "1"
+        }
+      }
+    }
+//}
+}

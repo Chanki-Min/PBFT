@@ -1,0 +1,18 @@
+{
+  "dynamic": "strict",
+  "properties": {
+    "block_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false
+    },
+    "encrypt_data": {
+      "type": "binary"
+    },
+    "entry_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false
+    }
+  }
+}

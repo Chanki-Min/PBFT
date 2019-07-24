@@ -1,0 +1,107 @@
+/*
+ElasticSearch index mapping(schema) V.alpha
+
+this mapping includes  blockMETA data + encrypted data + imaginary plain data
+
+NOTE: Json Format does not allow comments. So Please Remove comments
+      before use this .json in other applications
+*/
+
+/*
+Description of various options that used at bellow
+
+"dynamic": "strict"
+strict means DO NOT allow auto-filed-generation
+
+"ignore_malformed": true
+If true, malformed numbers are ignored. If false (default),
+malformed numbers throw an exception and reject the whole document.
+
+
+"coerce": false
+Try to convert strings to numbers and truncate fractions for integers.
+Accepts true (default) and false
+
+
+"ignore_above": 50
+Do not index any string longer than this value.
+Defaults to 2147483647 so that all values would be accepted.
+Please however note that default dynamic mapping rules create a sub keyword field
+that overrides this default by setting ignore_above: 256.
+
+
+"index": true
+Should the field be searchable? Accepts true (default) and false
+
+"null_value": "NULL"
+Accepts a date value in one of the configured format's as the field which is substituted for any explicit null values.
+Defaults to null, which means the field is treated as missing.
+
+
+"format": "yyyy-MM-dd HH:mm:ss||epoch_millis"
+The date format(s) that can be parsed. Defaults to strict_date_optional_time||epoch_millis.
+
+
+Reference: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html
+*/
+{
+//"mapping": {
+    "dynamic": "strict",
+    "properties": {
+      //block META data
+      "block_number": {
+        "type": "long",
+        "ignore_malformed": true,
+        "coerce": false
+      },
+      "entry_number": {
+        "type": "long",
+        "ignore_malformed": true,
+        "coerce": false
+      },
+      //cipher data (Base64 encoded String)
+      "encrypt_data": {
+        "type": "binary"
+      },
+      //imaginary plain data
+      "real_name": {
+        "type": "keyword",
+        "ignore_above": 50,
+        "index": true,
+        "null_value": "NULL"
+      },
+      "user_name": {
+        "type": "keyword",
+        "ignore_above": 50,
+        "index": true,
+        "null_value": "NULL"
+      },
+      "start_time": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
+        "ignore_malformed": true,
+        "index": true,
+        "null_value": "NULL"
+      },
+      "end_time": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
+        "ignore_malformed": true,
+        "index": true,
+        "null_value": "NULL"
+      },
+      "start_location": {
+        "type": "geo_point",
+        "ignore_malformed": true,
+        "ignore_z_value": true,
+        "index": true
+      },
+      "end_location": {
+        "type": "geo_point",
+        "ignore_malformed": true,
+        "ignore_z_value": true,
+        "index": true
+      }
+//  }
+  }
+}
