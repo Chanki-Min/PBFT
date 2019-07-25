@@ -740,8 +740,7 @@ public class Replica extends Connector {
 	 * @return true if DB has 2f + 1 same view number messages else false
 	 */
 	private boolean hasTwoFPlusOneMessages(ViewChangeMessage message) {
-		//TODO: 같은 replica로부터 newViewNum이 같지만, 내용이 다른 메세지를 받을 경우의 핸들링 (newViewNum 같고, replica 같으면 메세지 1개로 쳐서 계산해야 함)
-		String query = "SELECT V.newViewNum FROM Viewchanges V WHERE V.newViewNum = ?";
+		String query = "SELECT newViewNum FROM ( SELECT DISTINCT V.replica, V.newViewNum FROM Viewchanges V WHERE V.newViewNum = ? )";
 		try (var pstmt = logger.getPreparedStatement(query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			var ret = pstmt.executeQuery();
@@ -780,8 +779,7 @@ public class Replica extends Connector {
 			if (ret.next())
 				checklist[0] = ret.getInt(1) == 1;
 		}
-		//TODO: 같은 replica로부터 newViewNum이 같지만, 내용이 다른 메세지를 받을 경우의 핸들링 (newViewNum 같고, replica 같으면 메세지 1개로 쳐서 계산해야 함)
-		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
+		String query2 = "SELECT count(*) FROM ( SELECT DISTINCT V.replica FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ? )";
 		try (var pstmt = logger.getPreparedStatement(query2)) {
 			pstmt.setInt(1, this.myNumber);
 			pstmt.setInt(2, message.getNewViewNum());
