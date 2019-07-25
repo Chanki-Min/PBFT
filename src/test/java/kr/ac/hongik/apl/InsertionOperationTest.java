@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.ES.AsynchronousInsertionThread;
+import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.GetBlockOperation;
@@ -19,11 +20,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
-import java.util.stream.LongStream;
+import java.util.*;
+import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
 
@@ -41,7 +39,7 @@ public class InsertionOperationTest {
 
 	@Test
 	public void ManyManyAsyncInsertionTest(){
-		final int loop = 1;
+		final int loop = 10;
 
 		long[] eachTookTime = new long[loop];
 		for(int i=0; i<loop; i++){
@@ -88,14 +86,16 @@ public class InsertionOperationTest {
 		final int entryNumber = 128;
 		final long sleepTime = 0;
 		int blockNumberToGet;
-
-		List<byte[]> testData = new ArrayList<>();
+		EsJsonParser parser = new EsJsonParser();
+		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		try {
 			blockNumberToGet = getLatestBlockNumber(indexName) +1;
 			System.err.println("blockNumber2Get :"+blockNumberToGet);
-			for (int i = 0; i < entryNumber; i++) {
-				String str = "test" + (i+blockNumberToGet);
-				testData.add(str.getBytes());
+			for(int i=0; i<entryNumber; i++) {
+				var map = parser.jsonToMap();
+				map.put("start_time", String.valueOf(System.currentTimeMillis()));
+				sampleUserData.add(map);
 			}
 
 			InputStream in = getClass().getResourceAsStream("/replica.properties");
@@ -104,7 +104,7 @@ public class InsertionOperationTest {
 
 			Client client = new Client(prop);
 
-			Operation insertionOp = new InsertionOperation(client.getPublicKey(), testData);
+			Operation insertionOp = new InsertionOperation(client.getPublicKey(), sampleUserData);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertionOp);
 			client.request(insertRequestMsg);
 			int  result = (int) client.getReply();
@@ -114,18 +114,18 @@ public class InsertionOperationTest {
 			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), blockNumberToGet);
 			RequestMessage getBlockRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getBlockOp);
 			client.request(getBlockRequestMsg);
-			List<byte[]> restoredData = (List<byte[]>) client.getReply();
+			List<Map<String, Object>> restoredData = (List<Map<String, Object>>) client.getReply();
 
 			System.err.print("Original Data : [");
-			testData.stream().forEach(x -> System.err.print(new String(x)+", "));
+			sampleUserData.stream().forEach(x -> System.err.print(x + ", "));
 			System.err.print(" ] \n");
 			System.err.print("Restored Data : [");
-			restoredData.stream().forEach(x -> System.err.print(new String(x)+", "));
+			restoredData.stream().forEach(x -> System.err.print(x + ", "));
 			System.err.print(" ] \n");
 
 			Assertions.assertEquals(blockNumberToGet, result);
-			Assertions.assertTrue(isDataEquals(testData, restoredData));
-			if(isDataEquals(testData, restoredData))
+			Assertions.assertTrue(isListMapSame(sampleUserData, restoredData));
+			if(isListMapSame(sampleUserData, restoredData))
 				return true;
 
 		} catch (IOException | InterruptedException | NoSuchFieldException e) {
@@ -168,15 +168,12 @@ public class InsertionOperationTest {
 			return 0;
 	}
 
-	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
-		if(arr1.size() != arr2.size())
+	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
+		if(ori.size() != res.size())
 			return false;
-		Boolean[] checkList = new Boolean[arr1.size()];
 
-		for(int i=0; i<arr1.size(); i++){
-			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
-		}
-		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
+		return IntStream.range(0, ori.size())
+				.allMatch(i -> ori.get(i).entrySet().stream()
+						.allMatch(e -> e.getValue().equals(res.get(i).get(e.getKey()))));
 	}
-
 }

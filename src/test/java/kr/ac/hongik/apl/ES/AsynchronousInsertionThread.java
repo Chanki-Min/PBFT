@@ -17,10 +17,8 @@ import org.junit.jupiter.api.Assertions;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
+import java.util.stream.IntStream;
 
 public class AsynchronousInsertionThread extends Thread{
 	String indexName = "block_chain";
@@ -36,11 +34,14 @@ public class AsynchronousInsertionThread extends Thread{
 	public void run(){
 		System.err.println("Thread #" + threadID + " Started");
 
-		List<byte[]> testData = new ArrayList<>();
+		EsJsonParser parser = new EsJsonParser();
+		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		try {
-			for (int i = 0; i < maxEntryNumber; i++) {
-				String str = "test" + (i+threadID);
-				testData.add(str.getBytes());
+			for(int i=0; i<maxEntryNumber; i++) {
+				var map = parser.jsonToMap();
+				map.put("start_time", String.valueOf(System.currentTimeMillis()));
+				sampleUserData.add(map);
 			}
 
 			InputStream in = getClass().getResourceAsStream("/replica.properties");
@@ -49,7 +50,7 @@ public class AsynchronousInsertionThread extends Thread{
 
 			Client client = new Client(prop);
 
-			Operation insertionOp = new InsertionOperation(client.getPublicKey(), testData);
+			Operation insertionOp = new InsertionOperation(client.getPublicKey(), sampleUserData);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertionOp);
 			client.request(insertRequestMsg);
 
@@ -58,17 +59,16 @@ public class AsynchronousInsertionThread extends Thread{
 			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), insertedBlockNum);
 			RequestMessage getBlockRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getBlockOp);
 			client.request(getBlockRequestMsg);
-			List<byte[]> restoredData = (List<byte[]>) client.getReply();
+			List<Map<String, Object>> restoredData = (List<Map<String, Object>>) client.getReply();
 
-			System.err.print("Thread #" + threadID + " : Original Data : [");
-			testData.stream().forEach(x -> System.err.print(new String(x)+", "));
+			System.err.print("Original Data : [");
+			sampleUserData.stream().forEach(x -> System.err.print(x + ", "));
 			System.err.print(" ] \n");
-			System.err.print("Thread #" + threadID + " : Restored Data : [");
-			restoredData.stream().forEach(x -> System.err.print(new String(x)+", "));
+			System.err.print("Restored Data : [");
+			restoredData.stream().forEach(x -> System.err.print(x + ", "));
 			System.err.print(" ] \n");
 
-			Assertions.assertTrue(isDataEquals(testData, restoredData));
-
+			Assertions.assertTrue(isListMapSame(sampleUserData, restoredData));
 		} catch (IOException e) {
 			throw new Error(e);
 		}
@@ -108,6 +108,15 @@ public class AsynchronousInsertionThread extends Thread{
 			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
 		}
 		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
+	}
+
+	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
+		if(ori.size() != res.size())
+			return false;
+
+		return IntStream.range(0, ori.size())
+				.allMatch(i -> ori.get(i).entrySet().stream()
+						.allMatch(e -> e.getValue().equals(res.get(i).get(e.getKey()))));
 	}
 }
 

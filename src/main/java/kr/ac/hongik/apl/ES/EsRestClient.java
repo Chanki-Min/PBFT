@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.ES;
 
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -17,9 +18,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.*;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
@@ -117,77 +117,11 @@ public class EsRestClient {
 	}
 
 	/**
-	 * @param indexName
-	 * @throws IOException
-	 * @throws EsException	throws when creadtion failed
-	 * @throws EsConcurrencyException throws when index already created by other replicas
-	 */
-	public void createIndex(String indexName) throws IOException, EsException, EsConcurrencyException{
-
-		if (!isIndexExists(indexName)) {
-
-			XContentBuilder mappingBuilder = new XContentFactory().jsonBuilder();
-			mappingBuilder.startObject();
-			{
-				mappingBuilder.startObject("properties");
-				{
-					mappingBuilder.startObject("block_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);            //forbid auto-casting String to Integer
-						mappingBuilder.field("ignore_malformed", true);    //forbid non-numeric values
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("entry_number");
-					{
-						mappingBuilder.field("type", "long");
-						mappingBuilder.field("coerce", false);
-						mappingBuilder.field("ignore_malformed", true);
-					}
-					mappingBuilder.endObject();
-
-					mappingBuilder.startObject("encrypt_data");
-					{
-						mappingBuilder.field("type", "binary");
-					}
-					mappingBuilder.endObject();
-				}
-				mappingBuilder.endObject();
-				mappingBuilder.field("dynamic", "strict");    //forbid auto field creation
-			}
-			mappingBuilder.endObject();
-			XContentBuilder settingsBuilder = new XContentFactory().jsonBuilder();
-			settingsBuilder.startObject();
-			{
-				settingsBuilder.field("index.number_of_shards", 4);
-				settingsBuilder.field("index.number_of_replicas", 3);
-				settingsBuilder.field("index.merge.scheduler.max_thread_count", 1);
-			}
-			settingsBuilder.endObject();
-
-			CreateIndexRequest request = new CreateIndexRequest(indexName);
-			request.mapping(mappingBuilder);
-			request.settings(settingsBuilder);
-
-			try {
-				CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
-				if(response.isAcknowledged()){
-					System.out.println(indexName + " CREATED to Cluster");
-				}else{
-					throw new EsException("Cannot CREATE "+indexName);
-				}
-			}catch (ElasticsearchStatusException e){
-				throw new EsConcurrencyException(e.getMessage());
-			}
-
-		}
-	}
-
-	/**
+	 * This store PlainData + encData
 	 * @param indexName
 	 * @param blockNumber
-	 * @param encDatas
+	 * @param plainDataList original userData
+	 * @param encData
 	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
 	 * @return	ElasticSearch's BulkResponse instance of  data-insertion
 	 * @throws IOException
@@ -195,8 +129,8 @@ public class EsRestClient {
 	 * @throws EsConcurrencyException
 	 * throws when headDocument of (indexName,BlockNumber) already exists.
 	 * that means other replica already bulkInserting to certain version, so cancel method
- 	 */
-	public BulkResponse bulkInsertDocument(String indexName, int blockNumber, List<byte[]> encDatas, long versionNumber) throws IOException, EsException, EsConcurrencyException{
+	 */
+	public BulkResponse bulkInsertDocument(String indexName, int blockNumber, List<Map<String, Object>> plainDataList,List<byte[]> encData, long versionNumber) throws IOException, EsException, EsConcurrencyException{
 		if(versionNumber <= getDocumentVersion(indexName,blockNumber,-1))
 			throw new EsConcurrencyException("current version is higher than this");
 
@@ -205,10 +139,16 @@ public class EsRestClient {
 		if(DEBUG)
 			BULKBUFFER = 500;
 		else
-			BULKBUFFER = encDatas.size() + 1;
+			BULKBUFFER = encData.size() + 1;
 
 		if(!this.isIndexExists(indexName))
 			throw new EsException("index :"+indexName+" does not exists");
+
+		//Check plainDataList's mapping equals to Index's mapping
+		Set indexKeySet = getFieldKeySet(indexName); indexKeySet.remove("block_number"); indexKeySet.remove("entry_number"); indexKeySet.remove("encrypt_data");
+		if(!plainDataList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
+			throw new EsException("index :"+indexName+" field mapping does NOT equal to given plainDataList ketSet");
+
 
 		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
 		try {
@@ -221,20 +161,23 @@ public class EsRestClient {
 			throw new EsConcurrencyException(builder.toString());
 		}
 
-
+		//make query
 		Base64.Encoder encoder = Base64.getEncoder();
 		BulkRequest request = new BulkRequest();
 		request.setRefreshPolicy("wait_for");	//do not refresh (searchable) index until bulk request finish
-		for(int entryNumber = 0; entryNumber<encDatas.size(); entryNumber++) {
+		for(int entryNumber = 0; entryNumber<encData.size(); entryNumber++) {
 
 			String id = idGenerator(indexName,blockNumber,entryNumber);
-			String base64EncodedData = encoder.encodeToString(encDatas.get(entryNumber));
+			String base64EncodedData = encoder.encodeToString(encData.get(entryNumber));
 			XContentBuilder builder = new XContentFactory().jsonBuilder();
 			builder.startObject();
 			{
 				builder.field("block_number", blockNumber);
 				builder.field("entry_number", entryNumber);
 				builder.field("encrypt_data", base64EncodedData);
+			}
+			for(String plainKey : plainDataList.get(entryNumber).keySet()){
+				builder.field(plainKey, plainDataList.get(entryNumber).get(plainKey));
 			}
 			builder.endObject();
 			request.add(new IndexRequest(indexName).id(id).source(builder).version(versionNumber).versionType(VersionType.EXTERNAL));
@@ -265,11 +208,11 @@ public class EsRestClient {
 	/**
 	 * @param indexName
 	 * @param blockNumber
-	 * @return encrypted_data in #blockNumber th block EXCEPT headDocument
+	 * @return Pair (plain_data_list,encrypted_data) in #blockNumber th block EXCEPT headDocument
 	 * @throws IOException
 	 * @throws EsException
 	 */
-	public List<byte[]> getBlockByteArray(String indexName, int blockNumber) throws IOException, EsException{
+	public Pair<List<Map<String,Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber, boolean trigger) throws IOException, EsException{
 
 		if(!isIndexExists(indexName)){
 			throw new EsException(indexName+ " does not exists");
@@ -294,15 +237,20 @@ public class EsRestClient {
 		request.source(searchSourceBuilder);
 		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
 		SearchHit[] searchHits = response.getHits().getHits();
-		List<byte[]> restoredBytes = new ArrayList<>();
+
+		List<Map<String,Object>> plain_data_list = new ArrayList<>();
+		List<byte[]> encrypt_data_list = new ArrayList<>();
 
 		for(SearchHit searchHit : searchHits){
-			restoredBytes.add(decoder.decode( (String) searchHit.getSourceAsMap().get( "encrypt_data") ) );
+			encrypt_data_list.add(decoder.decode( (String) searchHit.getSourceAsMap().get( "encrypt_data") ) );
+			var plainDataMap = searchHit.getSourceAsMap();
+			plainDataMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
+			plain_data_list.add(plainDataMap);
 		}
-		return restoredBytes;
+		return Pair.of(plain_data_list, encrypt_data_list);
 	}
 
-	public byte[] getBlockEntryByteArray(String indexName, int blockNumber, int entryNumber) throws IOException, EsException{
+	public Pair<Map<String, Object>, byte[]> getBlockEntryDataPair(String indexName, int blockNumber, int entryNumber) throws IOException, EsException{
 
 		if(!isIndexExists(indexName)){
 			throw new EsException(indexName+ " does not exists");
@@ -324,10 +272,13 @@ public class EsRestClient {
 		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
 		SearchHit[] searchHits = response.getHits().getHits();
 
-		byte[] restoredByte;
-		restoredByte = decoder.decode((String) searchHits[0].getSourceAsMap().get("encrypt_data"));
+		byte[] encrypt_data;
+		Map<String, Object> plain_data;
+		encrypt_data = decoder.decode((String) searchHits[0].getSourceAsMap().get("encrypt_data"));
+		plain_data = searchHits[0].getSourceAsMap();
+		plain_data.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
 
-		return restoredByte;
+		return Pair.of(plain_data, encrypt_data);
 	}
 
 	/**
@@ -362,6 +313,15 @@ public class EsRestClient {
 			StringBuilder builder = new StringBuilder();
 			throw new NoSuchFieldException();
 		}
+	}
+
+	public Set getFieldKeySet(String indexName) throws IOException{
+		GetMappingsRequest request = new GetMappingsRequest();
+		request.indices(indexName);
+		GetMappingsResponse response = restHighLevelClient.indices().getMapping(request, RequestOptions.DEFAULT);
+		Map<String, MappingMetaData> mapping = response.mappings();
+		MappingMetaData data = mapping.get(indexName);
+		return  ((Map) data.getSourceAsMap().get("properties")).keySet();
 	}
 
 	public boolean isIndexExists(String indexName) throws IOException{

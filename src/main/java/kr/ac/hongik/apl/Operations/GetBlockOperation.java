@@ -2,7 +2,7 @@ package kr.ac.hongik.apl.Operations;
 
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Logger;
-import org.apache.commons.lang3.tuple.Triple;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -11,6 +11,8 @@ import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
 import static kr.ac.hongik.apl.Util.*;
 
@@ -34,24 +36,27 @@ public class GetBlockOperation extends Operation{
 		}
 	}
 
-	private List<byte[]> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException{
+	private List<Map<String, Object>> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
-		List<byte[]> originalData = new ArrayList<>();
-		List<byte[]> encryptedData = esRestClient.getBlockByteArray("block_chain", blockNumber);
+		List<Map<String, Object>> decryptedData = new ArrayList<>();
+		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair("block_chain", blockNumber, true);
 		SecretKey key = getSecretKey(blockNumber, logger);
 		if(key == null){
 			throw new EncryptionException(new InvalidKeyException("key cannot be null"));
 		}
 
-		for(byte[] x: encryptedData){
+		for(byte[] x: pair.getRight()){
 			byte[] decryptDataByKey = decrypt(x, key);
-			originalData.add(desToObject(new String(decryptDataByKey), byte[].class) );
+			decryptedData.add(desToObject(new String(decryptDataByKey), Map.class));
 		}
 
 		esRestClient.disConnectToEs();
-		return originalData;
+		if(!isListMapSame(pair.getLeft(), decryptedData)){
+			return null;
+		}
+		return decryptedData;
 	}
 
 	private SecretKey getSecretKey(int blockNumber, Logger logger) {
@@ -72,5 +77,14 @@ public class GetBlockOperation extends Operation{
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
+		if(ori.size() != res.size())
+			return false;
+
+		return IntStream.range(0, ori.size())
+				.allMatch(i -> ori.get(i).entrySet().stream()
+						.allMatch(e -> e.getValue().equals(res.get(i).get(e.getKey()))));
 	}
 }

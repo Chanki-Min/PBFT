@@ -14,10 +14,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.io.Serializable;
 import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Util.*;
@@ -25,10 +27,10 @@ import static kr.ac.hongik.apl.Util.*;
 public class InsertionOperation extends Operation {
 	private final boolean DEBUG = true;
 	private final int sleepTime = 3000;
-	private List<byte[]> infoList;
+	private List<Map<String, Object>> infoList;
 	private static final String tableName = "BlockChain";
 
-	public InsertionOperation(PublicKey publickey, List<byte[]> infoList) {
+	public InsertionOperation(PublicKey publickey, List<Map<String, Object>> infoList) {
 		super(publickey);
 		this.infoList = infoList;
 	}
@@ -50,7 +52,7 @@ public class InsertionOperation extends Operation {
 			encryptedList = pair.getLeft();
 			blockNumber = pair.getRight();
 
-			storeToES(encryptedList, blockNumber);
+			storeToES(infoList, encryptedList, blockNumber);
 		} catch (Util.EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException e) {
 			throw new Error(e);
 		} catch (EsRestClient.EsConcurrencyException ignored) {
@@ -59,7 +61,7 @@ public class InsertionOperation extends Operation {
 		//verification stack
 		try {
 			sleep(sleepTime);
-			if(checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber,encryptedList))
+			if(checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber, infoList,encryptedList))
 				return blockNumber;
 			else
 				throw new EsRestClient.EsException("checkEsBlockAndUpdate failed");
@@ -90,15 +92,15 @@ public class InsertionOperation extends Operation {
 	 * @throws Util.EncryptionException
 	 * @throws SQLException
 	 */
-	private Pair<List<byte[]>, Integer> storeHeaderAndReturnData(List<byte[]> infoList, Logger logger) throws Util.EncryptionException, SQLException {
-		HashTree tree = new HashTree(infoList.stream().map(Util::hash).toArray(String[]::new));
+	private Pair<List<byte[]>, Integer> storeHeaderAndReturnData(List<Map<String, Object>> infoList, Logger logger) throws Util.EncryptionException, SQLException {
+		HashTree tree = new HashTree(infoList.stream().map(x -> (Serializable) x).map(Util::hash).toArray(String[]::new));
 		String root = tree.toString();
 		SecretKey key = makeSymmetricKey(root);
 
 		List<byte[]> encryptedList = new ArrayList<>();
 
-		for (byte[] x : infoList) {
-			byte[] encrypt = encrypt(Util.serToString(x).getBytes(), key);
+		for (Map<String, Object> x : infoList) {
+			byte[] encrypt = encrypt(Util.serToString((Serializable) x).getBytes(), key);
 			encryptedList.add(encrypt);
 		}
 		int idx = storeHeaderAndReturnIdx(root, logger);
@@ -155,7 +157,7 @@ public class InsertionOperation extends Operation {
 	 * @throws EsRestClient.EsException
 	 * @throws EsRestClient.EsConcurrencyException throws when other replica already inserting (Indexes or Documents) that has same (indexName,blockNumber,versionNumber)
 	 */
-	private BulkResponse storeToES(List<byte[]> encryptedList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException{
+	private BulkResponse storeToES(List<Map<String, Object>> plainDataList, List<byte[]> encryptedList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
@@ -164,14 +166,15 @@ public class InsertionOperation extends Operation {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_only_cipher.json");
+			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
 			mappingBuilder = parser.jsonToXcontentBuilder(false);
+
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
 			settingBuilder = parser.jsonToXcontentBuilder(false);
 			esRestClient.createIndex("block_chain", mappingBuilder, settingBuilder);
 		}
 
-		BulkResponse bulkResponse = esRestClient.bulkInsertDocument("block_chain", blockNumber, encryptedList, 1);
+		BulkResponse bulkResponse = esRestClient.bulkInsertDocument("block_chain", blockNumber, plainDataList, encryptedList, 1);
 		esRestClient.disConnectToEs();
 		return bulkResponse;
 	}
@@ -181,33 +184,34 @@ public class InsertionOperation extends Operation {
 	 * @param indexName
 	 * @param blockNumber
 	 * @param encryptList List<> of encrypted blockData that originally intended to insert in Es
-	 * @return encryptList.equals(esRestClient.getBlockByteArray(indexName, blockNumber))
+	 * @return encryptList.equals(esRestClient.getBlockDataPair(indexName, blockNumber))
 	 * @throws NoSuchFieldException
 	 * @throws IOException
 	 * @throws EsRestClient.EsException
 	 */
-	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException{
+	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<Map<String, Object>> plainDataList,List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
+		EsJsonParser parser = new EsJsonParser();
 		if(DEBUG){
 			System.err.print("InsertionOp::checkEsBlolck::Ori :[ "); encryptList.stream()
 					.forEach(x -> System.err.print(hash(x).substring(0,5)+", "));
 			System.err.println(" ]");
-			System.err.print("InsertionOp::checkEsBlolck::Res :[ "); esRestClient.getBlockByteArray(indexName, blockNumber).stream()
+			System.err.print("InsertionOp::checkEsBlolck::Res :[ "); esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight().stream()
 					.forEach(x -> System.err.print(hash(x).substring(0,5)+", "));
 			System.err.println(" ]");
-			System.err.println("InsertionOp::isSame? :"+esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber)));
+			System.err.println("InsertionOp::isSame? :"+esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight()));
 		}
 
-		if (esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber)))
+		if (esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight()))
 			return true;
 
 		long currHeadDocVersion = esRestClient.getDocumentVersion(indexName, blockNumber, -1);
 		try {
-			esRestClient.bulkInsertDocument(indexName, blockNumber, encryptList, currHeadDocVersion + 1);
+			esRestClient.bulkInsertDocument(indexName, blockNumber, plainDataList,encryptList, currHeadDocVersion + 1);
 		}catch (EsRestClient.EsConcurrencyException ignore) {
 		}
-		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockByteArray(indexName, blockNumber));
+		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight());
 
 	}
 
