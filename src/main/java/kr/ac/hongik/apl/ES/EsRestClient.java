@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl.ES;
 
 
-import com.owlike.genson.Genson;
 import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -34,11 +33,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.*;
 
 public class EsRestClient {
-
+	private String masterJsonPath = "/ES_MappingAndSetting/master.json";
+	private String masterJsonKey = "masterHostInfo";
 	private List<String> hostNames = new ArrayList<>();
 	private List<Integer> ports = new ArrayList<>();
 	private List<String> hostSchemes = new ArrayList<>();
@@ -337,11 +336,9 @@ public class EsRestClient {
 	 */
 	private void getMasterNodeInfo() throws NoSuchFieldException{
 		try {
-			Genson genson = new Genson();
-			InputStream in = EsRestClient.class.getResourceAsStream("/master.json");
-
-			Map<String, Object> json = genson.deserialize(in, Map.class);
-			ArrayList<HashMap> masterMap = (ArrayList<HashMap>) json.get("masterHostInfo");
+			EsJsonParser esJsonParser = new EsJsonParser();
+			esJsonParser.setFilePath(masterJsonPath);
+			List<Map> masterMap = esJsonParser.listedJsonToList(masterJsonKey);
 
 			Boolean[] checkList = new Boolean[3];
 

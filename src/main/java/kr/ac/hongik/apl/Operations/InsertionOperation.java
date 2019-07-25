@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.Operations;
 
 import kr.ac.hongik.apl.Blockchain.HashTree;
+import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Util;
@@ -9,6 +10,7 @@ import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -16,8 +18,6 @@ import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Util.*;
@@ -160,7 +160,15 @@ public class InsertionOperation extends Operation {
 		esRestClient.connectToEs();
 
 		if(!esRestClient.isIndexExists("block_chain")){
-			esRestClient.createIndex("block_chain");
+			EsJsonParser parser = new EsJsonParser();
+			XContentBuilder mappingBuilder;
+			XContentBuilder settingBuilder;
+
+			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_only_cipher.json");
+			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			settingBuilder = parser.jsonToXcontentBuilder(false);
+			esRestClient.createIndex("block_chain", mappingBuilder, settingBuilder);
 		}
 
 		BulkResponse bulkResponse = esRestClient.bulkInsertDocument("block_chain", blockNumber, encryptedList, 1);
