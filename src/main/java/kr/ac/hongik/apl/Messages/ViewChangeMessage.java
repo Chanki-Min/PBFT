@@ -23,7 +23,7 @@ public class ViewChangeMessage implements Message {
 	private static Replica replica;
 	final Data data;
 	final byte[] signature;
-	static private boolean DEBUG = true;
+
 	private ViewChangeMessage(Data data, byte[] signature, Replica replica) {
 		this.data = data;
 		this.signature = signature;
@@ -32,7 +32,7 @@ public class ViewChangeMessage implements Message {
 
 	public static ViewChangeMessage makeViewChangeMsg(int lastCheckpointNum, int newViewNum, Replica replica,
 													  Function<String, PreparedStatement> preparedStatement) {
-		if (DEBUG) {
+		if (Replica.DEBUG) {
 			System.err.println("lastCheckpointNum : " + lastCheckpointNum + " newViewNum : " + newViewNum + " getMaximumFaulty : " + 1);//replica.getMaximumFaulty());
 		}
 		ViewChangeMessage.replica = replica;
@@ -44,7 +44,7 @@ public class ViewChangeMessage implements Message {
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replica.getMyNumber());
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
-		if (DEBUG) {
+		if (Replica.DEBUG) {
 			System.err.println("Checkpoint size : " + checkPointMessages.size() + " Pm size : " + messageList.size());
 		}
 		return new ViewChangeMessage(data, signature, replica);

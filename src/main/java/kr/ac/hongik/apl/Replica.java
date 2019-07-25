@@ -181,6 +181,9 @@ public class Replica extends Connector {
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 			} else if (message instanceof RequestMessage) {
+				if (DEBUG) {
+					System.err.println("got request");
+				}
 				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
 					loopback(message);
 				else
@@ -191,9 +194,6 @@ public class Replica extends Connector {
 				else
 					handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
-				if (DEBUG) {
-					System.err.println("got prepareMessage #" + ((PrepareMessage) message).getSeqNum() + "viewNum : " + ((PrepareMessage) message).getViewNum() + " from " + ((PrepareMessage) message).getReplicaNum());
-				}
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
 				handleCommitMessage((CommitMessage) message);
@@ -209,8 +209,12 @@ public class Replica extends Connector {
 					System.err.println("got NewViewMessage from " + ((NewViewMessage) message).getNewViewNum());
 				}
 				handleNewViewMessage((NewViewMessage) message);
-			} else
+			} else {
+				if (DEBUG) {
+					System.err.println("Invalid message");
+				}
 				throw new UnsupportedOperationException("Invalid message");
+			}
 		}
 	}
 
@@ -318,10 +322,10 @@ public class Replica extends Connector {
 				/*
 					make primary replica faulty
 				 */
-				int errno = 0;
-				int primaryErrSeqNum = 7;
-				if (seqNum == primaryErrSeqNum) {
-					if (errno == 1) { //primary stops suddenly
+				int errno = 1;
+				int primaryErrSeqNum = 5;
+				if (seqNum == primaryErrSeqNum && this.getMyNumber() == 0) {
+					if (errno == 1) { //primary stops suddenly[
 						primaryStopCase();
 					} else if (errno == 2) { //primary sends bad pre-prepare message which consists of wrong request message
 						primarySendBadPrepreCase(seqNum);
@@ -659,7 +663,7 @@ public class Replica extends Connector {
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {
 				/* 정확히 2f + 1개일 때만 broadcast */
 				if (DEBUG) {
-					System.err.println("I'm New Primary!");
+					System.err.println("I will be New Primary!");
 				}
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
 				logger.insertMessage(newViewMessage);
@@ -802,6 +806,7 @@ public class Replica extends Connector {
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
+	//TODO: 0 -> 1로 view change 후 1번 replica가 새로운 request를 처리하지 못함. -> 2번 view로 넘어간 후 2번 replica가 처리하는 상황 발생. 원인 파악해야함
 	private void handleNewViewMessage(NewViewMessage message) {
 		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum()) {
 			if (DEBUG) {
@@ -827,7 +832,11 @@ public class Replica extends Connector {
 
 		//Execute GC
 		logger.executeGarbageCollection(getWatermarks()[0] - 1);
-
+		if (DEBUG) {
+			if (this.getPrimary() == getMyNumber()) {
+				System.err.println("I'm new Primary");
+			}
+		}
 		message.getOperationList()
 				.stream()
 				.map(pp -> makePrepareMsg(getPrivateKey(), pp.getViewNum(), pp.getSeqNum(), pp.getDigest(), getMyNumber()))
@@ -838,7 +847,13 @@ public class Replica extends Connector {
 		return timerMap;
 	}
 
+	//TODO: Timer 삭제가 안 되는 경우 해결해야함
 	public void removeNewViewTimer(int newViewNum) {
+		if (DEBUG) {
+			System.err.println("removeNewViewChangeTimer called");
+			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
+			System.err.println(" ");
+		}
 		List<String> deletableKeys = getTimerMap()
 				.entrySet()
 				.stream()
@@ -848,9 +863,20 @@ public class Replica extends Connector {
 				.collect(Collectors.toList());
 
 		getTimerMap().entrySet().removeAll(deletableKeys);
+
+		if (DEBUG) {
+			System.err.println("removeNewViewChangeTimer end");
+			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
+			System.err.println(" ");
+		}
 	}
 
 	public void removeViewChangeTimer() {
+		if (DEBUG) {
+			System.err.println("removeViewChangeTimer called");
+			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
+			System.err.println(" ");
+		}
 		List<String> deletableKeys = getTimerMap()
 				.entrySet()
 				.stream()
@@ -860,5 +886,10 @@ public class Replica extends Connector {
 				.collect(Collectors.toList());
 
 		getTimerMap().entrySet().removeAll(deletableKeys);
+		if (DEBUG) {
+			System.err.println("removeViewChangeTimer end");
+			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
+			System.err.println(" ");
+		}
 	}
 }

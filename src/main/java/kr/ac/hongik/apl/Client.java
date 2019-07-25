@@ -9,14 +9,13 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Client extends Connector {
 	private HashMap<Long, Integer[]> replies = new HashMap<>();
 	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
 	private List<Long> ignoreList = new ArrayList<>();
-	private final Boolean DEBUG = true;
-	private Map<Long, Timer> timerMap = new HashMap<>();    /* Key: timestamp, value: timer  */
-
+	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
 
 
 	public Client(Properties prop) {
@@ -31,7 +30,7 @@ public class Client extends Connector {
 	protected void sendHeaderMessage(SocketChannel channel) {
 		HeaderMessage headerMessage = new HeaderMessage(-1, this.getPublicKey(), "client");
 		send(channel, headerMessage);
-		if(DEBUG) {
+		if (Replica.DEBUG) {
 			System.err.println("send headerMessage, key: " + headerMessage.getPublicKey().toString().substring(46, 66));
 		}
 	}
@@ -43,7 +42,7 @@ public class Client extends Connector {
 	}
 
 	public void request(RequestMessage msg) {
-		BroadcastTask task = new BroadcastTask(msg, this);
+		BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 		Timer timer = new Timer();
 		timer.schedule(task, TIMEOUT);
 		timerMap.put(msg.getTime(), timer);
@@ -109,8 +108,10 @@ public class Client extends Connector {
 							ignoreList.add(uniqueKey);
 
 							//Release timer
-							timerMap.get(replyMessage.getTime()).cancel();
-							timerMap.remove(replyMessage.getTime());
+							//timerMap.get(replyMessage.getTime()).cancel();
+							//timerMap.remove(replyMessage.getTime());
+							timerMap.keySet().stream().forEach(x -> timerMap.get(x).cancel());
+							timerMap.keySet().stream().forEach(x -> timerMap.remove(x));
 
 							return replyMessage.getResult();
 						}
@@ -135,15 +136,27 @@ public class Client extends Connector {
 
 		final RequestMessage requestMessage;
 		final private Connector conn;
+		final private int timerCount;
+		private Map<Long, Timer> timerMap;
 
-		BroadcastTask(RequestMessage requestMessage, Connector conn) {
+		BroadcastTask(RequestMessage requestMessage, Connector conn, Map<Long, Timer> timerMap, int timerCount) {
 			this.requestMessage = requestMessage;
 			this.conn = conn;
+			this.timerMap = timerMap;
+			this.timerCount = timerCount;
 		}
 
 		@Override
 		public void run() {
 			conn.getReplicaMap().values().forEach(socket -> conn.send(socket, requestMessage));
+			RequestMessage nextRequestMessage = RequestMessage.makeRequestMsg(conn.getPrivateKey(), requestMessage.getOperation().update());
+			BroadcastTask task = new BroadcastTask(nextRequestMessage, this.conn, this.timerMap, this.timerCount + 1);
+			if (Replica.DEBUG) {
+				System.err.println((timerCount + 1) + " Timer expired");
+			}
+			Timer timer = new Timer();
+			timer.schedule(task, (this.timerCount) * TIMEOUT);
+			timerMap.put(requestMessage.getTime(), timer);
 		}
 	}
 }

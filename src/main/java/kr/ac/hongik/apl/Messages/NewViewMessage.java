@@ -25,7 +25,6 @@ public class NewViewMessage implements Message {
 	private final Data data;
 	private final byte[] signature;
 
-	static private boolean DEBUG = true;
 
 	private NewViewMessage(Data data, byte[] signature) {
 		this.data = data;
@@ -37,7 +36,7 @@ public class NewViewMessage implements Message {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
-		if (DEBUG) {
+		if (Replica.DEBUG) {
 			System.err.println("making new view message operationList size : " + operationList.size());
 		}
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
