@@ -672,7 +672,6 @@ public class Replica extends Connector {
 
 				timerMap.put(generateTimerKey(message.getNewViewNum() + 1), timer);
 			} else {
-				//TODO: isAlreadyInsertedQuery 삭제, 대신 viewChangeFlag가 high이면 리턴시킬 것 (이 단계는 아직 viewChangeMsg를 보내지 않았을 경우에 실행해야 함
 
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
@@ -688,9 +687,13 @@ public class Replica extends Connector {
 				}
 
 				List<Integer> newViewNumList;
-				String query = "SELECT V.newViewNum from Viewchanges V WHERE V.newViewNum > ?";
+				String query = "SELECT V1.newViewNum FROM Viewchanges V1 "
+						+ "WHERE V1.newViewNum > ? AND "
+						+ "NOT V1.newViewNum IN "
+						+ "( SELECT V2.newViewNum FROM Viewchanges V2 WHERE V2.replica = ? )";
 				try (var pstmt = logger.getPreparedStatement(query)) {
 					pstmt.setInt(1, this.getViewNum());
+					pstmt.setInt(2, this.getMyNumber());
 					ResultSet rs = pstmt.executeQuery();
 					newViewNumList = JdbcUtils.toStream(rs)
 							.map(rethrow().wrapFunction(x -> x.getString(1)))
