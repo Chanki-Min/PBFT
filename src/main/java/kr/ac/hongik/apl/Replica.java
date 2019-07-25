@@ -672,7 +672,7 @@ public class Replica extends Connector {
 
 				timerMap.put(generateTimerKey(message.getNewViewNum() + 1), timer);
 			} else {
-				//TODO: isAlreadyInsertedQuerty 삭제, 대신 viewChangeFlag가 high이면 리턴시킬 것 (이 단계는 아직 viewChangeMsg를 보내지 않았을 경우에 실행해야 함
+				//TODO: isAlreadyInsertedQuery 삭제, 대신 viewChangeFlag가 high이면 리턴시킬 것 (이 단계는 아직 viewChangeMsg를 보내지 않았을 경우에 실행해야 함
 
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
@@ -740,7 +740,7 @@ public class Replica extends Connector {
 	 * @return true if DB has 2f + 1 same view number messages else false
 	 */
 	private boolean hasTwoFPlusOneMessages(ViewChangeMessage message) {
-		String query = "SELECT newViewNum FROM ( SELECT DISTINCT V.replica, V.newViewNum FROM Viewchanges V WHERE V.newViewNum = ? )";
+		String query = "SELECT newViewNum FROM Viewchanges V WHERE V.newViewNum = ? ";
 		try (var pstmt = logger.getPreparedStatement(query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			var ret = pstmt.executeQuery();
@@ -779,7 +779,7 @@ public class Replica extends Connector {
 			if (ret.next())
 				checklist[0] = ret.getInt(1) == 1;
 		}
-		String query2 = "SELECT count(*) FROM ( SELECT DISTINCT V.replica FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ? )";
+		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query2)) {
 			pstmt.setInt(1, this.myNumber);
 			pstmt.setInt(2, message.getNewViewNum());
