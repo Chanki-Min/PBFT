@@ -174,7 +174,7 @@ public class ViewChangeMessage implements Message {
 	}
 
 	public boolean isVerified(PublicKey publicKey, int maximumFaulty, int WATERMARK_UNIT) {
-
+		//TODO: Pm = 0일경우 prepre pre에 대한 핸들링 후 건너뛰던가 리턴시키게 해야 함
 		Boolean[] checkList = new Boolean[6];
 
 		checkList[0] = verify(publicKey);

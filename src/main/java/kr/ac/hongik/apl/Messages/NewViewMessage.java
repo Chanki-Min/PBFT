@@ -53,6 +53,9 @@ public class NewViewMessage implements Message {
 				.flatMap(pm -> pm.getPrepareMessages().stream())
 				.sorted(Comparator.comparingInt(PrepareMessage::getSeqNum))
 				.collect(Collectors.toList());
+		if (prepareList.size() == 0) {
+			return null;
+		}
 
 		int min_s = prepareList.stream()
 				.min(Comparator.comparingInt(PrepareMessage::getSeqNum))
@@ -75,17 +78,12 @@ public class NewViewMessage implements Message {
 		/*
 			received_pre_prepares: Stream of Pre-prepare Msg that was in set of viewChangeMessages
 		 */
-		//TODO: distinct가 안 돼서 received_pre_prepares size가 6이 나옴. 원래 2이어야 함
 		List<PreprepareMessage> received_pre_prepares = viewChangeMessages.stream()
 				.map(v -> v.getMessageList())
 				.flatMap(pm -> pm.stream())
 				.map(pm -> pm.getPreprepareMessage())
 				.distinct()
 				.collect(Collectors.toList());
-
-		if (DEBUG) {
-			System.err.println("recieved_pre_pre size : " + received_pre_prepares.size());
-		}
 
 		Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares.stream()
 				.filter(pp -> pp.equals(p))
@@ -107,7 +105,6 @@ public class NewViewMessage implements Message {
 				.sorted(Comparator.comparingInt(PreprepareMessage::getSeqNum))
 				.collect(Collectors.toList());
 
-
 		return pre_prepares;
 	}
 
@@ -128,6 +125,7 @@ public class NewViewMessage implements Message {
 		}
 	}
 
+	//TODO: Pm이 null로 올 경우(GC직후 VC페이스 돌입) OperationList은 null이 된다. 이때에 대한 핸들링 필요
 	public boolean isVerified(Replica replica) {
 		Map<SocketChannel, PublicKey> keymap = replica.getPublicKeyMap();
 		int newPrimaryNum = getNewViewNum() % replica.getReplicaMap().size();
