@@ -9,6 +9,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -161,17 +162,21 @@ public class InsertionOperation extends Operation {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
-		if(!esRestClient.isIndexExists("block_chain")){
-			EsJsonParser parser = new EsJsonParser();
-			XContentBuilder mappingBuilder;
-			XContentBuilder settingBuilder;
+		if(!esRestClient.isIndexExists("block_chain")) {
+			try {
+				EsJsonParser parser = new EsJsonParser();
+				XContentBuilder mappingBuilder;
+				XContentBuilder settingBuilder;
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+				parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+				mappingBuilder = parser.jsonToXcontentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
-			esRestClient.createIndex("block_chain", mappingBuilder, settingBuilder);
+				parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+				settingBuilder = parser.jsonToXcontentBuilder(false);
+				esRestClient.createIndex("block_chain", mappingBuilder, settingBuilder);
+			}catch (ElasticsearchCorruptionException e){
+				System.err.println(e.getMessage());
+			}
 		}
 
 		BulkResponse bulkResponse = esRestClient.bulkInsertDocument("block_chain", blockNumber, plainDataList, encryptedList, 1);
@@ -192,18 +197,18 @@ public class InsertionOperation extends Operation {
 	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<Map<String, Object>> plainDataList,List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
-		EsJsonParser parser = new EsJsonParser();
 		if(DEBUG){
 			System.err.print("InsertionOp::checkEsBlolck::Ori :[ "); encryptList.stream()
 					.forEach(x -> System.err.print(hash(x).substring(0,5)+", "));
 			System.err.println(" ]");
-			System.err.print("InsertionOp::checkEsBlolck::Res :[ "); esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight().stream()
+			System.err.print("InsertionOp::checkEsBlolck::Res :[ "); esRestClient.getBlockDataPair(indexName, blockNumber).getRight().stream()
 					.forEach(x -> System.err.print(hash(x).substring(0,5)+", "));
 			System.err.println(" ]");
-			System.err.println("InsertionOp::isSame? :"+esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight()));
+			System.err.println("InsertionOp::isSame? :"+esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber).getRight()));
 		}
 
-		if (esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight()))
+
+		if (esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber).getRight()))
 			return true;
 
 		long currHeadDocVersion = esRestClient.getDocumentVersion(indexName, blockNumber, -1);
@@ -211,8 +216,7 @@ public class InsertionOperation extends Operation {
 			esRestClient.bulkInsertDocument(indexName, blockNumber, plainDataList,encryptList, currHeadDocVersion + 1);
 		}catch (EsRestClient.EsConcurrencyException ignore) {
 		}
-		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber, true).getRight());
-
+		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber).getRight());
 	}
 
 

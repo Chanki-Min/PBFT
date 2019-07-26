@@ -59,7 +59,7 @@ public class InsertionOperationTest {
 
 	@Test
 	public void AsynchronousInsertionTest(){
-		final int maxEntryNum = 128;
+		final int maxEntryNum = 10;
 		final int maxThreadNum = 10;
 		List<Thread> threadList = new ArrayList<>(maxThreadNum);
 		String indexName = "block_chain";

@@ -41,7 +41,7 @@ public class GetBlockOperation extends Operation{
 		esRestClient.connectToEs();
 
 		List<Map<String, Object>> decryptedData = new ArrayList<>();
-		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair("block_chain", blockNumber, true);
+		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair("block_chain", blockNumber);
 		SecretKey key = getSecretKey(blockNumber, logger);
 		if(key == null){
 			throw new EncryptionException(new InvalidKeyException("key cannot be null"));

@@ -105,6 +105,6 @@ public class EsJsonParserTest {
 
 		esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, 1);
 		sleep(3000);
-		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair(indexName,0,true);
+		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair(indexName,0);
 	}
 }

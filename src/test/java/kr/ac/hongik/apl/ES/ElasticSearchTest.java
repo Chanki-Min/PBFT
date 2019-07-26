@@ -10,7 +10,6 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -170,7 +169,7 @@ public class ElasticSearchTest {
 			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNuber);
 
 			sleep(sleepTime);
-			Pair<List<Map<String, Object>>, List<byte[]>> resultPair = esRestClient.getBlockDataPair("test_block_chain",0, true);
+			Pair<List<Map<String, Object>>, List<byte[]>> resultPair = esRestClient.getBlockDataPair("test_block_chain",0);
 			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
 
 			esRestClient.deleteIndex("test_block_chain");

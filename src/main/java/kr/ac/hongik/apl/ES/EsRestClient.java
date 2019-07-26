@@ -3,6 +3,7 @@ package kr.ac.hongik.apl.ES;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHost;
+import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -98,7 +99,7 @@ public class EsRestClient {
 
 		boolean isIndexExists = this.isIndexExists(indexName);
 		if(isIndexExists){
-			throw new EsException(indexName+ " is Already exists");
+			throw new ElasticsearchCorruptionException(indexName+ " is Already exists");
 		}
 		CreateIndexRequest request = new CreateIndexRequest(indexName);
 		request.mapping(mapping);
@@ -212,7 +213,7 @@ public class EsRestClient {
 	 * @throws IOException
 	 * @throws EsException
 	 */
-	public Pair<List<Map<String,Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber, boolean trigger) throws IOException, EsException{
+	public Pair<List<Map<String,Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException{
 
 		if(!isIndexExists(indexName)){
 			throw new EsException(indexName+ " does not exists");
