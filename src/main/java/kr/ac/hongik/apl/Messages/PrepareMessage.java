@@ -14,7 +14,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static kr.ac.hongik.apl.Util.sign;
-import static kr.ac.hongik.apl.Util.verify;
 
 public class PrepareMessage implements Message {
     byte[] signature;
@@ -134,8 +133,7 @@ public class PrepareMessage implements Message {
     }
 
     public boolean equals(PreprepareMessage pp) {
-        return  this.getViewNum() == pp.getViewNum() &&
-                this.getDigest().equals(pp.getDigest()) &&
+        return this.getDigest().equals(pp.getDigest()) &&
                 this.getSeqNum() == pp.getSeqNum();
     }
 

@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
+import static kr.ac.hongik.apl.Replica.DEBUG;
 
 public class NewViewMessage implements Message {
 	private final Data data;
@@ -36,7 +37,7 @@ public class NewViewMessage implements Message {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
-		if (Replica.DEBUG) {
+		if (DEBUG) {
 			System.err.println("making new view message operationList size : " + operationList.size());
 		}
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
@@ -52,7 +53,6 @@ public class NewViewMessage implements Message {
 				.flatMap(pm -> pm.getPrepareMessages().stream())
 				.sorted(Comparator.comparingInt(PrepareMessage::getSeqNum))
 				.collect(Collectors.toList());
-
 
 		int min_s = prepareList.stream()
 				.min(Comparator.comparingInt(PrepareMessage::getSeqNum))
@@ -70,7 +70,8 @@ public class NewViewMessage implements Message {
 		Stream<PreprepareMessage> nullPre_preparesStream = IntStream.rangeClosed(min_s, max_s)
 				.filter(n -> prepareList.stream().noneMatch(p -> p.getSeqNum() == n))
 				.sorted()
-				.mapToObj(n -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, n, null));
+				.mapToObj(n -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, n, null))
+				.distinct();
 		/*
 			received_pre_prepares: Stream of Pre-prepare Msg that was in set of viewChangeMessages
 		 */
@@ -82,6 +83,10 @@ public class NewViewMessage implements Message {
 				.distinct()
 				.collect(Collectors.toList());
 
+		if (DEBUG) {
+			System.err.println("recieved_pre_pre size : " + received_pre_prepares.size());
+		}
+
 		Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares.stream()
 				.filter(pp -> pp.equals(p))
 				.findAny()
@@ -92,7 +97,8 @@ public class NewViewMessage implements Message {
 			Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience
 		 */
 		Stream<PreprepareMessage> pre_preparesStream = prepareList.stream()
-				.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)));
+				.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)))
+				.distinct();
 		/*
 			make Sorted Set that has null-Pre-pre & not-null-Pre-pre
 		 */
@@ -145,7 +151,8 @@ public class NewViewMessage implements Message {
 				.filter(pp -> agreed_prepares.stream()
 						.filter(p -> p.equals(pp))
 						.filter(p -> p.verify(keymap.get(replica.getReplicaMap().get(p.getReplicaNum()))))
-						.count() > 2 * replica.getMaximumFaulty())
+						.count() > 2 * replica.getMaximumFaulty()
+				)
 				.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();
 
 		checklist[3] = this.getOperationList()
@@ -155,8 +162,6 @@ public class NewViewMessage implements Message {
 
 		return Arrays.stream(checklist).allMatch(Boolean::booleanValue);
 	}
-
-
 
 	public int getNewViewNum() {
 		return data.newViewNum;
@@ -173,7 +178,6 @@ public class NewViewMessage implements Message {
 	public List<PreprepareMessage> getOperationList() {
 		return data.operationList;
 	}
-
 
 	private static class Data implements Serializable {
 		private final int newViewNum;

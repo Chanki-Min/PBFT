@@ -138,4 +138,19 @@ public class PreprepareMessage implements Message {
 		}
 	}
 
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof PreprepareMessage)
+			return hashCode() == obj.hashCode();
+		else
+			return super.equals(obj);
+
+	}
+
+	@Override
+	public int hashCode() {
+		return (getViewNum() + getSeqNum() + getDigest()).hashCode();
+
+	}
+
 }
