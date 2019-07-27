@@ -75,6 +75,9 @@ public class Logger {
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
+
+				"CREATE TABLE VerificationLogs (blockNum INT, entryNum INT, errorCode TEXT, PRIMARY KEY (blockNum, entryNum) )",
+				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
 		};
 		for (String query : queries) {
 			try {
@@ -237,6 +240,20 @@ public class Logger {
 
 	public PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
 		return conn.prepareStatement(baseQuery);
+	}
+
+	public void insertErrorLog(int blockNum, int entryNum, String errorCode) {
+		String baseQuery = "INSERT INTO VerificationLogs (blockNum, entryNum, errorCode) VALUES ( ?, ?, ? )";
+		try {
+			PreparedStatement psmt = conn.prepareStatement(baseQuery);
+			psmt.setInt(1, blockNum);
+			psmt.setInt(2, entryNum);
+			psmt.setString(3, errorCode);
+
+			psmt.execute();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 	}
 
 	public void insertMessage(Message message) {
