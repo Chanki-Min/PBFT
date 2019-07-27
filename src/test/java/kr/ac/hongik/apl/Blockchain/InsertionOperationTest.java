@@ -1,6 +1,8 @@
-package kr.ac.hongik.apl.ES;
+package kr.ac.hongik.apl.Blockchain;
 
 import kr.ac.hongik.apl.Client;
+import kr.ac.hongik.apl.ES.EsJsonParser;
+import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.GetBlockOperation;
 import kr.ac.hongik.apl.Operations.InsertionOperation;
@@ -14,31 +16,83 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.stream.IntStream;
 
-public class AsynchronousInsertionThread extends Thread{
-	String indexName = "block_chain";
-	int maxEntryNumber = 128;
-	int threadID;
+import static java.lang.Thread.sleep;
 
-	public AsynchronousInsertionThread(String indexName, int maxEntryNumber, int threadID){
-		this.indexName = indexName;
-		this.maxEntryNumber = maxEntryNumber;
-		this.threadID = threadID;
+public class InsertionOperationTest {
+	@Test
+	public void SynchronizedInsertionTest(){
+		final int loop = 25;
+		Boolean[] checkList = new Boolean[loop];
+
+		for(int i=0; i<loop; i++){
+			checkList[i] = oneClientInsertionTester();
+		}
+		Assertions.assertTrue(Arrays.stream(checkList).allMatch(Boolean::booleanValue));
 	}
 
-	public void run(){
-		System.err.println("Thread #" + threadID + " Started");
+	@Test
+	public void ManyManyAsyncInsertionTest(){
+		final int loop = 10;
 
+		long[] eachTookTime = new long[loop];
+		for(int i=0; i<loop; i++){
+			long originTime = System.currentTimeMillis();
+			AsynchronousInsertionTest();
+			eachTookTime[i] = (System.currentTimeMillis() - originTime);
+		}
+		double average = Arrays.stream(eachTookTime).average().getAsDouble();
+
+		System.err.println("All AsyncInsertionTest FINISH");
+		System.err.print("EachTookTime : [");
+		Arrays.stream(eachTookTime).forEach(t -> System.err.print(t + "ms, ")); System.err.println("]");
+
+		System.err.println("AverageTookTime of Test :" + average);
+		System.err.println("AverageTookTime of One Insertion & GetDecrypt :" + (average/10.0) );
+	}
+
+	@Test
+	public void AsynchronousInsertionTest(){
+		final int maxEntryNum = 10;
+		final int maxThreadNum = 10;
+		List<Thread> threadList = new ArrayList<>(maxThreadNum);
+		String indexName = "block_chain";
+
+		System.err.println("InsertionOpTest::Asynchronous");
+		try {
+			for(int i=0; i<maxThreadNum; i++){
+				Thread thread = new Thread(new AsynchronousInsertionThread(indexName,maxEntryNum,i));
+				threadList.add(thread);
+			}
+			for(var t : threadList){
+				t.start();
+			}
+			for(var t : threadList){
+				t.join();
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public boolean oneClientInsertionTester(){
+		final String indexName = "block_chain";
+		final int entryNumber = 128;
+		final long sleepTime = 0;
+		int blockNumberToGet;
 		EsJsonParser parser = new EsJsonParser();
 		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		try {
-			for(int i=0; i<maxEntryNumber; i++) {
+			blockNumberToGet = getLatestBlockNumber(indexName) +1;
+			System.err.println("blockNumber2Get :"+blockNumberToGet);
+			for(int i=0; i<entryNumber; i++) {
 				var map = parser.jsonToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
@@ -53,10 +107,11 @@ public class AsynchronousInsertionThread extends Thread{
 			Operation insertionOp = new InsertionOperation(client.getPublicKey(), sampleUserData);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertionOp);
 			client.request(insertRequestMsg);
+			int  result = (int) client.getReply();
 
-			int insertedBlockNum = (int) client.getReply();
+			sleep(sleepTime);
 
-			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), insertedBlockNum);
+			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), blockNumberToGet);
 			RequestMessage getBlockRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getBlockOp);
 			client.request(getBlockRequestMsg);
 			List<Map<String, Object>> restoredData = (List<Map<String, Object>>) client.getReply();
@@ -68,9 +123,23 @@ public class AsynchronousInsertionThread extends Thread{
 			restoredData.stream().forEach(x -> System.err.print(x + ", "));
 			System.err.print(" ] \n");
 
+			Assertions.assertEquals(blockNumberToGet, result);
 			Assertions.assertTrue(isListMapSame(sampleUserData, restoredData));
-		} catch (IOException e) {
+			if(isListMapSame(sampleUserData, restoredData))
+				return true;
+
+		} catch (IOException | InterruptedException | NoSuchFieldException e) {
 			throw new Error(e);
+		}
+		return false;
+	}
+
+	public void clearEsDB(String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException{
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+		if(esRestClient.isIndexExists(indexName)){
+			esRestClient.deleteIndex(indexName);
+			System.err.println("clearEsDB::index :"+indexName+" was already exists, DELETE index");
 		}
 	}
 
@@ -99,17 +168,6 @@ public class AsynchronousInsertionThread extends Thread{
 			return 0;
 	}
 
-	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
-		if(arr1.size() != arr2.size())
-			return false;
-		Boolean[] checkList = new Boolean[arr1.size()];
-
-		for(int i=0; i<arr1.size(); i++){
-			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
-		}
-		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
-	}
-
 	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
 		if(ori.size() != res.size())
 			return false;
@@ -119,4 +177,3 @@ public class AsynchronousInsertionThread extends Thread{
 						.allMatch(e -> e.getValue().equals(res.get(i).get(e.getKey()))));
 	}
 }
-

@@ -242,8 +242,14 @@ public class EsRestClient {
 		List<Map<String,Object>> plain_data_list = new ArrayList<>();
 		List<byte[]> encrypt_data_list = new ArrayList<>();
 
-		for(SearchHit searchHit : searchHits){
-			encrypt_data_list.add(decoder.decode( (String) searchHit.getSourceAsMap().get( "encrypt_data") ) );
+		for (int i = 0; i < searchHits.length; i++) {
+			SearchHit searchHit = searchHits[i];
+			//Base64 decoding 실패 시 Illegal Exception 에 문제된 entryNumber 를 담아 Throw
+			try {
+				encrypt_data_list.add(decoder.decode((String) searchHit.getSourceAsMap().get("encrypt_data")));
+			} catch (IllegalArgumentException e) {
+				throw new IllegalArgumentException(String.valueOf(i));
+			}
 			var plainDataMap = searchHit.getSourceAsMap();
 			plainDataMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
 			plain_data_list.add(plainDataMap);
