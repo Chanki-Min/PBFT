@@ -213,7 +213,7 @@ public class EsRestClient {
 	 * @throws IOException
 	 * @throws EsException
 	 */
-	public Pair<List<Map<String,Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException{
+	public Pair<List<Map<String,Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException, NoSuchFieldException{
 
 		if(!isIndexExists(indexName)){
 			throw new EsException(indexName+ " does not exists");
@@ -241,18 +241,23 @@ public class EsRestClient {
 
 		List<Map<String,Object>> plain_data_list = new ArrayList<>();
 		List<byte[]> encrypt_data_list = new ArrayList<>();
+		Set fileKeySet = getFieldKeySet(indexName);
 
 		for (int i = 0; i < searchHits.length; i++) {
 			SearchHit searchHit = searchHits[i];
+			var sourceMap = searchHit.getSourceAsMap();
+			//가져온 sourceMap 의 KeySet != index KeySet 이면 Data 변조로 확인하고 삭제
+			if(!sourceMap.keySet().equals(fileKeySet)) {
+				throw new NoSuchFieldException(String.valueOf(searchHit.getId().split("_")[3]));
+			}
 			//Base64 decoding 실패 시 Illegal Exception 에 문제된 entryNumber 를 담아 Throw
 			try {
-				encrypt_data_list.add(decoder.decode((String) searchHit.getSourceAsMap().get("encrypt_data")));
+				encrypt_data_list.add(decoder.decode((String) sourceMap.get("encrypt_data")));
 			} catch (IllegalArgumentException e) {
-				throw new IllegalArgumentException(String.valueOf(i));
+				throw new IllegalArgumentException(String.valueOf(searchHit.getId().split("_")[3]));
 			}
-			var plainDataMap = searchHit.getSourceAsMap();
-			plainDataMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
-			plain_data_list.add(plainDataMap);
+			sourceMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
+			plain_data_list.add(sourceMap);
 		}
 		return Pair.of(plain_data_list, encrypt_data_list);
 	}
@@ -368,7 +373,7 @@ public class EsRestClient {
 		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
 
-	private int getRightNextBlockNumber(String indexName) throws IOException{
+	public int getRightNextBlockNumber(String indexName) throws IOException{
 		SearchRequest searchMaxRequest = new SearchRequest(indexName);
 		SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
 		maxBuilder.query(QueryBuilders.matchAllQuery());

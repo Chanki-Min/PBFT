@@ -6,6 +6,7 @@ import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.elasticsearch.ElasticsearchException;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -46,14 +47,33 @@ public class BlockVerificationThread extends Thread {
 	public void run(){
 		if(DEBUG) System.err.println("BlockVerificationThread Start");
 		while (true) {
+
 			try {
 				if (trigger) {
+					sleep(sleepTime);
 					if(DEBUG) System.err.println("trigger is HIGH, Starting verification");
-					int latestHeaderNum = getLatestHeaderNum(tableName);
-					if(DEBUG) System.err.println("latestHeaderNum :"+latestHeaderNum);
-					verifyChain(latestHeaderNum);
+					int latestHeaderNum = -1;
+					int latestEsBlockNum = -1;
+					try {
+						latestHeaderNum = getLatestHeaderNum(tableName);
+						if (DEBUG) System.err.println("latestHeaderNum :" + latestHeaderNum);
+					}catch (SQLException e){
+					}
+
+					try {
+						latestEsBlockNum = getLatestEsBlockNam(indexName);
+						if(DEBUG) System.err.println("latestHeaderNum :"+latestHeaderNum);
+					}catch (ElasticsearchException e){
+					}
+
+					int maxVerifyNum = (latestHeaderNum < latestEsBlockNum) ? latestHeaderNum -1 : latestEsBlockNum -1;
+					if(maxVerifyNum < 0) {
+						System.err.println("Block has not discovered, stop verifying");
+						continue;
+					}
+					verifyChain(maxVerifyNum);
 					if(DEBUG) System.err.println("All verification PASS");
-					trigger = false;
+					//trigger = false;
 				} else {
 					sleep(sleepTime);
 					if(DEBUG) System.err.println("Refreshing trigger check");
@@ -74,6 +94,14 @@ public class BlockVerificationThread extends Thread {
 		} else {
 			throw new SQLException("getLastHeaderNum fail");
 		}
+	}
+
+	private int getLatestEsBlockNam(String indexName) throws NoSuchFieldException, IOException{
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+		int max = esRestClient.getRightNextBlockNumber(indexName);
+		esRestClient.disConnectToEs();
+		return max;
 	}
 
 	private void verifyChain(int latestHeaderNam) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException{
@@ -144,8 +172,13 @@ public class BlockVerificationThread extends Thread {
 				byte[] enc = data.getRight().get(entryNum);
 				restoreMapList.add(desToObject(new String(decrypt(enc, key)), Map.class));
 			}
-			if(DEBUG) System.err.println(restoreMapList.size());
-		}catch (IllegalArgumentException e) {
+		}catch (NoSuchFieldException e) {
+			if(DEBUG) System.err.println(e.getMessage());
+			entryNum = Integer.parseInt(e.getMessage());
+			logger.insertErrorLog(blockNum, entryNum, "Entry_KeySet_Malformed");
+			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_KeySet_Malformed");
+		}
+		catch (IllegalArgumentException e) {
 			entryNum = Integer.parseInt(e.getMessage());
 			logger.insertErrorLog(blockNum, entryNum, "Entry_Base64_Decoding_Fail");
 			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Base64_Decoding_Fail");
@@ -173,8 +206,8 @@ public class BlockVerificationThread extends Thread {
 				.toString();
 
 		if (!root.equals(rootPrime)) {
-			logger.insertErrorLog(blockNum, -1, "Root_NOT_SAME_WITH_RootPrime");
-			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + "Root_NOT_same_with_RootPrime");
+			logger.insertErrorLog(blockNum, -1, "Root_NOT_SAME_WITH_RootPrime_OR_Missing_document");
+			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + "Root_NOT_same_with_RootPrime_OR_Missing_document");
 		}
 	}
 

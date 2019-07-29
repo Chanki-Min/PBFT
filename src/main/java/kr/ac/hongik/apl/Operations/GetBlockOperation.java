@@ -46,17 +46,18 @@ public class GetBlockOperation extends Operation{
 		if(key == null){
 			throw new EncryptionException(new InvalidKeyException("key cannot be null"));
 		}
-
+		//make decryptData (map) by symmetric key. to check faultless of plain data(Pair.getLeft)
 		for(byte[] x: pair.getRight()){
 			byte[] decryptDataByKey = decrypt(x, key);
 			decryptedData.add(desToObject(new String(decryptDataByKey), Map.class));
 		}
 
 		esRestClient.disConnectToEs();
-		if(!isListMapSame(pair.getLeft(), decryptedData)){
+		if(isListMapSame(pair.getLeft(), decryptedData)){
+			return decryptedData;
+		}else{
 			return null;
 		}
-		return decryptedData;
 	}
 
 	private SecretKey getSecretKey(int blockNumber, Logger logger) {
