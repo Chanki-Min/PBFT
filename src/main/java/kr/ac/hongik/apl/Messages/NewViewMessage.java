@@ -32,13 +32,16 @@ public class NewViewMessage implements Message {
 		this.signature = signature;
 	}
 
-	//TODO: Timeout 돼서 재전송된 request 메시지의 prepre를 newviewmessage에 담지 못함
 	public static NewViewMessage makeNewViewMessage(Replica replica, int newViewNum) throws SQLException {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
 		if (DEBUG) {
-			System.err.println("making new view message operationList size : " + operationList.size());
+			System.err.print("making new view message operationList size : ");
+			if (operationList == null)
+				System.err.println("null");
+			else
+				System.err.println(operationList.size());
 		}
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
@@ -54,7 +57,8 @@ public class NewViewMessage implements Message {
 				.sorted(Comparator.comparingInt(PrepareMessage::getSeqNum))
 				.collect(Collectors.toList());
 		if (prepareList.size() == 0) {
-			return null;
+			List<PreprepareMessage> nullPrepre = null;
+			return nullPrepre;
 		}
 
 		int min_s = prepareList.stream()
@@ -100,7 +104,7 @@ public class NewViewMessage implements Message {
 		/*
 			make Sorted Set that has null-Pre-pre & not-null-Pre-pre
 		 */
-		//TODO : Null일 경우 처리
+
 		List<PreprepareMessage> pre_prepares = Stream.concat(nullPre_preparesStream, pre_preparesStream)
 				.sorted(Comparator.comparingInt(PreprepareMessage::getSeqNum))
 				.collect(Collectors.toList());
@@ -125,7 +129,6 @@ public class NewViewMessage implements Message {
 		}
 	}
 
-	//TODO: Pm이 null로 올 경우(GC직후 VC페이스 돌입) OperationList은 null이 된다. 이때에 대한 핸들링 필요
 	public boolean isVerified(Replica replica) {
 		Map<SocketChannel, PublicKey> keymap = replica.getPublicKeyMap();
 		int newPrimaryNum = getNewViewNum() % replica.getReplicaMap().size();
@@ -142,21 +145,24 @@ public class NewViewMessage implements Message {
 				.flatMap(v -> v.getMessageList().stream())
 				.flatMap(pm -> pm.getPrepareMessages().stream())
 				.collect(Collectors.toList());
+		if (this.getOperationList() == null) {
+			checklist[2] = checklist[3] = true;
+		} else {
+			checklist[2] = this.getOperationList()
+					.stream()
+					.filter(pp -> pp.getDigest() != null)
+					.filter(pp -> agreed_prepares.stream()
+							.filter(p -> p.equals(pp))
+							.filter(p -> p.verify(keymap.get(replica.getReplicaMap().get(p.getReplicaNum()))))
+							.count() > 2 * replica.getMaximumFaulty()
+					)
+					.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();
 
-		checklist[2] = this.getOperationList()
-				.stream()
-				.filter(pp -> pp.getDigest() != null)
-				.filter(pp -> agreed_prepares.stream()
-						.filter(p -> p.equals(pp))
-						.filter(p -> p.verify(keymap.get(replica.getReplicaMap().get(p.getReplicaNum()))))
-						.count() > 2 * replica.getMaximumFaulty()
-				)
-				.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();
-
-		checklist[3] = this.getOperationList()
-				.stream()
-				.filter(pp -> pp.getDigest() == null)
-				.noneMatch(pp -> agreed_prepares.stream().anyMatch(p -> p.equals(pp)));
+			checklist[3] = this.getOperationList()
+					.stream()
+					.filter(pp -> pp.getDigest() == null)
+					.noneMatch(pp -> agreed_prepares.stream().anyMatch(p -> p.equals(pp)));
+		}
 
 		return Arrays.stream(checklist).allMatch(Boolean::booleanValue);
 	}

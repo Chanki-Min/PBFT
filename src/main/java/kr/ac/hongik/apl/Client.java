@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+
 import kr.ac.hongik.apl.Messages.HeaderMessage;
 import kr.ac.hongik.apl.Messages.Message;
 import kr.ac.hongik.apl.Messages.ReplyMessage;
@@ -42,13 +43,23 @@ public class Client extends Connector {
 	}
 
 	public void request(RequestMessage msg) {
+		if (Replica.DEBUG) {
+			System.err.println("send message timestamp : " + msg.getTime());
+		}
 		BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 		Timer timer = new Timer();
-		timer.schedule(task, TIMEOUT);
+		if (Replica.DEBUG)
+			timer.schedule(task, TIMEOUT * 2);
+		else
+			timer.schedule(task, TIMEOUT);
 		timerMap.put(msg.getTime(), timer);
-		this.getReplicaMap().values().forEach(channel -> this.send(channel, msg));
+
 		int idx = new Random().nextInt(getReplicaMap().size());
+		if (Replica.DEBUG) {
+			System.err.println("send to = " + idx);
+		}
 		var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
+
 		send(sock, msg);
 	}
 
@@ -108,10 +119,8 @@ public class Client extends Connector {
 							ignoreList.add(uniqueKey);
 
 							//Release timer
-							//timerMap.get(replyMessage.getTime()).cancel();
-							//timerMap.remove(replyMessage.getTime());
-							timerMap.keySet().stream().forEach(x -> timerMap.get(x).cancel());
-							timerMap.keySet().stream().forEach(x -> timerMap.remove(x));
+							timerMap.get(replyMessage.getTime()).cancel();
+							timerMap.remove(replyMessage.getTime());
 
 							return replyMessage.getResult();
 						}
@@ -149,14 +158,18 @@ public class Client extends Connector {
 		@Override
 		public void run() {
 			conn.getReplicaMap().values().forEach(socket -> conn.send(socket, requestMessage));
+			if (Replica.DEBUG) {
+				System.err.println("send message timestamp : " + requestMessage.getTime());
+			}
 			RequestMessage nextRequestMessage = RequestMessage.makeRequestMsg(conn.getPrivateKey(), requestMessage.getOperation().update());
 			BroadcastTask task = new BroadcastTask(nextRequestMessage, this.conn, this.timerMap, this.timerCount + 1);
 			if (Replica.DEBUG) {
-				System.err.println((timerCount + 1) + " Timer expired");
+				System.err.println((timerCount) + " Timer expired");
 			}
 			Timer timer = new Timer();
 			timer.schedule(task, (this.timerCount) * TIMEOUT);
-			timerMap.put(requestMessage.getTime(), timer);
+
+			timerMap.put(nextRequestMessage.getTime(), timer);
 		}
 	}
 }

@@ -45,8 +45,10 @@ public class Replica extends Connector {
 
 	private static int getSeqNumFromMsg(Message message) {
 		if (message instanceof HeaderMessage) {
-			return -3;
+			return -4;
 		} else if (message instanceof NewViewMessage) {
+			return -3;
+		} else if (message instanceof ViewChangeMessage) {
 			return -2;
 		} else if (message instanceof RequestMessage) {
 			return -1;
@@ -58,8 +60,6 @@ public class Replica extends Connector {
 			return ((CommitMessage) message).getSeqNum();
 		} else if (message instanceof CheckPointMessage) {
 			return ((CheckPointMessage) message).getSeqNum();
-		} else if (message instanceof ViewChangeMessage) {
-			return ((ViewChangeMessage) message).getLastCheckpointNum();
 		}
 		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
@@ -68,7 +68,7 @@ public class Replica extends Connector {
 	private Logger logger;
 	private int lowWatermark;
 
-	private Map<String, Timer> timerMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<String, Timer> timerMap = new ConcurrentHashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 
 	public Replica(Properties prop, String serverIp, int serverPort) {
@@ -206,7 +206,7 @@ public class Replica extends Connector {
 				handleViewChangeMessage((ViewChangeMessage) message);
 			} else if (message instanceof NewViewMessage) {
 				if (DEBUG) {
-					System.err.println("got NewViewMessage from " + ((NewViewMessage) message).getNewViewNum());
+					System.err.println("got NewViewMessage from view#" + ((NewViewMessage) message).getNewViewNum());
 				}
 				handleNewViewMessage((NewViewMessage) message);
 			} else {
@@ -236,17 +236,24 @@ public class Replica extends Connector {
 	 * @return
 	 */
 	private void handleRequestMessage(RequestMessage message) {
+		if (DEBUG) {
+			System.err.println("	timestamp : " + message.getTime());
+		}
 		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
 			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 			send(destination, replyMessage);
 			return;
 		}
-
+		if (DEBUG) {
+			System.err.println("not in reply message");
+		}
 		if (this.logger.findMessage(message)) {
 			return;
 		}
-
+		if (DEBUG) {
+			System.err.println("not in request message");
+		}
 		var sock = getChannelFromClientInfo(message.getClientInfo());
 		PublicKey publicKey = publicKeyMap.get(sock);
 		boolean canGoNextState = message.verify(publicKey) &&
@@ -254,9 +261,15 @@ public class Replica extends Connector {
 
 
 		if (canGoNextState) {
+			if (DEBUG) {
+				System.err.println("enter canGoNextState");
+			}
 			logger.insertMessage(message);
 			if (this.getPrimary() == this.myNumber) {
 				//Enter broadcast phase
+				if (DEBUG) {
+					System.err.println("broadcast");
+				}
 				broadcastToReplica(message);
 			} else {
 				//Relay to viewNum
@@ -265,7 +278,10 @@ public class Replica extends Connector {
 				//Set a timer for view-change phase
 				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], this.getViewNum() + 1, this);
 				Timer timer = new Timer();
-				timer.schedule(viewChangeTimerTask, Replica.TIMEOUT);
+				if (DEBUG)
+					timer.schedule(viewChangeTimerTask, Replica.TIMEOUT + 5);
+				else
+					timer.schedule(viewChangeTimerTask, Replica.TIMEOUT);
 
 				/* Store timer object to cancel it when the request is executed and the timer is not expired.
 				 * key: operation, value: timer
@@ -323,7 +339,7 @@ public class Replica extends Connector {
 					make primary replica faulty
 				 */
 				int errno = 1;
-				int primaryErrSeqNum = 5;
+				int primaryErrSeqNum = 6;
 				if (seqNum == primaryErrSeqNum && this.getMyNumber() == 0) {
 					if (errno == 1) { //primary stops suddenly[
 						primaryStopCase();
@@ -348,8 +364,16 @@ public class Replica extends Connector {
 	}
 
 	public void primaryStopCase() {
-		if (DEBUG)
-			exit(1);
+		exit(1);
+		/*
+		if (DEBUG) {
+			try {
+				sleep(this.TIMEOUT);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		*/
 	}
 
 	public void primarySendBadPrepreCase(int seqNum) {
@@ -651,11 +675,14 @@ public class Replica extends Connector {
 	}
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
+		if (DEBUG) {
+			System.err.println("got ViewChangeMessage : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
+		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT))
 			return;
 		if (DEBUG) {
-			System.err.println("got ViewChangeMessage : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
+			System.err.println("	pass isVerified : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
 		}
 		logger.insertMessage(message);
 
@@ -806,7 +833,7 @@ public class Replica extends Connector {
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
-	//TODO: 0 -> 1로 view change 후 1번 replica가 새로운 request를 처리하지 못함. -> 2번 view로 넘어간 후 2번 replica가 처리하는 상황 발생. 원인 파악해야함
+
 	private void handleNewViewMessage(NewViewMessage message) {
 		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum()) {
 			if (DEBUG) {
@@ -826,7 +853,12 @@ public class Replica extends Connector {
 		setViewNum(message.getNewViewNum());
 
 		//Set new low watermark
-		int newLowWatermark = message.getOperationList().get(0).getSeqNum();
+		//int newLowWatermark = message.getOperationList().get(0).getSeqNum();
+		int newLowWatermark = message.getViewChangeMessageList()
+				.stream()
+				.max(Comparator.comparingInt(ViewChangeMessage::getLastCheckpointNum))
+				.get()
+				.getLastCheckpointNum();
 		if ((getWatermarks()[0] > newLowWatermark)) throw new AssertionError();
 		this.lowWatermark = newLowWatermark;
 
@@ -837,32 +869,25 @@ public class Replica extends Connector {
 				System.err.println("I'm new Primary");
 			}
 		}
-		message.getOperationList()
-				.stream()
-				.map(pp -> makePrepareMsg(getPrivateKey(), pp.getViewNum(), pp.getSeqNum(), pp.getDigest(), getMyNumber()))
-				.forEach(msg -> getReplicaMap().values().forEach(sock -> send(sock, msg)));
+		if (message.getOperationList() == null)
+			return;
+		else {
+			message.getOperationList()
+					.stream()
+					.map(pp -> makePrepareMsg(getPrivateKey(), pp.getViewNum(), pp.getSeqNum(), pp.getDigest(), getMyNumber()))
+					.forEach(msg -> getReplicaMap().values().forEach(sock -> send(sock, msg)));
+		}
 	}
 
 	public Map<String, Timer> getTimerMap() {
 		return timerMap;
 	}
 
-	//TODO: Timer 삭제가 안 되는 경우 해결해야함
 	public void removeNewViewTimer(int newViewNum) {
-		if (DEBUG) {
-			System.err.println("removeNewViewChangeTimer called");
-			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
-			System.err.println(" ");
-		}
-		List<String> deletableKeys = getTimerMap()
-				.entrySet()
-				.stream()
-				.filter(x -> x.getKey().equals(generateTimerKey(newViewNum)))
-				.peek(x -> x.getValue().cancel())
-				.map(x -> x.getKey())
-				.collect(Collectors.toList());
 
-		getTimerMap().entrySet().removeAll(deletableKeys);
+		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> x.equals(generateTimerKey(newViewNum))).collect(Collectors.toList());
+		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
+		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
 
 		if (DEBUG) {
 			System.err.println("removeNewViewChangeTimer end");
@@ -872,20 +897,11 @@ public class Replica extends Connector {
 	}
 
 	public void removeViewChangeTimer() {
-		if (DEBUG) {
-			System.err.println("removeViewChangeTimer called");
-			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
-			System.err.println(" ");
-		}
-		List<String> deletableKeys = getTimerMap()
-				.entrySet()
-				.stream()
-				.filter(x -> !x.getKey().startsWith("view: "))
-				.peek(x -> x.getValue().cancel())
-				.map(x -> x.getKey())
-				.collect(Collectors.toList());
 
-		getTimerMap().entrySet().removeAll(deletableKeys);
+		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> !x.equals("view")).collect(Collectors.toList());
+		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
+		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
+
 		if (DEBUG) {
 			System.err.println("removeViewChangeTimer end");
 			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));

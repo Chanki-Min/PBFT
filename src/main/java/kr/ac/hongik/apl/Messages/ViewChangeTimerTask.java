@@ -8,23 +8,19 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 	final int checkpointNum;
 	final int newViewNum;
 	final Replica replica;
-	boolean DEBUG = true;
+
 
 	public ViewChangeTimerTask(int checkpointNum, int newViewNum, Replica replica) {
 		this.replica = replica;
 		this.checkpointNum = checkpointNum;
 		this.newViewNum = newViewNum;
+
 	}
 
-	/*
-	TODO:
-	 비동기로 터지다보니 GC 하는 중에 터져서 다른 레플리카들이랑 stable checkpoint가 다름(Checkpoint message list size = 0)
-	 이 경우 처리해줘야 함
-	 */
 	@Override
 	public void run() {
 		replica.setViewChangePhase(true);
-		if (DEBUG) {
+		if (Replica.DEBUG) {
 			System.err.println("Enter ViewChange Phase");
 		}
 		//Cancel and remove newViewNum'th timer
@@ -36,10 +32,10 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		keySet.removeAll(keySet);
 		var getPreparedStatementFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		try {
-			if (DEBUG) {
-				System.out.println("Checkpoint num " + checkpointNum + " newViewNum " + newViewNum);
+			if (Replica.DEBUG) {
+				System.out.println("Checkpoint num " + replica.getWatermarks()[0] + " newViewNum " + newViewNum);
 			}
-			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(checkpointNum, newViewNum, replica, getPreparedStatementFn);
+			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getWatermarks()[0], newViewNum, replica, getPreparedStatementFn);
 			replica.getReplicaMap().values().forEach(sock -> replica.send(sock, viewChangeMessage));
 		} finally {
 
