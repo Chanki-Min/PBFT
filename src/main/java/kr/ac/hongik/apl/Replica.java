@@ -172,6 +172,12 @@ public class Replica extends Connector {
 			properties.load(new java.io.BufferedInputStream(is));
 
 			Replica replica = new Replica(properties, ip, port);
+
+			//TODO: verificationThread 의 trigger 를 replica 단에서 조작 가능하도록 수정
+			boolean trigger = true;
+			Thread verificationThread = new BlockVerificationThread(replica.logger, "block_chain", "BlockChain", 60000, trigger);
+			verificationThread.start();
+
 			replica.start();
 		} catch (ArrayIndexOutOfBoundsException e) {
 			System.err.println("Usage: program <ip> <port>");

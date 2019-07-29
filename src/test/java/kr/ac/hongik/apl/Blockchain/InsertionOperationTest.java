@@ -108,7 +108,9 @@ public class InsertionOperationTest {
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertionOp);
 			client.request(insertRequestMsg);
 			int  result = (int) client.getReply();
-
+			if(result == blockNumberToGet)
+				return true;
+/*
 			sleep(sleepTime);
 
 			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), blockNumberToGet);
@@ -127,8 +129,8 @@ public class InsertionOperationTest {
 			Assertions.assertTrue(isListMapSame(sampleUserData, restoredData));
 			if(isListMapSame(sampleUserData, restoredData))
 				return true;
-
-		} catch (IOException | InterruptedException | NoSuchFieldException e) {
+ */
+		} catch (IOException | NoSuchFieldException e) {
 			throw new Error(e);
 		}
 		return false;

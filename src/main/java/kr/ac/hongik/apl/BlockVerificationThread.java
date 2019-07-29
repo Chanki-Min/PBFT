@@ -61,7 +61,7 @@ public class BlockVerificationThread extends Thread {
 					}
 
 					try {
-						latestEsBlockNum = getLatestEsBlockNam(indexName);
+						latestEsBlockNum = getLatestEsBlockNum(indexName);
 						if(DEBUG) System.err.println("latestHeaderNum :"+latestHeaderNum);
 					}catch (ElasticsearchException e){
 					}
@@ -96,7 +96,7 @@ public class BlockVerificationThread extends Thread {
 		}
 	}
 
-	private int getLatestEsBlockNam(String indexName) throws NoSuchFieldException, IOException{
+	private int getLatestEsBlockNum(String indexName) throws NoSuchFieldException, IOException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		int max = esRestClient.getRightNextBlockNumber(indexName);
@@ -104,8 +104,8 @@ public class BlockVerificationThread extends Thread {
 		return max;
 	}
 
-	private void verifyChain(int latestHeaderNam) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException{
-		for (int i = 0; i < latestHeaderNam + 1; i++) {
+	private void verifyChain(int latestHeaderNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException{
+		for (int i = 0; i < latestHeaderNum + 1; i++) {
 			verifyHeader(i);
 			if(DEBUG) System.err.println("Blk#"+i+" HEADER PASS");
 			verifyData(i);

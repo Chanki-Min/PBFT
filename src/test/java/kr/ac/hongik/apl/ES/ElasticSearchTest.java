@@ -28,6 +28,7 @@ import java.util.stream.IntStream;
 import static java.lang.Thread.sleep;
 
 public class ElasticSearchTest {
+	private static EsRestClient esRestClient;
 
 	@Test
 	void esConnectionTest(){
@@ -271,7 +272,7 @@ public class ElasticSearchTest {
 		}
 	}
 
-	private static EsRestClient esRestClient;
+
 
 	private boolean isIndexExists(String indexName) throws IOException{
 		GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);
