@@ -23,7 +23,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
-import static java.lang.System.exit;
+import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
@@ -364,16 +364,16 @@ public class Replica extends Connector {
 	}
 
 	public void primaryStopCase() {
-		exit(1);
-		/*
+		//exit(1);
+
 		if (DEBUG) {
 			try {
-				sleep(this.TIMEOUT);
+				sleep(TIMEOUT * 3);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
-		*/
+
 	}
 
 	public void primarySendBadPrepreCase(int seqNum) {
@@ -686,6 +686,9 @@ public class Replica extends Connector {
 		}
 		logger.insertMessage(message);
 
+		if (this.getViewNum() >= message.getNewViewNum())
+			return;
+
 		try {
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {
 				/* 정확히 2f + 1개일 때만 broadcast */
@@ -841,6 +844,9 @@ public class Replica extends Connector {
 			}
 			return;
 		}
+
+		this.logger.insertMessage(message);
+
 		if (DEBUG) {
 			System.err.println("Pass newview verify");
 		}
@@ -853,7 +859,6 @@ public class Replica extends Connector {
 		setViewNum(message.getNewViewNum());
 
 		//Set new low watermark
-		//int newLowWatermark = message.getOperationList().get(0).getSeqNum();
 		int newLowWatermark = message.getViewChangeMessageList()
 				.stream()
 				.max(Comparator.comparingInt(ViewChangeMessage::getLastCheckpointNum))

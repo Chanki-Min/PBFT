@@ -174,44 +174,39 @@ public class ViewChangeMessage implements Message {
 	}
 
 	public boolean isVerified(PublicKey publicKey, int maximumFaulty, int WATERMARK_UNIT) {
-		Boolean[] checkList = new Boolean[6];
+		Boolean[] checkList = new Boolean[5];
 
 		checkList[0] = verify(publicKey);
-
+		/*
+			TODO : low != 0 일 때도 checkpoint message가 없을 수 있다. (GC 전에 newview 받은 경우)
+		 */
+		//when lastCheckPointNum == 0, check whether CheckPointMsgs's size is 0. to cover case when viewChange occurs before first GC
 		if (this.getLastCheckpointNum() != 0) {
 			String replicaDigest = data.checkPointMessages.stream()
-					.filter(x -> x.getReplicaNum() == data.replicaNum)
 					.findFirst()
 					.get()
 					.getDigest();
 
-			//verify the set C has own checkPointMsg
-			checkList[1] = data.checkPointMessages.stream().anyMatch(cpMsg -> cpMsg.getReplicaNum() == data.replicaNum);
 			//verify the set C has over 2f+1 checkPointMsgs. that has same digest with (own checkPointMsg) & (lastCheckPointNum)
-			checkList[2] = data.checkPointMessages.stream()
+			checkList[1] = data.checkPointMessages.stream()
 					.filter(cpMsg -> cpMsg.getDigest().equals(replicaDigest))
 					.filter(cpMsg -> cpMsg.getSeqNum() == data.lastCheckpointNum - 1)
 					.count() > 2 * maximumFaulty;
-		} else if (this.getCheckPointMessages().size() == 0) {
-			//when lastCheckPointNum == 0, check whether CheckPointMsgs's size is 0. to cover case when viewChange occurs before first GC
-			checkList[1] = checkList[2] = true;
-		} else {
-			checkList[1] = checkList[2] = false;
-		}
+		} else checkList[1] = this.getCheckPointMessages().size() == 0;
 
 		//check All Pm's pre-prepare messages are in range [lastCheckPointNumber , lastCheckPointNumber + WATERMARK_UNIT)
-		checkList[3] = data.messageList.stream()
+		checkList[2] = data.messageList.stream()
 				.map(Pm -> Pm.getPreprepareMessage())
 				.allMatch(pp -> this.getLastCheckpointNum() <= pp.getSeqNum() && pp.getSeqNum() < this.getLastCheckpointNum() + WATERMARK_UNIT);
 
 		//check each Pm's prePareMsg has distinct replica number (i)
-		checkList[4] = data.messageList.stream()
+		checkList[3] = data.messageList.stream()
 				.allMatch(pm -> pm.prepareMessages.stream()
 						.filter(Util.distinctByKey(PrepareMessage::getReplicaNum))
 						.count() == pm.prepareMessages.size());
 
 		//check each Pm has valid prepareMsg for corresponding	pre-prepareMsg
-		checkList[5] = data.messageList.stream()
+		checkList[4] = data.messageList.stream()
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getViewNum() == pm.preprepareMessage.getViewNum()))
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getSeqNum() == pm.preprepareMessage.getSeqNum()))
 				.count() == data.messageList.size();
