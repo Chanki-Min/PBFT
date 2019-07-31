@@ -28,13 +28,6 @@ public class EsJsonParserTest {
 
 	@Test
 	public void parseQueryToMapTest(){
-		List<String> keyList = new ArrayList<>();
-		keyList.add("real_name");
-		keyList.add("user_name");
-		keyList.add("start_time");
-		keyList.add("end_time");
-		keyList.add("start_location");
-		keyList.add("end_location");
 
 		EsJsonParser parser = new EsJsonParser();
 		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");

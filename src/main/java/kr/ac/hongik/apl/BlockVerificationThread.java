@@ -104,8 +104,8 @@ public class BlockVerificationThread extends Thread {
 		return max;
 	}
 
-	private void verifyChain(int latestHeaderNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException{
-		for (int i = 0; i < latestHeaderNum + 1; i++) {
+	private void verifyChain(int lastVerifyNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException{
+		for (int i = 0; i < lastVerifyNum + 1; i++) {
 			verifyHeader(i);
 			if(DEBUG) System.err.println("Blk#"+i+" HEADER PASS");
 			verifyData(i);

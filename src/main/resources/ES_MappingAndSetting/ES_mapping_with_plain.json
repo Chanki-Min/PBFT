@@ -76,6 +76,10 @@ Reference: https://www.elastic.co/guide/en/elasticsearch/reference/current/mappi
         "index": true,
         "null_value": "NULL"
       },
+      //photo data
+      "profile_photo": {
+        "type": "binary"
+      },
       "start_time": {
         "type": "date",
         "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
