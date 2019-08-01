@@ -30,7 +30,7 @@ abstract class Connector {
 
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
-	private Map<Integer, SocketChannel> replicas = new HashMap<>();
+	static private Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
 	protected Map<SocketChannel, PublicKey> publicKeyMap = new HashMap<>();
@@ -50,19 +50,8 @@ abstract class Connector {
 		replicaAddresses = Util.parseProperties(prop);
 	}
 
-	protected void connect()  {
-		//Connect to every replica
-		SocketChannel socketChannel = null;
-		for (int i = 0; i < this.replicaAddresses.size(); ++i) {
-			try {
-				socketChannel = makeConnection(replicaAddresses.get(i));
-				this.getReplicaMap().put(i, socketChannel);
-				socketChannel = null;
-			} catch(IOException e) {
-				closeWithoutException(socketChannel);
-				continue;
-			}
-		}
+	static public Map<Integer, SocketChannel> getReplicaMap() {
+		return replicas;
 	}
 
 	private void closeWithoutException(SocketChannel socketChannel) {
@@ -96,8 +85,19 @@ abstract class Connector {
 		return channel;
 	}
 
-	public Map<Integer, SocketChannel> getReplicaMap() {
-		return replicas;
+	protected void connect() {
+		//Connect to every replica
+		SocketChannel socketChannel = null;
+		for (int i = 0; i < this.replicaAddresses.size(); ++i) {
+			try {
+				socketChannel = makeConnection(replicaAddresses.get(i));
+				getReplicaMap().put(i, socketChannel);
+				socketChannel = null;
+			} catch (IOException e) {
+				closeWithoutException(socketChannel);
+				continue;
+			}
+		}
 	}
 
 	/**
