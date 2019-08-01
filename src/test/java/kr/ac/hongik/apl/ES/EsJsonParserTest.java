@@ -7,9 +7,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -99,5 +101,22 @@ public class EsJsonParserTest {
 		esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, 1);
 		sleep(3000);
 		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair(indexName,0);
+	}
+
+	@Test
+	public void plainAndCipherCapacityTest() throws Util.EncryptionException, NoSuchFieldException{
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+		EsJsonParser parser = new EsJsonParser();
+		String seed = "Hello World!";
+		SecretKey key = Util.makeSymmetricKey(seed);
+		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+
+		Map originalMap = parser.jsonToMap();
+
+		String serializedMap = Util.serToString((Serializable) originalMap);
+		byte[] enc = Util.encrypt( serializedMap.getBytes(), key);
+
+		String base64EncodedEnc = Base64.getEncoder().encodeToString(enc);
 	}
 }

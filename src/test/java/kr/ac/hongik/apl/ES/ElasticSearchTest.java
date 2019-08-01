@@ -3,6 +3,8 @@ package kr.ac.hongik.apl.ES;
 
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.Pair;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -18,11 +20,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.SecretKey;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
@@ -85,12 +85,13 @@ public class ElasticSearchTest {
 	}
 
 	@Test
-	void BulkInsertTest(){
-		String indexName = "test_block_chain";
+	void SingleInsertTest() throws IOException{
+		String indexName = "test_block_chain9";
 		int blockNumber = 0;
-		int entrySize = 5;
+		int entrySize = 50;
 		int sleepTime = 1000;
-		int versionNuber = 1;
+		int versionNumber = 1;
+		boolean deleteIndexAfterFinish = false;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient();
 		try {
@@ -103,42 +104,55 @@ public class ElasticSearchTest {
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
 			settingBuilder = parser.jsonToXcontentBuilder(false);
 
-			EsRestClient esRestClient = new EsRestClient();
-			esRestClient.connectToEs();
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
 			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
+			String seed = "Hello World!";
+			SecretKey key = Util.makeSymmetricKey(seed);
+
 			for(int i=0; i<entrySize; i++) {
 				var map = parser.jsonToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
+				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
+			}
+			for(int i=0; i<entrySize; i++) {
+				IndexRequest request = new IndexRequest(indexName);
+				sampleUserData.get(i).put("encrypt_data", Base64.getEncoder().encodeToString(encData.get(i)));
+				sampleUserData.get(i).put("block_number", String.valueOf(blockNumber));
+				sampleUserData.get(i).put("entry_number", String.valueOf(i));
+				request.source(sampleUserData.get(i));
+				long time = System.currentTimeMillis();
+				IndexResponse response = esRestClient.getClient().index(request, RequestOptions.DEFAULT);
+				System.err.print(System.currentTimeMillis()-time+"ms ");
+				System.err.println(response.status());
+				System.err.println("index success "+i+"/"+entrySize);
 			}
 
-
-			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNuber);
-			sleep(sleepTime);
-
-			Assertions.assertTrue(isBlockExists(indexName,blockNumber));
 			Assertions.assertEquals(entrySize, getBlockEntrySize(indexName, blockNumber) -1);
-			esRestClient.deleteIndex(indexName);
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+			if(deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
+		} catch (EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
 			e.printStackTrace();
 		} catch (IOException e){
 			throw new IOError(e);
+		} catch (Util.EncryptionException e) {
+			e.printStackTrace();
+		} finally {
+			esRestClient.disConnectToEs();
 		}
 	}
 
 	@Test
-	void getBlockDataPairTest(){
-		String indexName = "test_block_chain";
-		int blockNumber = 0;
-		int entrySize = 10000;
-		int versionNuber = 1;
+	void BulkInsertTest() throws IOException{
+		String indexName = "test_block_chain5";
+		int blockNumber = 1;
+		int entrySize = 10;
 		int sleepTime = 1000;
+		int versionNumber = 1;
+		boolean deleteIndexAfterFinish = false;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient();
 		try {
@@ -151,8 +165,64 @@ public class ElasticSearchTest {
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
 			settingBuilder = parser.jsonToXcontentBuilder(false);
 
-			EsRestClient esRestClient = new EsRestClient();
+			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
+
+			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+			List<Map<String, Object>> sampleUserData = new ArrayList<>();
+			List<byte[]> encData = new ArrayList<>();
+
+			String seed = "Hello World!";
+			SecretKey key = Util.makeSymmetricKey(seed);
+
+			for(int i=0; i<entrySize; i++) {
+				var map = parser.jsonToMap();
+				map.put("start_time", String.valueOf(System.currentTimeMillis()));
+				sampleUserData.add(map);
+				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
+			}
+
+
+			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNumber);
+			sleep(sleepTime);
+
+			Assertions.assertTrue(isBlockExists(indexName,blockNumber));
+			Assertions.assertEquals(entrySize, getBlockEntrySize(indexName, blockNumber) -1);
+			if(deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+			e.printStackTrace();
+		} catch (IOException e){
+			throw new IOError(e);
+		} catch (Util.EncryptionException e) {
+			e.printStackTrace();
+		} finally {
+			esRestClient.disConnectToEs();
+		}
+	}
+
+	@Test
+	void getBlockDataPairTest() throws IOException{
+		String indexName = "test_block_chain10ls" +
+				"";
+		int blockNumber = 0;
+		int entrySize = 100;
+		int versionNumber = 1;
+		int sleepTime = 5000;
+		boolean deleteIndexAfterFinish = false;
+		EsJsonParser parser = new EsJsonParser();
+		esRestClient = new EsRestClient();
+		try {
 			esRestClient.connectToEs();
+			XContentBuilder mappingBuilder;
+			XContentBuilder settingBuilder;
+			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+			mappingBuilder = parser.jsonToXcontentBuilder(false);
+
+			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			settingBuilder = parser.jsonToXcontentBuilder(false);
+
+			String seed = "Hello World!";
+			SecretKey key = Util.makeSymmetricKey(seed);
+
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
 			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
@@ -163,21 +233,28 @@ public class ElasticSearchTest {
 				var map = parser.jsonToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
+				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
 			}
+			System.err.println("Test data ready");
 
-
-			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNuber);
+			long currTime = System.currentTimeMillis();
+			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNumber);
+			System.err.println("entrySize :"+entrySize+" bulkInsertionTime :"+(System.currentTimeMillis()-currTime));
 
 			sleep(sleepTime);
-			Pair<List<Map<String, Object>>, List<byte[]>> resultPair = esRestClient.getBlockDataPair("test_block_chain",0);
-			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
 
-			esRestClient.deleteIndex("test_block_chain");
+			currTime = System.currentTimeMillis();
+			Pair<List<Map<String, Object>>, List<byte[]>> resultPair = esRestClient.getBlockDataPair(indexName,blockNumber);
+			System.err.println("entrySize :"+entrySize+" getAllDataTime :"+(System.currentTimeMillis()-currTime));
+			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
+			esRestClient.disConnectToEs();
+			if(deleteIndexAfterFinish) esRestClient.deleteIndex("test_block_chain");
 		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			throw new IOError(e);
+		} catch (Util.EncryptionException e) {
+			e.printStackTrace();
 		}
 	}
 
