@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.Messages;
 
 import kr.ac.hongik.apl.Operations.Operation;
+import kr.ac.hongik.apl.Replica;
 
 import java.io.Serializable;
 import java.security.PrivateKey;
@@ -57,7 +58,7 @@ public class PreprepareMessage implements Message {
 
         checklist[0] = verify(primaryPublicKey, this.data, this.signature);
 
-		checklist[1] = getViewNum() == currentPrimary;
+		checklist[1] = (getViewNum() % Replica.getReplicaMap().size()) == currentPrimary;
 
 		checklist[2] = checkUniqueTuple(prepareStatement);
 

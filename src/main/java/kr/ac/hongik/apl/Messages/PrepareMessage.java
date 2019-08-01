@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 
 import java.io.Serializable;
@@ -69,7 +70,7 @@ public class PrepareMessage implements Message {
 
         checklist[0] = this.verify(publicKey);
 
-        checklist[1] = currentPrimary == this.getViewNum();
+        checklist[1] = currentPrimary == this.getViewNum() % Replica.getReplicaMap().size();
 
         int[] watermarks = watermarkGetter.get();
         int lowWatermark = watermarks[0],
