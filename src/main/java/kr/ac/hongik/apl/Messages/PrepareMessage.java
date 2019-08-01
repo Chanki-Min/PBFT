@@ -77,7 +77,9 @@ public class PrepareMessage implements Message {
                 highWatermark = watermarks[1];
 
         checklist[2] = (lowWatermark <= this.getSeqNum()) && (this.getSeqNum() < highWatermark);
-
+		if (Replica.DEBUG) {
+			Arrays.stream(checklist).forEach(x -> System.err.print(" " + x + " "));
+		}
         return Arrays.stream(checklist).allMatch(x -> x);
     }
 

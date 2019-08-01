@@ -49,7 +49,7 @@ public class Client extends Connector {
 		BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 		Timer timer = new Timer();
 		if (Replica.DEBUG)
-			timer.schedule(task, TIMEOUT * 2);
+			timer.schedule(task, TIMEOUT * 3);
 		else
 			timer.schedule(task, TIMEOUT);
 		timerMap.put(msg.getTime(), timer);
@@ -80,7 +80,7 @@ public class Client extends Connector {
 			}
 			replyMessage = (ReplyMessage) message;
 			// check client info
-			PublicKey publicKey = this.publicKeyMap.get(this.getReplicaMap().get(replyMessage.getReplicaNum()));
+			PublicKey publicKey = this.publicKeyMap.get(getReplicaMap().get(replyMessage.getReplicaNum()));
 			if (replyMessage.verifySignature(publicKey)) {
 
 				Long uniqueKey = replyMessage.getTime();
@@ -119,9 +119,17 @@ public class Client extends Connector {
 							ignoreList.add(uniqueKey);
 
 							//Release timer
+							if (Replica.DEBUG) {
+								System.err.println("Got reply : " + replyMessage.getTime());
+								System.err.print("Before Timer cancel\n\t");
+								timerMap.keySet().stream().forEach(x -> System.err.print(timerMap.get(x) + " "));
+							}
 							timerMap.get(replyMessage.getTime()).cancel();
 							timerMap.remove(replyMessage.getTime());
-
+							if (Replica.DEBUG) {
+								System.err.print("\nAfter Timer cancel\n\t");
+								timerMap.keySet().stream().forEach(x -> System.err.print(timerMap.get(x) + " "));
+							}
 							return replyMessage.getResult();
 						}
 					}
@@ -137,7 +145,7 @@ public class Client extends Connector {
 		if (!header.getType().equals("replica")) throw new AssertionError();
 		SocketChannel channel = header.getChannel();
 		this.publicKeyMap.put(channel, header.getPublicKey());
-		this.getReplicaMap().put(header.getReplicaNum(), channel);
+		getReplicaMap().put(header.getReplicaNum(), channel);
 	}
 
 
@@ -157,10 +165,8 @@ public class Client extends Connector {
 
 		@Override
 		public void run() {
-			conn.getReplicaMap().values().forEach(socket -> conn.send(socket, requestMessage));
-			if (Replica.DEBUG) {
-				System.err.println("send message timestamp : " + requestMessage.getTime());
-			}
+			getReplicaMap().values().forEach(socket -> conn.send(socket, requestMessage));
+
 			RequestMessage nextRequestMessage = RequestMessage.makeRequestMsg(conn.getPrivateKey(), requestMessage.getOperation().update());
 			BroadcastTask task = new BroadcastTask(nextRequestMessage, this.conn, this.timerMap, this.timerCount + 1);
 			if (Replica.DEBUG) {

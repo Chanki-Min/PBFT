@@ -31,7 +31,7 @@ import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
 
-	final static int WATERMARK_UNIT = 3;
+	final static int WATERMARK_UNIT = 5;
 
 
 	private final int myNumber;
@@ -189,18 +189,24 @@ public class Replica extends Connector {
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
+				if (DEBUG) {
+					System.err.print("got Pre - prepare message #" + ((PreprepareMessage) message).getSeqNum());
+				}
 				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
 					loopback(message);
 				else
 					handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
+				if (DEBUG) {
+					System.err.print("got Prepare message #" + ((PrepareMessage) message).getSeqNum() + " from " + ((PrepareMessage) message).getReplicaNum());
+				}
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
+				if (DEBUG) {
+					System.err.println("got Commit message #" + ((CommitMessage) message).getSeqNum() + " from " + ((CommitMessage) message).getReplicaNum());
+				}
 				handleCommitMessage((CommitMessage) message);
 			} else if (message instanceof CheckPointMessage) {
-				if (DEBUG) {
-					System.err.println("got CheckpointMessage #" + ((CheckPointMessage) message).getSeqNum() + " from " + ((CheckPointMessage) message).getReplicaNum());
-				}
 				handleCheckPointMessage((CheckPointMessage) message);
 			} else if (message instanceof ViewChangeMessage) {
 				handleViewChangeMessage((ViewChangeMessage) message);
@@ -279,7 +285,7 @@ public class Replica extends Connector {
 				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], this.getViewNum() + 1, this);
 				Timer timer = new Timer();
 				if (DEBUG)
-					timer.schedule(viewChangeTimerTask, Replica.TIMEOUT + 5);
+					timer.schedule(viewChangeTimerTask, Replica.TIMEOUT);
 				else
 					timer.schedule(viewChangeTimerTask, Replica.TIMEOUT);
 
@@ -339,9 +345,10 @@ public class Replica extends Connector {
 					make primary replica faulty
 				 */
 				int errno = 1;
-				int primaryErrSeqNum = 6;
-				if (seqNum == primaryErrSeqNum && this.getMyNumber() == 0) {
+				int primaryErrSeqNum = 3;
+				if (seqNum % 5 == primaryErrSeqNum && 0 == this.getViewNum() % getReplicaMap().size()) {
 					if (errno == 1) { //primary stops suddenly[
+						System.err.println("I'm faulty at #" + seqNum);
 						primaryStopCase();
 					} else if (errno == 2) { //primary sends bad pre-prepare message which consists of wrong request message
 						primarySendBadPrepreCase(seqNum);
@@ -444,7 +451,7 @@ public class Replica extends Connector {
 	}
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
-		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
+		SocketChannel primaryChannel = getReplicaMap().get(this.getPrimary());
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
 		SocketChannel PublicKeySocket = getChannelFromClientInfo(clientPublicKey);
@@ -454,6 +461,9 @@ public class Replica extends Connector {
 		boolean isVerified = message.isVerified(primaryPublicKey, this.getPrimary(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
+			if (DEBUG) {
+				System.err.println("	verify pass");
+			}
 			logger.insertMessage(message);
 			logger.insertMessage(message.getRequestMessage());
 			PrepareMessage prepareMessage = makePrepareMsg(
@@ -462,14 +472,22 @@ public class Replica extends Connector {
 					message.getSeqNum(),
 					message.getDigest(),
 					this.myNumber);
+			logger.insertMessage(prepareMessage);
 			getReplicaMap().values().forEach(channel -> send(channel, prepareMessage));
+		} else if (DEBUG) {
+			System.err.println("	verify NOT pass");
 		}
 	}
 
 	private void handlePrepareMessage(PrepareMessage message) {
-		PublicKey publicKey = publicKeyMap.get(this.getReplicaMap().get(message.getReplicaNum()));
+		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (message.isVerified(publicKey, this.getPrimary(), this::getWatermarks)) {
 			logger.insertMessage(message);
+			if (DEBUG) {
+				System.err.println("	verify pass");
+			}
+		} else if (DEBUG) {
+			System.err.println("	verify NOT pass");
 		}
 		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ?")) {
 			pstmt.setInt(1, message.getSeqNum());
@@ -507,7 +525,7 @@ public class Replica extends Connector {
 
 		switch (message.getType()) {
 			case "replica":
-				this.getReplicaMap().put(message.getReplicaNum(), channel);
+				getReplicaMap().put(message.getReplicaNum(), channel);
 				break;
 			case "client":
 				this.clients.add(channel);
@@ -618,7 +636,7 @@ public class Replica extends Connector {
 	}
 
 	private void handleCheckPointMessage(CheckPointMessage message) {
-		PublicKey publicKey = publicKeyMap.get(this.getReplicaMap().get(message.getReplicaNum()));
+		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.verify(publicKey))
 			return;
 
@@ -658,12 +676,12 @@ public class Replica extends Connector {
 
 					if (max > 2 * getMaximumFaulty() && message.getSeqNum() > this.lowWatermark) {
 						if(DEBUG){
-							System.err.println("start Garbage Collection");
+							System.err.print("start Garbage Collection");
 						}
 						logger.executeGarbageCollection(message.getSeqNum());
 						lowWatermark += WATERMARK_UNIT;
 						if(DEBUG){
-							System.err.println("low watermark : "+this.lowWatermark);
+							System.err.println("	low watermark : " + this.lowWatermark);
 						}
 					}
 				}
@@ -676,13 +694,13 @@ public class Replica extends Connector {
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		if (DEBUG) {
-			System.err.println("got ViewChangeMessage : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
+			System.err.print("got ViewChangeMessage : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
 		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT))
 			return;
 		if (DEBUG) {
-			System.err.println("	pass isVerified : new view #" + message.getNewViewNum() + " from " + message.getReplicaNum());
+			System.err.println("	pass isVerified");
 		}
 		logger.insertMessage(message);
 
@@ -738,8 +756,14 @@ public class Replica extends Connector {
 				int minNewViewNum = newViewNumList.stream().min(Integer::min).get();
 
 				if (newViewNumList.size() == getMaximumFaulty() + 1) {
+					if (DEBUG) {
+						System.err.println("got f+1 viewChangeMessages and Send Viewchange message");
+					}
 					this.setViewChangePhase(true);
 					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
+
+					message.getCheckPointMessages().stream().forEach(x -> logger.insertMessage(x));
+
 					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
 							message.getLastCheckpointNum(), minNewViewNum, this,
 							getPreparedStatementFn);
@@ -866,7 +890,10 @@ public class Replica extends Connector {
 				.getLastCheckpointNum();
 		if ((getWatermarks()[0] > newLowWatermark)) throw new AssertionError();
 		this.lowWatermark = newLowWatermark;
-
+		message.getViewChangeMessageList()
+				.stream()
+				.flatMap(x -> x.getCheckPointMessages().stream())
+				.forEach(c -> logger.insertMessage(c));
 		//Execute GC
 		logger.executeGarbageCollection(getWatermarks()[0] - 1);
 		if (DEBUG) {
@@ -893,12 +920,6 @@ public class Replica extends Connector {
 		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> x.equals(generateTimerKey(newViewNum))).collect(Collectors.toList());
 		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
-
-		if (DEBUG) {
-			System.err.println("removeNewViewChangeTimer end");
-			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
-			System.err.println(" ");
-		}
 	}
 
 	public void removeViewChangeTimer() {
@@ -906,11 +927,5 @@ public class Replica extends Connector {
 		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> !x.equals("view")).collect(Collectors.toList());
 		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
-
-		if (DEBUG) {
-			System.err.println("removeViewChangeTimer end");
-			timerMap.keySet().stream().forEach(x -> System.err.print(x.substring(0, 7) + ", "));
-			System.err.println(" ");
-		}
 	}
 }

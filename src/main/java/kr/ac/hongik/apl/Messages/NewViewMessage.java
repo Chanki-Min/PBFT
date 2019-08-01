@@ -88,7 +88,9 @@ public class NewViewMessage implements Message {
 				.map(pm -> pm.getPreprepareMessage())
 				.distinct()
 				.collect(Collectors.toList());
-
+		if (DEBUG) {
+			System.err.println("recevied_pre_prepares size : " + received_pre_prepares.size());
+		}
 		Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares.stream()
 				.filter(pp -> pp.equals(p))
 				.findAny()
@@ -131,14 +133,14 @@ public class NewViewMessage implements Message {
 
 	public boolean isVerified(Replica replica) {
 		Map<SocketChannel, PublicKey> keymap = replica.getPublicKeyMap();
-		int newPrimaryNum = getNewViewNum() % replica.getReplicaMap().size();
+		int newPrimaryNum = getNewViewNum() % Replica.getReplicaMap().size();
 
 		Boolean[] checklist = new Boolean[4];
 
-		checklist[0] = this.verify(keymap.get(replica.getReplicaMap().get(newPrimaryNum)));
+		checklist[0] = this.verify(keymap.get(Replica.getReplicaMap().get(newPrimaryNum)));
 
 		checklist[1] = this.getViewChangeMessageList().stream()
-				.allMatch(v -> v.verify(keymap.get(replica.getReplicaMap().get(v.getReplicaNum()))));
+				.allMatch(v -> v.verify(keymap.get(Replica.getReplicaMap().get(v.getReplicaNum()))));
 
 		List<PrepareMessage> agreed_prepares = this.getViewChangeMessageList()
 				.stream()
@@ -153,7 +155,7 @@ public class NewViewMessage implements Message {
 					.filter(pp -> pp.getDigest() != null)
 					.filter(pp -> agreed_prepares.stream()
 							.filter(p -> p.equals(pp))
-							.filter(p -> p.verify(keymap.get(replica.getReplicaMap().get(p.getReplicaNum()))))
+							.filter(p -> p.verify(keymap.get(Replica.getReplicaMap().get(p.getReplicaNum()))))
 							.count() > 2 * replica.getMaximumFaulty()
 					)
 					.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();

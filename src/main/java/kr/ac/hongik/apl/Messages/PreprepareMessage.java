@@ -63,7 +63,9 @@ public class PreprepareMessage implements Message {
 		checklist[2] = checkUniqueTuple(prepareStatement);
 
         checklist[3] = requestMessage.verify(clientPublicKey);
-
+		if (Replica.DEBUG) {
+			Arrays.stream(checklist).forEach(x -> System.err.print(" " + x + " "));
+		}
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
