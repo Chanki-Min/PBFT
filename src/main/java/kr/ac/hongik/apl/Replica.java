@@ -333,7 +333,7 @@ public class Replica extends Connector {
 		try {
 			int seqNum = getLatestSequenceNumber() + 1;
 
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getPrimary(), seqNum, message);
+			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getViewNum(), seqNum, message);
 			logger.insertMessage(preprepareMessage);
 
 			if (DEBUG) {
@@ -396,7 +396,7 @@ public class Replica extends Connector {
 			Client client = new Client(prop);
 			Operation op = new GreetingOperation(client.getPublicKey());
 			RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(this.getPrivateKey(), this.getPrimary(), seqNum, requestMessage);
+			PreprepareMessage preprepareMessage = makePrePrepareMsg(this.getPrivateKey(), this.getViewNum(), seqNum, requestMessage);
 			getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
 		}
 	}
