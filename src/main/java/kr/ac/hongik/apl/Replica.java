@@ -31,7 +31,7 @@ import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 public class Replica extends Connector {
 	public static final boolean DEBUG = true;
 
-	final static int WATERMARK_UNIT = 5;
+	final static int WATERMARK_UNIT = 10;
 
 
 	private final int myNumber;
@@ -189,21 +189,18 @@ public class Replica extends Connector {
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				if (DEBUG) {
-					System.err.print("got Pre - prepare message #" + ((PreprepareMessage) message).getSeqNum());
-				}
 				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
 					loopback(message);
 				else
 					handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
 				if (DEBUG) {
-					System.err.print("got Prepare message #" + ((PrepareMessage) message).getSeqNum() + " from " + ((PrepareMessage) message).getReplicaNum());
+					System.err.print("got Prepare message #" + ((PrepareMessage) message).getSeqNum() + " from " + ((PrepareMessage) message).getReplicaNum() + " view : " + ((PrepareMessage) message).getViewNum());
 				}
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
 				if (DEBUG) {
-					System.err.println("got Commit message #" + ((CommitMessage) message).getSeqNum() + " from " + ((CommitMessage) message).getReplicaNum());
+					System.err.println("got Commit message #" + ((CommitMessage) message).getSeqNum() + " from " + ((CommitMessage) message).getReplicaNum() + " view : " + ((CommitMessage) message).getViewNum());
 				}
 				handleCommitMessage((CommitMessage) message);
 			} else if (message instanceof CheckPointMessage) {
@@ -211,9 +208,6 @@ public class Replica extends Connector {
 			} else if (message instanceof ViewChangeMessage) {
 				handleViewChangeMessage((ViewChangeMessage) message);
 			} else if (message instanceof NewViewMessage) {
-				if (DEBUG) {
-					System.err.println("got NewViewMessage from view#" + ((NewViewMessage) message).getNewViewNum());
-				}
 				handleNewViewMessage((NewViewMessage) message);
 			} else {
 				if (DEBUG) {
@@ -264,7 +258,9 @@ public class Replica extends Connector {
 		PublicKey publicKey = publicKeyMap.get(sock);
 		boolean canGoNextState = message.verify(publicKey) &&
 				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
-
+		if (DEBUG) {
+			System.err.print(message.verify(publicKey) + " " + message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement)) + "\n");
+		}
 
 		if (canGoNextState) {
 			if (DEBUG) {
@@ -345,8 +341,12 @@ public class Replica extends Connector {
 					make primary replica faulty
 				 */
 				int errno = 1;
-				int primaryErrSeqNum = 3;
-				if (seqNum % 5 == primaryErrSeqNum && 0 == this.getViewNum() % getReplicaMap().size()) {
+				int primaryErrSeqNum = 4;
+				if ((seqNum % 10 == primaryErrSeqNum && 0 == this.getViewNum() % getReplicaMap().size()) ||
+						(seqNum % 10 == primaryErrSeqNum - 1 && 1 == this.getViewNum() % getReplicaMap().size()) ||
+						(seqNum % 10 == primaryErrSeqNum - 2 && 2 == this.getViewNum() % getReplicaMap().size()) ||
+						(seqNum % 10 == primaryErrSeqNum - 3 && 3 == this.getViewNum() % getReplicaMap().size())
+				) {
 					if (errno == 1) { //primary stops suddenly[
 						System.err.println("I'm faulty at #" + seqNum);
 						primaryStopCase();
@@ -451,6 +451,9 @@ public class Replica extends Connector {
 	}
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
+		if (DEBUG) {
+			System.err.print("got Pre - prepare message #" + message.getSeqNum() + " view : " + message.getViewNum());
+		}
 		SocketChannel primaryChannel = getReplicaMap().get(this.getPrimary());
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
@@ -635,7 +638,12 @@ public class Replica extends Connector {
 		return Util.hash(operation);
 	}
 
+	/*TODO : GC table -> viewchange phase 진입 -> stableCheckpointNum 가져옴 -> update low
+	   ==> 이런 경우 Checkpoint msg in viewchange msg 가 null이 됨 */
 	private void handleCheckPointMessage(CheckPointMessage message) {
+		if (DEBUG) {
+			System.err.println("got checkpoint msg seqnum : " + message.getSeqNum() + " from " + message.getReplicaNum());
+		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.verify(publicKey))
 			return;
@@ -716,6 +724,7 @@ public class Replica extends Connector {
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
 				logger.insertMessage(newViewMessage);
 				getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
+				handleNewViewMessage(newViewMessage);
 			} else if (hasTwoFPlusOneMessages(message)) {
 				/* 2f + 1개 이상의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
 				ViewChangeTimerTask task = new ViewChangeTimerTask(getWatermarks()[0], message.getNewViewNum() + 1, this);
@@ -862,6 +871,9 @@ public class Replica extends Connector {
 
 
 	private void handleNewViewMessage(NewViewMessage message) {
+		if (DEBUG) {
+			System.err.print("got NewViewMessage from view #" + message.getNewViewNum());
+		}
 		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum()) {
 			if (DEBUG) {
 				System.err.println("Fail newview verify");
@@ -906,8 +918,7 @@ public class Replica extends Connector {
 		else {
 			message.getOperationList()
 					.stream()
-					.map(pp -> makePrepareMsg(getPrivateKey(), pp.getViewNum(), pp.getSeqNum(), pp.getDigest(), getMyNumber()))
-					.forEach(msg -> getReplicaMap().values().forEach(sock -> send(sock, msg)));
+					.forEach(pp -> handlePreprepareMessage(pp));
 		}
 	}
 
