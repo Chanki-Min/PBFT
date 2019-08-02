@@ -43,13 +43,10 @@ public class Client extends Connector {
 	}
 
 	public void request(RequestMessage msg) {
-		if (Replica.DEBUG) {
-			System.err.println("send message timestamp : " + msg.getTime());
-		}
 		BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 		Timer timer = new Timer();
 		if (Replica.DEBUG)
-			timer.schedule(task, TIMEOUT * 3);
+			timer.schedule(task, TIMEOUT * 2);
 		else
 			timer.schedule(task, TIMEOUT);
 		timerMap.put(msg.getTime(), timer);
@@ -122,13 +119,14 @@ public class Client extends Connector {
 							if (Replica.DEBUG) {
 								System.err.println("Got reply : " + replyMessage.getTime());
 								System.err.print("Before Timer cancel\n\t");
-								timerMap.keySet().stream().forEach(x -> System.err.print(timerMap.get(x) + " "));
+								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
 							}
 							timerMap.get(replyMessage.getTime()).cancel();
 							timerMap.remove(replyMessage.getTime());
 							if (Replica.DEBUG) {
 								System.err.print("\nAfter Timer cancel\n\t");
-								timerMap.keySet().stream().forEach(x -> System.err.print(timerMap.get(x) + " "));
+								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
+								System.err.println(" ");
 							}
 							return replyMessage.getResult();
 						}
@@ -151,7 +149,7 @@ public class Client extends Connector {
 
 	static class BroadcastTask extends TimerTask {
 
-		final RequestMessage requestMessage;
+		RequestMessage requestMessage;
 		final private Connector conn;
 		final private int timerCount;
 		private Map<Long, Timer> timerMap;
@@ -165,15 +163,18 @@ public class Client extends Connector {
 
 		@Override
 		public void run() {
-			getReplicaMap().values().forEach(socket -> conn.send(socket, requestMessage));
-
-			RequestMessage nextRequestMessage = RequestMessage.makeRequestMsg(conn.getPrivateKey(), requestMessage.getOperation().update());
-			BroadcastTask task = new BroadcastTask(nextRequestMessage, this.conn, this.timerMap, this.timerCount + 1);
 			if (Replica.DEBUG) {
 				System.err.println((timerCount) + " Timer expired");
 			}
+			RequestMessage nextRequestMessage = requestMessage;
+			if (timerCount > 1) {
+				nextRequestMessage = RequestMessage.makeRequestMsg(conn.getPrivateKey(), requestMessage.getOperation().update());
+			}
+			BroadcastTask task = new BroadcastTask(nextRequestMessage, this.conn, this.timerMap, this.timerCount + 1);
+			RequestMessage finalNextRequestMessage = nextRequestMessage;
+			getReplicaMap().values().forEach(socket -> conn.send(socket, finalNextRequestMessage));
 			Timer timer = new Timer();
-			timer.schedule(task, (this.timerCount) * TIMEOUT);
+			timer.schedule(task, (this.timerCount + 1) * TIMEOUT);
 
 			timerMap.put(nextRequestMessage.getTime(), timer);
 		}

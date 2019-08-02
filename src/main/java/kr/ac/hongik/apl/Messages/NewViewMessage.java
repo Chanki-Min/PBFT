@@ -37,7 +37,7 @@ public class NewViewMessage implements Message {
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
 		if (DEBUG) {
-			System.err.print("making new view message operationList size : ");
+			System.err.print("	making new view message operationList size : ");
 			if (operationList == null)
 				System.err.println("null");
 			else
@@ -165,7 +165,10 @@ public class NewViewMessage implements Message {
 					.filter(pp -> pp.getDigest() == null)
 					.noneMatch(pp -> agreed_prepares.stream().anyMatch(p -> p.equals(pp)));
 		}
-
+		if (DEBUG) {
+			Arrays.stream(checklist).forEach(x -> System.err.print(" " + x));
+			System.err.println(" ");
+		}
 		return Arrays.stream(checklist).allMatch(Boolean::booleanValue);
 	}
 
