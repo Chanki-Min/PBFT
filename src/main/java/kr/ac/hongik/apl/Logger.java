@@ -204,12 +204,11 @@ public class Logger {
 		String baseQuery = new StringBuilder()
 				.append("SELECT P.requestMessage ")
 				.append("FROM Preprepares AS P ")
-				.append("WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?")
+				.append("WHERE P.seqNum = ? AND P.digest = ?")
 				.toString();
 		try (var pstmt = getPreparedStatement(baseQuery)) {
-			pstmt.setInt(1, message.getViewNum());
-			pstmt.setInt(2, message.getSeqNum());
-			pstmt.setString(3, message.getDigest());
+			pstmt.setInt(1, message.getSeqNum());
+			pstmt.setString(2, message.getDigest());
 
 			try (var ret = pstmt.executeQuery()) {
 				ret.next();
