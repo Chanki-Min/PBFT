@@ -588,7 +588,7 @@ public class Replica extends Connector {
 						CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
 								this.getPrivateKey(),
 								seqNum,
-								logger.getStateDigest(seqNum, getMaximumFaulty()),
+								logger.getStateDigest(seqNum, getMaximumFaulty(), this.getViewNum()),
 								this.myNumber);
 						if (DEBUG) {
 							System.err.println("Enter Checkpoint phase");
