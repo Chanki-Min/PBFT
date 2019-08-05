@@ -8,6 +8,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -21,6 +23,9 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.*;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
@@ -35,6 +40,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class EsRestClient {
 	private String masterJsonPath = "/ES_MappingAndSetting/master.json";
@@ -204,6 +210,103 @@ public class EsRestClient {
 			System.out.println("Request sent | Cause: This is Last buffer |");
 		}
 		return bulkResponse;
+	}
+
+	/**
+	 * This store PlainData + encData
+	 * @param indexName
+	 * @param blockNumber
+	 * @param plainDataList original userData
+	 * @param encData
+	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
+	 * @param maxAction limit of request number of One bulk execution
+	 * @param maxSize	limit of request all size of One bulk execution
+	 * @param maxSizeUnit	unit of maxSize(Kb, Mb, etc...)
+	 * @param threadSize	limit of threads
+	 * @return	ElasticSearch's BulkResponse instance of  data-insertion
+	 * @throws IOException
+	 * @throws EsException throws when (index not exists, some of insertion failed)
+	 * @throws EsConcurrencyException
+	 * throws when headDocument of (indexName,BlockNumber) already exists.
+	 * that means other replica already bulkInserting to certain version, so cancel method
+	 */
+	public void bulkInsertDocumentByProcessor(
+			String indexName, int blockNumber, List<Map<String, Object>> plainDataList, List<byte[]> encData, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
+			throws IOException, EsException, EsConcurrencyException, InterruptedException{
+		if(versionNumber <= getDocumentVersion(indexName,blockNumber,-1))
+			throw new EsConcurrencyException("current version is higher than this");
+
+		if(!this.isIndexExists(indexName))
+			throw new EsException("index :"+indexName+" does not exists");
+
+		//Check plainDataList's mapping equals to Index's mapping
+		Set indexKeySet = getFieldKeySet(indexName); indexKeySet.remove("block_number"); indexKeySet.remove("entry_number"); indexKeySet.remove("encrypt_data");
+		if(!plainDataList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
+			throw new EsException("index :"+indexName+" field mapping does NOT equal to given plainDataList ketSet");
+
+
+		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
+		try {
+			restHighLevelClient.index(getHeadDocument(indexName,blockNumber,versionNumber), RequestOptions.DEFAULT);
+		}catch (ElasticsearchStatusException e) {
+			StringBuilder builder = new StringBuilder();
+			builder.append(this.getClass().getName()).append("::bulkInsertDocument").append(" ConcurrencyException");
+			builder.append(" indexName :").append(indexName).append(" BlockNum :").append(blockNumber);
+			builder.append(" Cause :Document inserting already executing by other replica");
+			throw new EsConcurrencyException(builder.toString());
+		}
+
+		BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+			@Override
+			public void beforeBulk(long executionId, BulkRequest request) {
+				//System.err.println("bulk insertion START, LEN :"+request.numberOfActions()+" SIZE :"+request.estimatedSizeInBytes());
+			}
+
+			@Override
+			public void afterBulk(long executionId, BulkRequest request,
+								  BulkResponse response) {
+				//System.err.println("bulk insertion OK, LEN :"+request.numberOfActions()+" SIZE :"+request.estimatedSizeInBytes()+" exeID :"+executionId);
+			}
+
+			@Override
+			public void afterBulk(long executionId, BulkRequest request,
+								  Throwable failure) {
+				System.err.println("bulk insertion FAIL, cause :"+failure);
+			}
+		};
+		BulkProcessor.Builder processorBuilder = BulkProcessor.builder(
+				(req, bulkListener) ->
+						restHighLevelClient.bulkAsync(req, RequestOptions.DEFAULT, bulkListener),
+				listener);
+		processorBuilder.setBulkActions(maxAction);
+		processorBuilder.setBulkSize(new ByteSizeValue(maxSize, maxSizeUnit));
+		processorBuilder.setConcurrentRequests(threadSize);
+		processorBuilder.setBackoffPolicy(BackoffPolicy
+				.constantBackoff(TimeValue.timeValueSeconds(1L), 3));
+		BulkProcessor bulkProcessor = processorBuilder.build();
+
+
+		//make query
+		Base64.Encoder encoder = Base64.getEncoder();
+		for(int entryNumber = 0; entryNumber<encData.size(); entryNumber++) {
+
+			String id = idGenerator(indexName,blockNumber,entryNumber);
+			String base64EncodedData = encoder.encodeToString(encData.get(entryNumber));
+			XContentBuilder builder = new XContentFactory().jsonBuilder();
+			builder.startObject();
+			{
+				builder.field("block_number", blockNumber);
+				builder.field("entry_number", entryNumber);
+				builder.field("encrypt_data", base64EncodedData);
+			}
+			for(String plainKey : plainDataList.get(entryNumber).keySet()){
+				builder.field(plainKey, plainDataList.get(entryNumber).get(plainKey));
+			}
+			builder.endObject();
+			bulkProcessor.add(new IndexRequest(indexName).id(id).source(builder).version(versionNumber).versionType(VersionType.EXTERNAL));
+		}
+		bulkProcessor.awaitClose(10L, TimeUnit.SECONDS);
+		//return null;
 	}
 
 	/**

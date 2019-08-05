@@ -3,6 +3,7 @@ package kr.ac.hongik.apl.ES;
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -98,7 +99,8 @@ public class EsJsonParserTest {
 		}
 
 
-		esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, 1);
+		esRestClient.bulkInsertDocumentByProcessor(
+				indexName, 0, sampleUserData, encData, 1, 100, 10, ByteSizeUnit.MB, 5);
 		sleep(3000);
 		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair(indexName,0);
 	}

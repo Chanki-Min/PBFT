@@ -4,6 +4,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -61,17 +62,17 @@ public class ConcurrentBulkInsertThread extends Thread{
 					System.err.println("Thread #"+threadID+" "+e.getClass().toString()+" "+e.getMessage());
 				}
 			}
-			esRestClient.bulkInsertDocument(indexName, 0, plain_data, encrypt_data, versionNumber);
+			esRestClient.bulkInsertDocumentByProcessor(
+					indexName, 0, plain_data, encrypt_data, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
 			esRestClient.deleteIndex(indexName);
 			esRestClient.disConnectToEs();
 
-		} catch (IOException e){
-			throw new IOError(e);
+		} catch (IOException | InterruptedException e){
+			throw new Error(e);
 		} catch (NoSuchFieldException | EsRestClient.EsException | EsRestClient.EsConcurrencyException e) {
 			System.err.println("Thread #"+threadID+" "+e.getMessage());
 		}
 	}
-
 
 	private boolean isIndexExists(String indexName) throws IOException{
 		GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);

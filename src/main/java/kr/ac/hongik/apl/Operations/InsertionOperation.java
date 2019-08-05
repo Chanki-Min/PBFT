@@ -10,7 +10,7 @@ import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.elasticsearch.ElasticsearchCorruptionException;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import javax.crypto.SecretKey;
@@ -26,7 +26,13 @@ import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Util.*;
 
 public class InsertionOperation extends Operation {
-	private final boolean DEBUG = true;
+	private final boolean DEBUG = false;
+		//value for bulkInsertProcessor
+		private final int maxAction = 100;
+		private final int maxSize = 10;
+		private final ByteSizeUnit maxSizeUnit = ByteSizeUnit.MB;
+		private final int threadSize = 5;
+
 	private final int sleepTime = 3000;
 	private List<Map<String, Object>> infoList;
 	private static final String tableName = "BlockChain";
@@ -54,7 +60,7 @@ public class InsertionOperation extends Operation {
 			blockNumber = pair.getRight();
 
 			storeToES(infoList, encryptedList, blockNumber);
-		} catch (Util.EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException e) {
+		} catch (EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException | InterruptedException e) {
 			throw new Error(e);
 		} catch (EsRestClient.EsConcurrencyException ignored) {
 		}
@@ -150,7 +156,7 @@ public class InsertionOperation extends Operation {
 
 
 	/**
-	 * @param encryptedList
+	 * @param encryptList
 	 * @param blockNumber
 	 * @return ElasticSearch's BulkResponse instance of  data-insertion
 	 * @throws NoSuchFieldException
@@ -158,7 +164,7 @@ public class InsertionOperation extends Operation {
 	 * @throws EsRestClient.EsException
 	 * @throws EsRestClient.EsConcurrencyException throws when other replica already inserting (Indexes or Documents) that has same (indexName,blockNumber,versionNumber)
 	 */
-	private BulkResponse storeToES(List<Map<String, Object>> plainDataList, List<byte[]> encryptedList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException{
+	private void storeToES(List<Map<String, Object>> plainDataList, List<byte[]> encryptList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException, InterruptedException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
@@ -179,9 +185,9 @@ public class InsertionOperation extends Operation {
 			}
 		}
 
-		BulkResponse bulkResponse = esRestClient.bulkInsertDocument("block_chain", blockNumber, plainDataList, encryptedList, 1);
+		esRestClient.bulkInsertDocumentByProcessor(
+				"block_chain", blockNumber, plainDataList, encryptList, 1, maxAction, maxSize, maxSizeUnit, threadSize);
 		esRestClient.disConnectToEs();
-		return bulkResponse;
 	}
 
 	/**
@@ -213,13 +219,10 @@ public class InsertionOperation extends Operation {
 
 		long currHeadDocVersion = esRestClient.getDocumentVersion(indexName, blockNumber, -1);
 		try {
-			esRestClient.bulkInsertDocument(indexName, blockNumber, plainDataList,encryptList, currHeadDocVersion + 1);
-		}catch (EsRestClient.EsConcurrencyException ignore) {
+			esRestClient.bulkInsertDocumentByProcessor(
+					"block_chain", blockNumber, plainDataList, encryptList, 1, maxAction, maxSize, maxSizeUnit, threadSize);
+		}catch (EsRestClient.EsConcurrencyException | InterruptedException ignore) {
 		}
 		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber).getRight());
 	}
-
-
-
-
 }

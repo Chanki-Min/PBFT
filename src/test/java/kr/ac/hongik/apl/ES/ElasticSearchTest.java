@@ -11,6 +11,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -88,7 +89,7 @@ public class ElasticSearchTest {
 	void SingleInsertTest() throws IOException{
 		String indexName = "test_block_chain9";
 		int blockNumber = 0;
-		int entrySize = 50;
+		int entrySize = 100;
 		int sleepTime = 1000;
 		int versionNumber = 1;
 		boolean deleteIndexAfterFinish = false;
@@ -147,7 +148,7 @@ public class ElasticSearchTest {
 
 	@Test
 	void BulkInsertTest() throws IOException{
-		String indexName = "test_block_chain5";
+		String indexName = "test_block_chain2";
 		int blockNumber = 1;
 		int entrySize = 10;
 		int sleepTime = 1000;
@@ -200,6 +201,59 @@ public class ElasticSearchTest {
 	}
 
 	@Test
+	public void bulkProcessorTest() throws IOException{
+		String indexName = "test_block_chain9";
+		int blockNumber = 1;
+		int entrySize = 1000;
+		int sleepTime = 1000;
+		int versionNumber = 1;
+		boolean deleteIndexAfterFinish = false;
+		EsJsonParser parser = new EsJsonParser();
+		esRestClient = new EsRestClient();
+		try {
+			esRestClient.connectToEs();
+			XContentBuilder mappingBuilder;
+			XContentBuilder settingBuilder;
+			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+			mappingBuilder = parser.jsonToXcontentBuilder(false);
+
+			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			settingBuilder = parser.jsonToXcontentBuilder(false);
+
+			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
+
+			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+			List<Map<String, Object>> sampleUserData = new ArrayList<>();
+			List<byte[]> encData = new ArrayList<>();
+
+			String seed = "Hello World!";
+			SecretKey key = Util.makeSymmetricKey(seed);
+
+			for(int i=0; i<entrySize; i++) {
+				var map = parser.jsonToMap();
+				map.put("start_time", String.valueOf(System.currentTimeMillis()));
+				sampleUserData.add(map);
+				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
+			}
+
+			long time = System.currentTimeMillis();
+			esRestClient.bulkInsertDocumentByProcessor(indexName, 0, sampleUserData, encData, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
+			System.err.println("time :"+(System.currentTimeMillis()-time));
+
+			if(deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+			e.printStackTrace();
+		} catch (IOException e){
+			throw new IOError(e);
+		} catch (Util.EncryptionException e) {
+			e.printStackTrace();
+		} finally {
+			esRestClient.disConnectToEs();
+		}
+
+	}
+
+	@Test
 	void getBlockDataPairTest() throws IOException{
 		String indexName = "test_block_chain10ls" +
 				"";
@@ -238,7 +292,8 @@ public class ElasticSearchTest {
 			System.err.println("Test data ready");
 
 			long currTime = System.currentTimeMillis();
-			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNumber);
+			esRestClient.bulkInsertDocumentByProcessor(
+					indexName, 0, sampleUserData, encData, 1, 100, 10, ByteSizeUnit.MB, 5);
 			System.err.println("entrySize :"+entrySize+" bulkInsertionTime :"+(System.currentTimeMillis()-currTime));
 
 			sleep(sleepTime);
@@ -291,7 +346,8 @@ public class ElasticSearchTest {
 				sampleUserData.add(map);
 				encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
 			}
-			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNumber);
+			esRestClient.bulkInsertDocumentByProcessor(
+					indexName, 0, sampleUserData, encData, 1, 100, 10, ByteSizeUnit.MB, 5);
 			sleep(sleepTime);
 
 			List<byte[]> restoredByteList = new ArrayList<>();
