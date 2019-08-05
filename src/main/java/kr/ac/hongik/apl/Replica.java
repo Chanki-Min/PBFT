@@ -440,8 +440,12 @@ public class Replica extends Connector {
 	}
 
 	private int getLatestSequenceNumber() throws SQLException {
-		String query = "SELECT P.seqNum FROM Preprepares P";
+		String query = "SELECT P.seqNum FROM Preprepares P where viewNum = ?";
 		PreparedStatement pstmt = logger.getPreparedStatement(query);
+		pstmt.setInt(1, this.getViewNum());
+		if (DEBUG) {
+			System.err.println("Current viewNum = " + this.getViewNum());
+		}
 		ResultSet ret = pstmt.executeQuery();
 		List<Integer> seqList = JdbcUtils.toStream(ret)
 				.map(rethrow().wrapFunction(x -> x.getInt(1)))
@@ -693,7 +697,6 @@ public class Replica extends Connector {
 						}
 					}
 				}
-
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -721,7 +724,7 @@ public class Replica extends Connector {
 				if (DEBUG) {
 					System.err.println("I will be New Primary!");
 				}
-				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, this.getViewNum() + 1);
+				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, message.getNewViewNum());
 				logger.insertMessage(newViewMessage);
 				getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
 				handleNewViewMessage(newViewMessage);
