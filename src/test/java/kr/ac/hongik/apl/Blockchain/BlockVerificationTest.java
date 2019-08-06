@@ -2,7 +2,6 @@ package kr.ac.hongik.apl.Blockchain;
 
 import kr.ac.hongik.apl.BlockVerificationThread;
 import kr.ac.hongik.apl.Logger;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -18,7 +17,7 @@ public class BlockVerificationTest {
 		Logger logger = new Logger(filePath);
 
 		Scanner scn = new Scanner(System.in);
-		Thread verifyThread = new BlockVerificationThread(logger, esIndexName, dbTableName, 5000,trigger);
+		Thread verifyThread = new BlockVerificationThread(logger, esIndexName, dbTableName);
 		verifyThread.start();
 		verifyThread.join();
 	}

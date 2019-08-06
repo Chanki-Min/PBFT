@@ -32,58 +32,43 @@ public class BlockVerificationThread extends Thread {
 	private String tableName;
 	private String indexName;
 	private Logger logger;
-	private long sleepTime;
-	private boolean trigger;
 
-	public BlockVerificationThread(Logger logger, String indexName, String tableName, long sleepTime, boolean trigger){
+	public BlockVerificationThread(Logger logger, String indexName, String tableName){
 		this.logger = logger;
 		this.indexName = indexName;
 		this.tableName = tableName;
-		this.sleepTime = sleepTime;
-		this.trigger = trigger;
 	}
 
 	@Override
 	public void run(){
 		if(DEBUG) System.err.println("BlockVerificationThread Start");
-		while (true) {
-
+		try {
+			if(DEBUG) System.err.println("trigger is HIGH, Starting verification");
+			int latestHeaderNum = -1;
+			int latestEsBlockNum = -1;
 			try {
-				if (trigger) {
-					sleep(sleepTime);
-					if(DEBUG) System.err.println("trigger is HIGH, Starting verification");
-					int latestHeaderNum = -1;
-					int latestEsBlockNum = -1;
-					try {
-						latestHeaderNum = getLatestHeaderNum(tableName);
-						if (DEBUG) System.err.println("latestHeaderNum :" + latestHeaderNum);
-					}catch (SQLException e){
-					}
-
-					try {
-						latestEsBlockNum = getLatestEsBlockNum(indexName);
-						if(DEBUG) System.err.println("latestHeaderNum :"+latestHeaderNum);
-					}catch (ElasticsearchException e){
-					}
-
-					int maxVerifyNum = (latestHeaderNum < latestEsBlockNum) ? latestHeaderNum -1 : latestEsBlockNum -1;
-					if(maxVerifyNum < 0) {
-						System.err.println("Block has not discovered, stop verifying");
-						continue;
-					}
-					verifyChain(maxVerifyNum);
-					if(DEBUG) System.err.println("All verification PASS");
-					//trigger = false;
-				} else {
-					sleep(sleepTime);
-					if(DEBUG) System.err.println("Refreshing trigger check");
-					continue;
-				}
-			} catch (IOException | NoSuchFieldException | SQLException | EsRestClient.EsException | HeaderVerifyException | DataVerifyException | InterruptedException e) {
-				throw new Error(e);
+				latestHeaderNum = getLatestHeaderNum(tableName);
+				if (DEBUG) System.err.println("latestHeaderNum :" + latestHeaderNum);
+			}catch (SQLException e){
 			}
+			try {
+				latestEsBlockNum = getLatestEsBlockNum(indexName);
+				if(DEBUG) System.err.println("latestHeaderNum :"+latestHeaderNum);
+			}catch (ElasticsearchException e){
+			}
+			int maxVerifyNum = (latestHeaderNum < latestEsBlockNum) ? latestHeaderNum -1 : latestEsBlockNum -1;
+			if(maxVerifyNum < 0) {
+				System.err.println("Block has not discovered, stop verifying");
+				return;
+			}
+			verifyChain(maxVerifyNum);
+			if(DEBUG) System.err.println("All verification PASS");
+			//trigger = false;
+		} catch (IOException | NoSuchFieldException | SQLException | EsRestClient.EsException | HeaderVerifyException | DataVerifyException e) {
+			throw new Error(e);
 		}
 	}
+
 
 	private int getLatestHeaderNum(String tableName) throws SQLException{
 		String query = "SELECT max(idx) from " + tableName;
@@ -149,7 +134,7 @@ public class BlockVerificationThread extends Thread {
 			errorCode.append(Arrays.stream(checkList).map(x -> x.toString() + "|"));
 			errorCode.append(" ]");
 
-			logger.insertErrorLog(i, -1, String.valueOf(errorCode));
+			logger.insertErrorLog(System.currentTimeMillis(), i, -1, String.valueOf(errorCode));
 			throw new HeaderVerifyException(exceptionMsg.toString());
 		}
 	}
@@ -175,26 +160,26 @@ public class BlockVerificationThread extends Thread {
 		}catch (NoSuchFieldException e) {
 			if(DEBUG) System.err.println(e.getMessage());
 			entryNum = Integer.parseInt(e.getMessage());
-			logger.insertErrorLog(blockNum, entryNum, "Entry_KeySet_Malformed");
+			logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_KeySet_Malformed");
 			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_KeySet_Malformed");
 		}
 		catch (IllegalArgumentException e) {
 			entryNum = Integer.parseInt(e.getMessage());
-			logger.insertErrorLog(blockNum, entryNum, "Entry_Base64_Decoding_Fail");
-			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Base64_Decoding_Fail");
+			logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_Base64_Decoding_Fail");
+			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_Base64_Decoding_Fail");
 		} catch (EncryptionException e) {
-			logger.insertErrorLog(blockNum, entryNum, "Entry_Decryption_Fail");
-			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Decryption_Fail");
+			logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_Decryption_Fail");
+			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_Decryption_Fail");
 		} catch (SerializationException s) {
-			logger.insertErrorLog(blockNum, entryNum, "Entry_Deserialization_Fail");
-			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Deserialization_Fail");
+			logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_Deserialization_Fail");
+			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_Deserialization_Fail");
 		}
 
 		//try to compare originalMap == restoreMap
 		for (entryNum = 0; entryNum < data.getLeft().size(); entryNum++) {
 			if (!isMapSame(data.getLeft().get(entryNum), restoreMapList.get(entryNum))) {
-				logger.insertErrorLog(blockNum, entryNum, "Entry_Plain_NOT_SAME_WITH_RestoredPlain");
-				throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Data_SAME_Assertion_Fail");
+				logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_Plain_NOT_SAME_WITH_RestoredPlain");
+				throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_Plain_NOT_SAME_WITH_RestoredPlain");
 			}
 		}
 
@@ -206,9 +191,10 @@ public class BlockVerificationThread extends Thread {
 				.toString();
 
 		if (!root.equals(rootPrime)) {
-			logger.insertErrorLog(blockNum, -1, "Root_NOT_SAME_WITH_RootPrime_OR_Missing_document");
-			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + "Root_NOT_same_with_RootPrime_OR_Missing_document");
+			logger.insertErrorLog(System.currentTimeMillis(), blockNum, -1, "Root_NOT_SAME_WITH_RootPrime_OR_Missing_Document");
+			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Root_NOT_SAME_WITH_RootPrime_OR_Missing_Document");
 		}
+		logger.insertErrorLog(System.currentTimeMillis(), blockNum, data.getRight().size(), "ALL_PASS");
 	}
 
 	private Triple<Integer, String, String> getHeader(int headerNum) throws SQLException{

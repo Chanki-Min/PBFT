@@ -1,9 +1,11 @@
 package kr.ac.hongik.apl.Operations;
 
+import kr.ac.hongik.apl.BlockVerificationThread;
 import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Logger;
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
@@ -27,6 +29,8 @@ import static kr.ac.hongik.apl.Util.*;
 
 public class InsertionOperation extends Operation {
 	private final boolean DEBUG = false;
+	private final String indexName = "block_chain";
+	private final String tableName = "BlockChain";
 		//value for bulkInsertProcessor
 		private final int maxAction = 100;
 		private final int maxSize = 10;
@@ -35,7 +39,7 @@ public class InsertionOperation extends Operation {
 
 	private final int sleepTime = 3000;
 	private List<Map<String, Object>> infoList;
-	private static final String tableName = "BlockChain";
+
 
 	public InsertionOperation(PublicKey publickey, List<Map<String, Object>> infoList) {
 		super(publickey);
@@ -64,17 +68,22 @@ public class InsertionOperation extends Operation {
 			throw new Error(e);
 		} catch (EsRestClient.EsConcurrencyException ignored) {
 		}
-
 		//verification stack
 		try {
 			sleep(sleepTime);
-			if(checkEsBlockAndUpdateWhenWrong("block_chain",blockNumber, infoList,encryptedList))
+			if(checkEsBlockAndUpdateWhenWrong(indexName,blockNumber, infoList,encryptedList))
 				return blockNumber;
 			else
 				throw new EsRestClient.EsException("checkEsBlockAndUpdate failed");
 		} catch (NoSuchFieldException | EsRestClient.EsException | IOException | InterruptedException e) {
 			System.err.print(e.getMessage());
 			throw new Error(e);
+		}finally {
+			//if block get to VERIFY_UNIT, start Verification thread
+			if( blockNumber > 0 && (blockNumber % Replica.VERIFY_UNIT) == 0){
+				Thread thread = new BlockVerificationThread((Logger) obj, indexName, tableName);
+				thread.start();
+			}
 		}
 	}
 
@@ -89,7 +98,6 @@ public class InsertionOperation extends Operation {
 			logger.getPreparedStatement("INSERT INTO " + tableName + " VALUES (0, 'FIRST_ROOT', 'PREV')").execute();
 		} catch (SQLException ignored) {
 		}
-
 	}
 
 	/**
