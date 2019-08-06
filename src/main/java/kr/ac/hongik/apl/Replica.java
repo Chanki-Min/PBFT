@@ -15,6 +15,7 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -69,7 +70,75 @@ public class Replica extends Connector {
 	private int lowWatermark;
 
 	private ConcurrentHashMap<String, Timer> timerMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<Long, Timer> receiveTimerMap = new ConcurrentHashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
+
+	void start() {
+		//Assume that every connection is established
+
+		new Thread(() -> {
+			while (true) {
+				try {
+					receiveBuffer.put(Replica.super.receive());
+				} catch (InterruptedException e) {
+					continue;
+				}
+			}
+		}).start();
+
+		while (true) {
+			Message message = null;
+			try {
+				message = receive();
+			} catch (InterruptedException e) {
+				continue;
+			}
+			if (DEBUG) {
+				receiveTimerMap.values().stream().forEach(x -> x.cancel());
+				receiveTimerMap.keySet().stream().forEach(x -> receiveTimerMap.remove(x));
+				Timer timer = new Timer();
+				timer.schedule(new printQueue(this), 30000);
+				receiveTimerMap.put(Instant.now().toEpochMilli(), timer);
+			}
+			if (message instanceof HeaderMessage) {
+				handleHeaderMessage((HeaderMessage) message);
+			} else if (message instanceof RequestMessage) {
+				if (DEBUG) {
+					System.err.println("got request");
+				}
+				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
+					loopback(message);
+				else
+					handleRequestMessage((RequestMessage) message);
+			} else if (message instanceof PreprepareMessage) {
+				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
+					loopback(message);
+				else
+					handlePreprepareMessage((PreprepareMessage) message);
+			} else if (message instanceof PrepareMessage) {
+				if (DEBUG) {
+					System.err.print("got Prepare message #" + ((PrepareMessage) message).getSeqNum() + " from " + ((PrepareMessage) message).getReplicaNum() + " view : " + ((PrepareMessage) message).getViewNum());
+				}
+				handlePrepareMessage((PrepareMessage) message);
+			} else if (message instanceof CommitMessage) {
+				if (DEBUG) {
+					System.err.println("got Commit message #" + ((CommitMessage) message).getSeqNum() + " from " + ((CommitMessage) message).getReplicaNum() + " view : " + ((CommitMessage) message).getViewNum());
+				}
+				handleCommitMessage((CommitMessage) message);
+			} else if (message instanceof CheckPointMessage) {
+				handleCheckPointMessage((CheckPointMessage) message);
+			} else if (message instanceof ViewChangeMessage) {
+				handleViewChangeMessage((ViewChangeMessage) message);
+			} else if (message instanceof NewViewMessage) {
+				handleNewViewMessage((NewViewMessage) message);
+			} else {
+				if (DEBUG) {
+					System.err.println("Invalid message");
+				}
+				throw new UnsupportedOperationException("Invalid message");
+			}
+		}
+	}
 
 	public Replica(Properties prop, String serverIp, int serverPort) {
 		super(prop);
@@ -158,63 +227,30 @@ public class Replica extends Connector {
 		throw new RuntimeException("Unauthorized replica");
 	}
 
-	void start() {
-		//Assume that every connection is established
+	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
+		String query = "SELECT E.seqNum FROM Executed E";
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			try (var ret = pstmt.executeQuery()) {
+				List<Integer> seqList = JdbcUtils.toStream(ret)
+						.map(rethrow().wrapFunction(x -> x.getInt(1)))
+						.collect(Collectors.toList());
 
-		new Thread(() -> {
-			while (true) {
-				try {
-					receiveBuffer.put(Replica.super.receive());
-				} catch (InterruptedException e) {
-					continue;
-				}
-			}
-		}).start();
+				int soFarMaxSeqNum = seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
+				if (soFarMaxSeqNum < getWatermarks()[0])
+					soFarMaxSeqNum = getWatermarks()[0] - 1;
 
-		while (true) {
-			Message message = null;
-			try {
-				message = receive();
-			} catch (InterruptedException e) {
-				continue;
+				var first = priorityQueue.peek();
+
+				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
+					priorityQueue.poll();
+					return first;
+				}
+				throw new NoSuchElementException();
 			}
-			if (message instanceof HeaderMessage) {
-				handleHeaderMessage((HeaderMessage) message);
-			} else if (message instanceof RequestMessage) {
-				if (DEBUG) {
-					System.err.println("got request");
-				}
-				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
-					loopback(message);
-				else
-					handleRequestMessage((RequestMessage) message);
-			} else if (message instanceof PreprepareMessage) {
-				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
-					loopback(message);
-				else
-					handlePreprepareMessage((PreprepareMessage) message);
-			} else if (message instanceof PrepareMessage) {
-				if (DEBUG) {
-					System.err.print("got Prepare message #" + ((PrepareMessage) message).getSeqNum() + " from " + ((PrepareMessage) message).getReplicaNum() + " view : " + ((PrepareMessage) message).getViewNum());
-				}
-				handlePrepareMessage((PrepareMessage) message);
-			} else if (message instanceof CommitMessage) {
-				if (DEBUG) {
-					System.err.println("got Commit message #" + ((CommitMessage) message).getSeqNum() + " from " + ((CommitMessage) message).getReplicaNum() + " view : " + ((CommitMessage) message).getViewNum());
-				}
-				handleCommitMessage((CommitMessage) message);
-			} else if (message instanceof CheckPointMessage) {
-				handleCheckPointMessage((CheckPointMessage) message);
-			} else if (message instanceof ViewChangeMessage) {
-				handleViewChangeMessage((ViewChangeMessage) message);
-			} else if (message instanceof NewViewMessage) {
-				handleNewViewMessage((NewViewMessage) message);
-			} else {
-				if (DEBUG) {
-					System.err.println("Invalid message");
-				}
-				throw new UnsupportedOperationException("Invalid message");
-			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			throw new NoSuchElementException();
 		}
 	}
 
@@ -605,30 +641,15 @@ public class Replica extends Connector {
 		}
 	}
 
-	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
-		String query = "SELECT E.seqNum FROM Executed E";
-		try (var pstmt = logger.getPreparedStatement(query)) {
-			try (var ret = pstmt.executeQuery()) {
-				List<Integer> seqList = JdbcUtils.toStream(ret)
-						.map(rethrow().wrapFunction(x -> x.getInt(1)))
-						.collect(Collectors.toList());
+	public class printQueue extends TimerTask {
+		Replica replica;
 
-				int soFarMaxSeqNum = seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
-				if (soFarMaxSeqNum < getWatermarks()[0])
-					soFarMaxSeqNum = getWatermarks()[0] - 1;
+		public printQueue(Replica replica) {
+			this.replica = replica;
+		}
 
-				var first = priorityQueue.peek();
-
-				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
-					priorityQueue.poll();
-					return first;
-				}
-				throw new NoSuchElementException();
-			}
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new NoSuchElementException();
+		public void run() {
+			replica.receiveBuffer.stream().forEach(x -> System.err.println(x.getClass().getName()));
 		}
 	}
 
