@@ -5,6 +5,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.*;
+import java.net.URL;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +35,10 @@ public class EsJsonParser {
 		for(var ent : map.entrySet()){
 			if(ent.getValue() instanceof String && ((String) ent.getValue()).startsWith("BINARY_PATH::")) {
 				Base64.Encoder encoder = Base64.getEncoder();
-				String path = ((String) ent.getValue()).replace("BINARY_PATH::","");
-				File file = new File(path);
+				String resourcePath = ((String) ent.getValue()).replace("BINARY_PATH::","");
+				URL fileURL = EsJsonParser.class.getResource(resourcePath);
+
+				File file = new File(fileURL.getPath());
 				if(file.exists()) {
 					FileInputStream fin = new FileInputStream(file);
 					ByteArrayOutputStream bao = new ByteArrayOutputStream();

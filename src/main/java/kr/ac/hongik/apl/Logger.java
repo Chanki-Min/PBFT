@@ -76,7 +76,7 @@ public class Logger {
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
 
-				"CREATE TABLE VerificationLogs (timestamp DATE, blockNum INT, entryNum INT, errorCode TEXT, PRIMARY KEY (blockNum, entryNum) )",
+				"CREATE TABLE VerificationLogs (timestamp DATE, blockNum INT, entryNum INT, errorCode TEXT, PRIMARY KEY (timestamp, blockNum, entryNum) )",
 				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
 		};
 		for (String query : queries) {

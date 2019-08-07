@@ -9,7 +9,7 @@ import java.util.List;
 
 public class GetBlockVerificationLogOperation extends Operation {
 
-	protected GetBlockVerificationLogOperation(PublicKey clientInfo){
+	public GetBlockVerificationLogOperation(PublicKey clientInfo){
 		super(clientInfo);
 	}
 
@@ -29,7 +29,7 @@ public class GetBlockVerificationLogOperation extends Operation {
 	}
 
 	private List<List<String>> getErrorLogs(Logger logger) throws SQLException{
-		String query = "SELECT timestamp, blockNum, entryNum, errorCode, PRIMARY FROM VerificationLogs";
+		String query = "SELECT timestamp, blockNum, entryNum, errorCode FROM VerificationLogs";
 		var psmt = logger.getPreparedStatement(query);
 		var rs = psmt.executeQuery();
 
