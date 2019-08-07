@@ -228,7 +228,7 @@ public class InsertionOperation extends Operation {
 		long currHeadDocVersion = esRestClient.getDocumentVersion(indexName, blockNumber, -1);
 		try {
 			esRestClient.bulkInsertDocumentByProcessor(
-					"block_chain", blockNumber, plainDataList, encryptList, 1, maxAction, maxSize, maxSizeUnit, threadSize);
+					"block_chain", blockNumber, plainDataList, encryptList, currHeadDocVersion+1, maxAction, maxSize, maxSizeUnit, threadSize);
 		}catch (EsRestClient.EsConcurrencyException | InterruptedException ignore) {
 		}
 		return esRestClient.isDataEquals(encryptList, esRestClient.getBlockDataPair(indexName, blockNumber).getRight());
