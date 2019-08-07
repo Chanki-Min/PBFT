@@ -1,0 +1,16 @@
+{
+  "bool": {
+    "must": [
+      {
+        "match": {
+          "block_number": 0
+        }
+      },
+      {
+        "match": {
+          "entry_number": 0
+        }
+      }
+    ]
+  }
+}
