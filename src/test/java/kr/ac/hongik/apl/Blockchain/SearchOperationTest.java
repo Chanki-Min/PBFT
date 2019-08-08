@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -28,10 +29,10 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
-public class SearchOperation_And_SearchByQueryTest {
+public class SearchOperationTest {
 
 	@Test
-	public void searchOperationTest() throws IOException{
+	public void searchOperationTest() throws IOException, NoSuchFieldException{
 		String queryPath = "/EsSearchQuery/Query.json";
 		String[] indices = {"block_chain"};
 
@@ -52,6 +53,47 @@ public class SearchOperation_And_SearchByQueryTest {
 		List<String> resultString = (List<String>) client.getReply();
 
 		System.err.println("search end, resultSize :"+resultString.size()+" took :"+(System.currentTimeMillis()-startTime)+"ms");
+
+		System.err.println("searchOperationTest : PBFT searchOp end, search to ES directly...");
+
+		List<SearchHits> finalResult = new ArrayList();
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+
+		QueryBuilder queryBuilder = QueryBuilders.wrapperQuery(Strings.toString(XContentFactory.jsonBuilder().map(queryMap)));
+
+		SearchRequest searchRequest = new SearchRequest().indices(indices);
+		SearchSourceBuilder builder = new SearchSourceBuilder();
+		builder.query(queryBuilder);
+		builder.size(10000);
+		searchRequest.source(builder);
+		startTime = System.currentTimeMillis();
+
+		final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
+		searchRequest.scroll(scroll);
+		SearchResponse response = esRestClient.getClient().search(searchRequest, RequestOptions.DEFAULT);
+		String scrollID = response.getScrollId();
+		SearchHits hits = response.getHits();
+
+		finalResult.add(hits);
+
+		while (hits.getHits() != null && hits.getHits().length > 0) {
+			SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollID);
+			scrollRequest.scroll(scroll);
+			response = esRestClient.getClient().scroll(scrollRequest, RequestOptions.DEFAULT);
+
+			scrollID = response.getScrollId();
+			hits = response.getHits();
+			finalResult.add(hits);
+		}
+		esRestClient.disConnectToEs();
+		List<String> ser = finalResult.stream().map(x -> Strings.toString(x)).collect(Collectors.toList());
+		ser.remove(ser.size()-1);
+
+		System.err.println("Direct search end with size : "+finalResult.size()+" TIME :" + (System.currentTimeMillis() - startTime));
+
+		System.err.println("result of PBFT search & Direct search SAME? : " + resultString.equals(ser));
+		Assertions.assertTrue(resultString.equals(ser));
 	}
 
 	@Test

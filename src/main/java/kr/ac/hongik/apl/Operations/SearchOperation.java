@@ -76,12 +76,15 @@ public class SearchOperation extends Operation{
 				hits = response.getHits();
 				finalResult.add(hits);
 			}
+			finalResult.remove(finalResult.size()-1); //마지막에 스크롤된 빈 원소는 삭제함
 			ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
 			clearScrollRequest.addScrollId(scrollId);
 			esRestClient.getClient().clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
 			esRestClient.disConnectToEs();
 
-			return finalResult.stream().map(x -> Strings.toString(x)).collect(Collectors.toList());
+			return finalResult.stream()
+					.map(x -> Strings.toString(x, false, false))
+					.collect(Collectors.toList());
 		} catch (NoSuchFieldException | IOException e) {
 			e.printStackTrace();
 			throw new Error(e);
