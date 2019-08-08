@@ -9,7 +9,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -50,10 +49,10 @@ public class ConcurrentBulkInsertThread extends Thread{
 					XContentBuilder mappingBuilder;
 					XContentBuilder settingBuilder;
 					parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-					mappingBuilder = parser.jsonToXcontentBuilder(false);
+					mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 					parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-					settingBuilder = parser.jsonToXcontentBuilder(false);
+					settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 					EsRestClient esRestClient = new EsRestClient();
 					esRestClient.connectToEs();

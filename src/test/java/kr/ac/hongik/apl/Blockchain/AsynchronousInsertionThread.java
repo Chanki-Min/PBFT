@@ -41,7 +41,7 @@ public class AsynchronousInsertionThread extends Thread{
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		try {
 			for(int i=0; i<maxEntryNumber; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 			}

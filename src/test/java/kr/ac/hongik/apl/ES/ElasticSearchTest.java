@@ -22,7 +22,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
-import java.io.*;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -65,10 +67,10 @@ public class ElasticSearchTest {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
+			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			EsRestClient esRestClient = new EsRestClient();
 			esRestClient.connectToEs();
@@ -100,10 +102,10 @@ public class ElasticSearchTest {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
+			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
@@ -115,7 +117,7 @@ public class ElasticSearchTest {
 			SecretKey key = Util.makeSymmetricKey(seed);
 
 			for(int i=0; i<entrySize; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -161,10 +163,10 @@ public class ElasticSearchTest {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
+			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
@@ -176,7 +178,7 @@ public class ElasticSearchTest {
 			SecretKey key = Util.makeSymmetricKey(seed);
 
 			for(int i=0; i<entrySize; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -215,10 +217,10 @@ public class ElasticSearchTest {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
+			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
@@ -230,7 +232,7 @@ public class ElasticSearchTest {
 			SecretKey key = Util.makeSymmetricKey(seed);
 
 			for(int i=0; i<entrySize; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -269,10 +271,10 @@ public class ElasticSearchTest {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
+			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			String seed = "Hello World!";
 			SecretKey key = Util.makeSymmetricKey(seed);
@@ -284,7 +286,7 @@ public class ElasticSearchTest {
 			List<byte[]> encData = new ArrayList<>();
 
 			for(int i=0; i<entrySize; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -327,10 +329,10 @@ public class ElasticSearchTest {
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonToXcontentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonToXcontentBuilder(false);
+			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			EsRestClient esRestClient = new EsRestClient();
 			esRestClient.connectToEs();
@@ -341,7 +343,7 @@ public class ElasticSearchTest {
 			List<byte[]> encData = new ArrayList<>();
 
 			for(int i=0; i<entrySize; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
@@ -385,7 +387,7 @@ public class ElasticSearchTest {
 		List<byte[]> encData = new ArrayList<>();
 
 		for(int i=0; i<entrySize; i++) {
-			sampleUserData.add(parser.jsonToMap());
+			sampleUserData.add(parser.jsonFileToMap());
 			encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
 		}
 

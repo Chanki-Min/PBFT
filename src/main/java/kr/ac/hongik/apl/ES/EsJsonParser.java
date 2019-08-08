@@ -6,10 +6,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.*;
 import java.net.URL;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.*;
+import java.util.stream.IntStream;
 
 public class EsJsonParser {
 	String filePath;
@@ -18,7 +16,7 @@ public class EsJsonParser {
 
 	public void setFilePath(String filePath) { this.filePath = filePath; }
 
-	public List<Map> listedJsonToList(String key){
+	public List<Map> listedJsonFileToList(String key){
 		Genson genson = new Genson();
 		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
 
@@ -26,9 +24,8 @@ public class EsJsonParser {
 		return (List<Map>) json.get(key);
 	}
 
-	public Map jsonToMap(){
+	public Map jsonFileToMap(){
 		try {
-
 		Genson genson = new Genson();
 		InputStream in = EsJsonParser.class.getResourceAsStream(filePath);
 		Map<String, Object> map = genson.deserialize(in, Map.class);
@@ -59,7 +56,7 @@ public class EsJsonParser {
 		}
 	}
 
-	public XContentBuilder jsonToXcontentBuilder(boolean isPrettyPrint) throws IOException{
+	public XContentBuilder jsonFileToXContentBuilder(boolean isPrettyPrint) throws IOException{
 		Genson genson = new Genson();
 		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
 		XContentBuilder builder;
@@ -72,12 +69,34 @@ public class EsJsonParser {
 		return builder;
 	}
 
-	public List<String> getKeyListFromJsonMapping() {
+	public Map jsonStringToMap(String json) {
 		Genson genson = new Genson();
-		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
+		return genson.deserialize(json,Map.class);
+	}
 
-		Map mapping = genson.deserialize(in, Map.class);
-		Map properties = (Map) mapping.get("properties");
-		return (List<String>) properties.keySet().stream().collect(Collectors.toList());
+	public XContentBuilder jsonStringToXContentBuilder(String json, boolean isPrettyPrint) throws IOException{
+		Genson genson = new Genson();
+		XContentBuilder builder;
+		if(isPrettyPrint)
+			builder = XContentFactory.jsonBuilder().prettyPrint();
+		else
+			builder = XContentFactory.jsonBuilder();
+		builder.map(genson.deserialize(json, Map.class));
+		return builder;
+	}
+
+	public LinkedHashMap sqlResponseStringToLinkedMap(String sqlResponse) throws IOException{
+		Map map = jsonStringToMap(sqlResponse);
+		if(map.containsKey("columns") && map.containsKey("rows")){
+			List<HashMap> columns = (List) (map.get("columns"));
+			List<ArrayList> rows = (List) map.get("rows");
+
+			LinkedHashMap resultMap = new LinkedHashMap();
+			IntStream.range(0, columns.size())
+					.forEach(i -> resultMap.put(columns.get(i).get("name"), rows.get(0).get(i)));
+			return resultMap;
+		}else {
+			throw new IOException("sqlResponse param does not has \"columns\", \"rows\"");
+		}
 	}
 }

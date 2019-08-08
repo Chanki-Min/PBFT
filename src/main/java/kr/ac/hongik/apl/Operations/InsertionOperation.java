@@ -183,10 +183,10 @@ public class InsertionOperation extends Operation {
 				XContentBuilder settingBuilder;
 
 				parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-				mappingBuilder = parser.jsonToXcontentBuilder(false);
+				mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
 				parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-				settingBuilder = parser.jsonToXcontentBuilder(false);
+				settingBuilder = parser.jsonFileToXContentBuilder(false);
 				esRestClient.createIndex("block_chain", mappingBuilder, settingBuilder);
 			}catch (ElasticsearchCorruptionException e){
 				System.err.println(e.getMessage());

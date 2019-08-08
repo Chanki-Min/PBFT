@@ -404,7 +404,7 @@ public class EsRestClient {
 		try {
 			EsJsonParser esJsonParser = new EsJsonParser();
 			esJsonParser.setFilePath(masterJsonPath);
-			List<Map> masterMap = esJsonParser.listedJsonToList(masterJsonKey);
+			List<Map> masterMap = esJsonParser.listedJsonFileToList(masterJsonKey);
 
 			Boolean[] checkList = new Boolean[3];
 

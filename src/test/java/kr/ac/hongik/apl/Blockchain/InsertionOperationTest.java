@@ -4,7 +4,6 @@ import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
-import kr.ac.hongik.apl.Operations.GetBlockOperation;
 import kr.ac.hongik.apl.Operations.InsertionOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import org.elasticsearch.action.search.SearchRequest;
@@ -22,8 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.stream.IntStream;
-
-import static java.lang.Thread.sleep;
 
 public class InsertionOperationTest {
 	@Test
@@ -93,7 +90,7 @@ public class InsertionOperationTest {
 			blockNumberToGet = getLatestBlockNumber(indexName) +1;
 			System.err.println("blockNumber2Get :"+blockNumberToGet);
 			for(int i=0; i<entryNumber; i++) {
-				var map = parser.jsonToMap();
+				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 			}

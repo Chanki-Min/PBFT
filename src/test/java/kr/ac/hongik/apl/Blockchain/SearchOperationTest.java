@@ -44,7 +44,7 @@ public class SearchOperationTest {
 		EsJsonParser parser = new EsJsonParser();
 		parser.setFilePath(queryPath);
 
-		Map queryMap = parser.jsonToMap();
+		Map queryMap = parser.jsonFileToMap();
 		Operation searchOp = new SearchOperation(client.getPublicKey(),queryMap, indices);
 		RequestMessage message = RequestMessage.makeRequestMsg(client.getPrivateKey(), searchOp);
 
@@ -106,7 +106,7 @@ public class SearchOperationTest {
 
 		EsJsonParser parser = new EsJsonParser();
 		parser.setFilePath(queryPath);
-		Map queryMap = parser.jsonToMap();
+		Map queryMap = parser.jsonFileToMap();
 
 		QueryBuilder queryBuilder = QueryBuilders.wrapperQuery(Strings.toString(XContentFactory.jsonBuilder().map(queryMap)));
 
