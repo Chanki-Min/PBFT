@@ -3,11 +3,22 @@ package kr.ac.hongik.apl.ES;
 
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -22,9 +33,18 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
+import javax.net.ssl.SSLContext;
 import java.io.IOError;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -34,11 +54,42 @@ public class ElasticSearchTest {
 	private static EsRestClient esRestClient;
 
 	@Test
-	void esConnectionTest(){
+	void httpsConnectionTest() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, KeyManagementException{
+		final CredentialsProvider credentialsProvider =
+				new BasicCredentialsProvider();
+		credentialsProvider.setCredentials(AuthScope.ANY,
+				new UsernamePasswordCredentials("elastic", "wowsan2015@!@#$"));
+
+		String certPath = "C:\\Users\\Chanki_Min\\Desktop\\APL\\PBFT\\src\\main\\resources\\Certificates\\esRestClient-cert.p12";
+
+		KeyStore trustStore = KeyStore.getInstance("jks");
+		InputStream is = Files.newInputStream(Paths.get(certPath));
+		trustStore.load(is, new String("wowsan2015@!@#$").toCharArray());
+
+		SSLContextBuilder sslBuilder = SSLContexts.custom()
+				.loadTrustMaterial(trustStore, null);
+		final SSLContext sslContext = sslBuilder.build();
+
+		RestClientBuilder builder = RestClient.builder(
+				new HttpHost("223.194.70.105", 9200, "https"))
+				.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+					@Override
+					public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpAsyncClientBuilder){
+						return httpAsyncClientBuilder.setSSLContext(sslContext)
+								.setDefaultCredentialsProvider(credentialsProvider);
+					}
+				});
+
+		RestHighLevelClient restHighLevelClient = new RestHighLevelClient(builder);
+		restHighLevelClient.close();
+	}
+
+	@Test
+	void esConnectionTest() throws IOException{
 		esRestClient = new EsRestClient();
 		try {
 			esRestClient.connectToEs();
-		} catch (NoSuchFieldException e) {
+		} catch (NoSuchFieldException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 		}
 		boolean isConnected = false;
@@ -55,6 +106,7 @@ public class ElasticSearchTest {
 			e.printStackTrace();
 		}
 
+		esRestClient.disConnectToEs();
 		Assertions.assertEquals(true, isConnected);
 	}
 
@@ -137,12 +189,10 @@ public class ElasticSearchTest {
 
 			Assertions.assertEquals(entrySize, getBlockEntrySize(indexName, blockNumber) -1);
 			if(deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
-		} catch (EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+		} catch (EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException | Util.EncryptionException e) {
 			e.printStackTrace();
 		} catch (IOException e){
 			throw new IOError(e);
-		} catch (Util.EncryptionException e) {
-			e.printStackTrace();
 		} finally {
 			esRestClient.disConnectToEs();
 		}
@@ -150,8 +200,8 @@ public class ElasticSearchTest {
 
 	@Test
 	void BulkInsertTest() throws IOException{
-		String indexName = "test_block_chain2";
-		int blockNumber = 1;
+		String indexName = "test_block_chain3";
+		int blockNumber = 0;
 		int entrySize = 10;
 		int sleepTime = 1000;
 		int versionNumber = 1;
@@ -185,18 +235,16 @@ public class ElasticSearchTest {
 			}
 
 
-			esRestClient.bulkInsertDocument(indexName, 0, sampleUserData, encData, versionNumber);
+			esRestClient.bulkInsertDocument(indexName, blockNumber, sampleUserData, encData, versionNumber);
 			sleep(sleepTime);
 
 			Assertions.assertTrue(isBlockExists(indexName,blockNumber));
 			Assertions.assertEquals(entrySize, getBlockEntrySize(indexName, blockNumber) -1);
 			if(deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | Util.EncryptionException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 		} catch (IOException e){
 			throw new IOError(e);
-		} catch (Util.EncryptionException e) {
-			e.printStackTrace();
 		} finally {
 			esRestClient.disConnectToEs();
 		}
@@ -204,12 +252,12 @@ public class ElasticSearchTest {
 
 	@Test
 	public void bulkProcessorTest() throws IOException{
-		String indexName = "test_block_chain9";
+		String indexName = "test_block_chain101";
 		int blockNumber = 1;
 		int entrySize = 1000;
 		int sleepTime = 1000;
 		int versionNumber = 1;
-		boolean deleteIndexAfterFinish = false;
+		boolean deleteIndexAfterFinish = true;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient();
 		try {
@@ -243,7 +291,7 @@ public class ElasticSearchTest {
 			System.err.println("time :"+(System.currentTimeMillis()-time));
 
 			if(deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 		} catch (IOException e){
 			throw new IOError(e);
@@ -306,7 +354,7 @@ public class ElasticSearchTest {
 			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
 			esRestClient.disConnectToEs();
 			if(deleteIndexAfterFinish) esRestClient.deleteIndex("test_block_chain");
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			throw new IOError(e);
@@ -325,7 +373,6 @@ public class ElasticSearchTest {
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient();
 		try {
-			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
 			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
@@ -334,7 +381,6 @@ public class ElasticSearchTest {
 			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
 			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			EsRestClient esRestClient = new EsRestClient();
 			esRestClient.connectToEs();
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
@@ -365,7 +411,7 @@ public class ElasticSearchTest {
 			});
 			Assertions.assertTrue(isDataEquals(restoredByteList, encData));
 			esRestClient.deleteIndex("test_block_chain");
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException e) {
+		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			throw new IOError(e);

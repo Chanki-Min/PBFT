@@ -31,12 +31,12 @@ public class GetBlockOperation extends Operation{
 			Logger logger = (Logger) obj;
 			return getDecryptedData(blockNumber, logger);
 
-		}catch (IOException | EncryptionException | EsRestClient.EsException | NoSuchFieldException e) {
+		}catch (IOException | EncryptionException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}
 	}
 
-	private List<Map<String, Object>> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException{
+	private List<Map<String, Object>> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 

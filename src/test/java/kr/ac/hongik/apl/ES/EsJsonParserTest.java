@@ -53,7 +53,7 @@ public class EsJsonParserTest {
 	}
 
 	@Test
-	public void IndexCreationByParsedJsonTest() throws IOException, NoSuchFieldException, EsRestClient.EsConcurrencyException, EsRestClient.EsException{
+	public void IndexCreationByParsedJsonTest() throws IOException, NoSuchFieldException, EsRestClient.EsConcurrencyException, EsRestClient.EsException, EsRestClient.EsSSLException{
 		String indexName = "es_json_parser_test_index";
 		EsJsonParser parser = new EsJsonParser();
 		XContentBuilder mappingBuilder;
@@ -73,7 +73,7 @@ public class EsJsonParserTest {
 	}
 
 	@Test
-	public void insertJsonUserDataParsedToMapTest() throws IOException, EsRestClient.EsConcurrencyException, EsRestClient.EsException, NoSuchFieldException, InterruptedException{
+	public void insertJsonUserDataParsedToMapTest() throws IOException, EsRestClient.EsConcurrencyException, EsRestClient.EsException, NoSuchFieldException, InterruptedException, EsRestClient.EsSSLException{
 		String indexName = "es_json_parser_test_index";
 		EsJsonParser parser = new EsJsonParser();
 		XContentBuilder mappingBuilder;
@@ -106,7 +106,7 @@ public class EsJsonParserTest {
 	}
 
 	@Test
-	public void plainAndCipherCapacityTest() throws Util.EncryptionException, NoSuchFieldException{
+	public void plainAndCipherCapacityTest() throws Util.EncryptionException, NoSuchFieldException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		EsJsonParser parser = new EsJsonParser();

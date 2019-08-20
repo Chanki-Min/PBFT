@@ -127,13 +127,13 @@ public class InsertionOperationTest {
 			if(isListMapSame(sampleUserData, restoredData))
 				return true;
  */
-		} catch (IOException | NoSuchFieldException e) {
+		} catch (IOException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}
 		return false;
 	}
 
-	public void clearEsDB(String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException{
+	public void clearEsDB(String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		if(esRestClient.isIndexExists(indexName)){
@@ -142,7 +142,7 @@ public class InsertionOperationTest {
 		}
 	}
 
-	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException{
+	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 

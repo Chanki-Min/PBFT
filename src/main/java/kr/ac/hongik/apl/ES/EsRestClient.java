@@ -3,6 +3,13 @@ package kr.ac.hongik.apl.ES;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -18,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
@@ -38,7 +46,14 @@ import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -54,14 +69,42 @@ public class EsRestClient {
 	public EsRestClient(){
 	}
 
-	public void connectToEs() throws NoSuchFieldException{
+	public void connectToEs() throws NoSuchFieldException, EsSSLException{
 		getMasterNodeInfo();
-		List<HttpHost> httpHosts = new ArrayList<>();
-		for (int i = 0; i < hostNames.size(); i++) {
-			httpHosts.add(new HttpHost(hostNames.get(i), ports.get(i), hostSchemes.get(i)));
+		try {
+			final CredentialsProvider credentialsProvider =
+					new BasicCredentialsProvider();
+			//TODO: superuser가 아닌 계정을 사용하게 변경, passpword 암호화
+			credentialsProvider.setCredentials(AuthScope.ANY,
+					new UsernamePasswordCredentials("elastic", "wowsan2015@!@#$"));
+
+			String certPath = "/Certificates/esRestClient-cert.p12";
+			KeyStore trustStore = KeyStore.getInstance("jks");
+			InputStream is = EsRestClient.class.getResourceAsStream(certPath);
+			trustStore.load(is, new String("wowsan2015@!@#$").toCharArray());
+
+			SSLContextBuilder sslBuilder = SSLContexts.custom()
+					.loadTrustMaterial(trustStore, null);
+			final SSLContext sslContext = sslBuilder.build();
+			List<HttpHost> httpHosts = new ArrayList<>();
+			for (int i = 0; i < hostNames.size(); i++) {
+				httpHosts.add(new HttpHost(hostNames.get(i), ports.get(i), hostSchemes.get(i)));
+			}
+			HttpHost[] httpHostsArr = httpHosts.toArray(new HttpHost[0]);
+			RestClientBuilder builder = RestClient.builder(httpHostsArr)
+					.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+						@Override
+						public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpAsyncClientBuilder){
+							return httpAsyncClientBuilder.setSSLContext(sslContext)
+									.setDefaultCredentialsProvider(credentialsProvider);
+						}
+					});
+
+			restHighLevelClient = new RestHighLevelClient(builder);
+		} catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
+			e.printStackTrace();
+			throw new EsSSLException(e.getMessage());
 		}
-		HttpHost[] httpHostsArr = httpHosts.toArray(new HttpHost[0]);
-		restHighLevelClient = new RestHighLevelClient(RestClient.builder(httpHostsArr));
 	}
 
 	public void disConnectToEs() throws IOException{
@@ -577,6 +620,10 @@ public class EsRestClient {
 		public EsConcurrencyException(String s){
 			super(s);
 		}
+	}
+
+	public static class EsSSLException extends  Exception {
+		public EsSSLException(String s) { super(s);}
 	}
 }
 

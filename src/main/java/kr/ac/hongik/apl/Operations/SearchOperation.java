@@ -85,7 +85,7 @@ public class SearchOperation extends Operation{
 			return finalResult.stream()
 					.map(x -> Strings.toString(x, false, false))
 					.collect(Collectors.toList());
-		} catch (NoSuchFieldException | IOException e) {
+		} catch (NoSuchFieldException | IOException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 			throw new Error(e);
 		}

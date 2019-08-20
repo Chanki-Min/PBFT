@@ -64,7 +64,7 @@ public class InsertionOperation extends Operation {
 			blockNumber = pair.getRight();
 
 			storeToES(infoList, encryptedList, blockNumber);
-		} catch (EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException | InterruptedException e) {
+		} catch (EncryptionException | NoSuchFieldException | IOException | SQLException | EsRestClient.EsException | InterruptedException|EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		} catch (EsRestClient.EsConcurrencyException ignored) {
 		}
@@ -75,7 +75,7 @@ public class InsertionOperation extends Operation {
 				return blockNumber;
 			else
 				throw new EsRestClient.EsException("checkEsBlockAndUpdate failed");
-		} catch (NoSuchFieldException | EsRestClient.EsException | IOException | InterruptedException e) {
+		} catch (NoSuchFieldException | EsRestClient.EsException | IOException | InterruptedException | EsRestClient.EsSSLException e) {
 			System.err.print(e.getMessage());
 			throw new Error(e);
 		}finally {
@@ -172,7 +172,7 @@ public class InsertionOperation extends Operation {
 	 * @throws EsRestClient.EsException
 	 * @throws EsRestClient.EsConcurrencyException throws when other replica already inserting (Indexes or Documents) that has same (indexName,blockNumber,versionNumber)
 	 */
-	private void storeToES(List<Map<String, Object>> plainDataList, List<byte[]> encryptList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException, InterruptedException{
+	private void storeToES(List<Map<String, Object>> plainDataList, List<byte[]> encryptList, int blockNumber) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsConcurrencyException, InterruptedException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
@@ -208,7 +208,7 @@ public class InsertionOperation extends Operation {
 	 * @throws IOException
 	 * @throws EsRestClient.EsException
 	 */
-	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<Map<String, Object>> plainDataList,List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException{
+	private boolean checkEsBlockAndUpdateWhenWrong(String indexName, int blockNumber, List<Map<String, Object>> plainDataList,List<byte[]> encryptList) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		if(DEBUG){

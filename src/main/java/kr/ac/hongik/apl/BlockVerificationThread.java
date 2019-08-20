@@ -64,7 +64,7 @@ public class BlockVerificationThread extends Thread {
 			verifyChain(maxVerifyNum);
 			if(DEBUG) System.err.println("All verification PASS");
 			//trigger = false;
-		} catch (IOException | NoSuchFieldException | SQLException | EsRestClient.EsException | HeaderVerifyException | DataVerifyException e) {
+		} catch (IOException | NoSuchFieldException | SQLException | EsRestClient.EsException | HeaderVerifyException | DataVerifyException |EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}
 	}
@@ -81,7 +81,7 @@ public class BlockVerificationThread extends Thread {
 		}
 	}
 
-	private int getLatestEsBlockNum(String indexName) throws NoSuchFieldException, IOException{
+	private int getLatestEsBlockNum(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		int max = esRestClient.getRightNextBlockNumber(indexName);
@@ -89,7 +89,7 @@ public class BlockVerificationThread extends Thread {
 		return max;
 	}
 
-	private void verifyChain(int lastVerifyNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException{
+	private void verifyChain(int lastVerifyNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException{
 		for (int i = 0; i < lastVerifyNum + 1; i++) {
 			verifyHeader(i);
 			if(DEBUG) System.err.println("Blk#"+i+" HEADER PASS");
@@ -139,7 +139,7 @@ public class BlockVerificationThread extends Thread {
 		}
 	}
 
-	private void verifyData(int blockNum) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, DataVerifyException{
+	private void verifyData(int blockNum) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, DataVerifyException, EsRestClient.EsSSLException{
 		if (blockNum == 0) return;
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();

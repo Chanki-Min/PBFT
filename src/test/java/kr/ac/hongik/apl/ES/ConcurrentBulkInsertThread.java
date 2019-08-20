@@ -66,7 +66,7 @@ public class ConcurrentBulkInsertThread extends Thread{
 			esRestClient.deleteIndex(indexName);
 			esRestClient.disConnectToEs();
 
-		} catch (IOException | InterruptedException e){
+		} catch (IOException | InterruptedException | EsRestClient.EsSSLException e){
 			throw new Error(e);
 		} catch (NoSuchFieldException | EsRestClient.EsException | EsRestClient.EsConcurrencyException e) {
 			System.err.println("Thread #"+threadID+" "+e.getMessage());

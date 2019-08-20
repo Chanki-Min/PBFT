@@ -76,7 +76,7 @@ public class AsynchronousInsertionThread extends Thread{
 		}
 	}
 
-	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException{
+	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 

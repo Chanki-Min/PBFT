@@ -49,7 +49,7 @@ public class SQLSearchOperation extends Operation {
 			e.printStackTrace();
 			System.err.println("SQLSearchOperation::ResponseException::Continuing PBFT Service...");
 			return e.getMessage();
-		} catch (NoSuchFieldException | IOException e) {
+		} catch (NoSuchFieldException | IOException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}
 	}

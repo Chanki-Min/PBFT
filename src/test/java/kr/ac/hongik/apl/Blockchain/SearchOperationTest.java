@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public class SearchOperationTest {
 
 	@Test
-	public void searchOperationTest() throws IOException, NoSuchFieldException{
+	public void searchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException{
 		String queryPath = "/EsSearchQuery/Query.json";
 		String[] indices = {"block_chain"};
 
@@ -97,7 +97,7 @@ public class SearchOperationTest {
 	}
 
 	@Test
-	public void searchByParsedMapTest() throws NoSuchFieldException, IOException{
+	public void searchByParsedMapTest() throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
 		String queryPath = "/EsSearchQuery/Query.json";
 		String indexName = "block_chain";
 		List<SearchHits> finalResult = new ArrayList();

@@ -28,7 +28,7 @@ import java.util.Properties;
 public class SqlSearchOperationTest {
 
 	@Test
-	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException{
+	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException{
 		String HttpProtocol = "GET";
 		String query = "SELECT MAX(block_number)  from block_chain WHERE block_number = 20 AND entry_number = 0";
 
@@ -109,7 +109,7 @@ public class SqlSearchOperationTest {
 			LinkedHashMap resultMap = esJsonParser.sqlResponseStringToLinkedMap(responseBody);
 			resultMap.keySet().stream()
 					.forEachOrdered(k -> System.err.print("[" + k + ", " + resultMap.get(k) + "], "));
-		}catch (ResponseException e) {
+		}catch (ResponseException | EsRestClient.EsSSLException e) {
 			System.err.println(e.getMessage());
 		}
 	}
