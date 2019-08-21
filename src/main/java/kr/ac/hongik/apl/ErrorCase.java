@@ -79,7 +79,7 @@ public class ErrorCase {
 		var timestamp = operation.getTimestamp();
 		var clientInfo = operation.getClientInfo();
 		ReplyMessage replyMessage = makeReplyMsg(replica.getPrivateKey(), viewNum, timestamp,
-				clientInfo, replica.getMyNumber(), ret, operation.isDistributed());
+				clientInfo, replica.getMyNumber(), ret);
 
 		replica.getLogger().insertMessage(prepareMessage);
 		replica.getLogger().insertMessage(commitMessage);

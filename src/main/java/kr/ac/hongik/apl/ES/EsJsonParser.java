@@ -26,30 +26,29 @@ public class EsJsonParser {
 
 	public Map jsonFileToMap(){
 		try {
-		Genson genson = new Genson();
-		InputStream in = EsJsonParser.class.getResourceAsStream(filePath);
-		Map<String, Object> map = genson.deserialize(in, Map.class);
-		for(var ent : map.entrySet()){
-			if(ent.getValue() instanceof String && ((String) ent.getValue()).startsWith("BINARY_PATH::")) {
-				Base64.Encoder encoder = Base64.getEncoder();
-				String resourcePath = ((String) ent.getValue()).replace("BINARY_PATH::","");
-				URL fileURL = EsJsonParser.class.getResource(resourcePath);
-
-				File file = new File(fileURL.getPath());
-				if(file.exists()) {
-					FileInputStream fin = new FileInputStream(file);
-					ByteArrayOutputStream bao = new ByteArrayOutputStream();
-					int len = 0;
-					byte[] buf = new byte[1024];
-					while( (len = fin.read( buf )) != -1 ) {
-						bao.write(buf, 0, len);
+			Genson genson = new Genson();
+			InputStream in = EsJsonParser.class.getResourceAsStream(filePath);
+			Map<String, Object> map = genson.deserialize(in, Map.class);
+			for(var ent : map.entrySet()){
+				if(ent.getValue() instanceof String && ((String) ent.getValue()).startsWith("BINARY_PATH::")) {
+					Base64.Encoder encoder = Base64.getEncoder();
+					String resourcePath = ((String) ent.getValue()).replace("BINARY_PATH::","");
+					URL fileURL = EsJsonParser.class.getResource(resourcePath);
+					File file = new File(fileURL.getPath());
+					if(file.exists()) {
+						FileInputStream fin = new FileInputStream(file);
+						ByteArrayOutputStream bao = new ByteArrayOutputStream();
+						int len = 0;
+						byte[] buf = new byte[1024];
+						while( (len = fin.read( buf )) != -1 ) {
+							bao.write(buf, 0, len);
+						}
+						String encodeValue = Base64.getEncoder().encodeToString(bao.toByteArray());
+						map.put(ent.getKey(), encodeValue);
 					}
-					String encodeValue = Base64.getEncoder().encodeToString(bao.toByteArray());
-					map.put(ent.getKey(), encodeValue);
 				}
 			}
-		}
-			return map;
+				return map;
 		}catch (IOException e){
 			e.printStackTrace();
 			return null;

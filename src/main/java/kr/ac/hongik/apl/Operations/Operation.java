@@ -7,8 +7,8 @@ import java.util.UUID;
 
 public abstract class Operation implements Serializable {
     final private PublicKey clientInfo;
-    final private long timestamp;
-    final private String random = UUID.randomUUID().toString(); //This random string guarantee uniqueness
+    private long timestamp;
+    private String random = UUID.randomUUID().toString(); //This random string guarantee uniqueness
 
 	protected Operation(PublicKey clientInfo) {
         this.clientInfo = clientInfo;

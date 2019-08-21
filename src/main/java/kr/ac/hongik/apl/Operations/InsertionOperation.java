@@ -162,7 +162,6 @@ public class InsertionOperation extends Operation {
 
 	}
 
-
 	/**
 	 * @param encryptList
 	 * @param blockNumber

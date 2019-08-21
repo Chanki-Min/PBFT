@@ -72,20 +72,24 @@ public class EsRestClient {
 	public void connectToEs() throws NoSuchFieldException, EsSSLException{
 		getMasterNodeInfo();
 		try {
+			EsJsonParser parser = new EsJsonParser();
+			parser.setFilePath("/Certificates/esRestClient_connenction_info.json");
+			Map<String, String> connInfo = parser.jsonFileToMap();
+
 			final CredentialsProvider credentialsProvider =
 					new BasicCredentialsProvider();
 			//TODO: superuser가 아닌 계정을 사용하게 변경, passpword 암호화
 			credentialsProvider.setCredentials(AuthScope.ANY,
-					new UsernamePasswordCredentials("elastic", "wowsan2015@!@#$"));
+					new UsernamePasswordCredentials(connInfo.get("userName"), connInfo.get("passWord")));
 
-			String certPath = "/Certificates/esRestClient-cert.p12";
 			KeyStore trustStore = KeyStore.getInstance("jks");
-			InputStream is = EsRestClient.class.getResourceAsStream(certPath);
-			trustStore.load(is, new String("wowsan2015@!@#$").toCharArray());
+			InputStream is = EsRestClient.class.getResourceAsStream(connInfo.get("certPath"));
+			trustStore.load(is, connInfo.get("certPassWord").toCharArray());
 
 			SSLContextBuilder sslBuilder = SSLContexts.custom()
 					.loadTrustMaterial(trustStore, null);
 			final SSLContext sslContext = sslBuilder.build();
+
 			List<HttpHost> httpHosts = new ArrayList<>();
 			for (int i = 0; i < hostNames.size(); i++) {
 				httpHosts.add(new HttpHost(hostNames.get(i), ports.get(i), hostSchemes.get(i)));
@@ -99,7 +103,6 @@ public class EsRestClient {
 									.setDefaultCredentialsProvider(credentialsProvider);
 						}
 					});
-
 			restHighLevelClient = new RestHighLevelClient(builder);
 		} catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
 			e.printStackTrace();
@@ -111,22 +114,11 @@ public class EsRestClient {
 		restHighLevelClient.close();
 	}
 
-	public RestHighLevelClient getClient(){
-		return restHighLevelClient;
-	}
-
-	public final ClusterHealthResponse getClusterInfo() throws IOException{
-		ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
-		ClusterHealthResponse response = restHighLevelClient.cluster().health(clusterHealthRequest, RequestOptions.DEFAULT);
-		return response;
-	}
-
 	public void deleteIndex(String indexName) throws IOException, EsException{
 		boolean isIndexExists = this.isIndexExists(indexName);
 		if(!isIndexExists){
 			throw new EsException(indexName+ " does not exists");
 		}
-
 
 		DeleteIndexRequest request = new DeleteIndexRequest(indexName);
 		AcknowledgedResponse response = restHighLevelClient.indices().delete(request, RequestOptions.DEFAULT);
@@ -144,8 +136,6 @@ public class EsRestClient {
 	 * @throws EsConcurrencyException throws when index already created by other replicas
 	 */
 	public void createIndex(String indexName , XContentBuilder mapping, XContentBuilder setting) throws IOException, EsException, EsConcurrencyException{
-
-
 		boolean isIndexExists = this.isIndexExists(indexName);
 		if(isIndexExists){
 			throw new ElasticsearchCorruptionException(indexName+ " is Already exists");
@@ -193,13 +183,10 @@ public class EsRestClient {
 
 		if(!this.isIndexExists(indexName))
 			throw new EsException("index :"+indexName+" does not exists");
-
 		//Check plainDataList's mapping equals to Index's mapping
 		Set indexKeySet = getFieldKeySet(indexName); indexKeySet.remove("block_number"); indexKeySet.remove("entry_number"); indexKeySet.remove("encrypt_data");
 		if(!plainDataList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
 			throw new EsException("index :"+indexName+" field mapping does NOT equal to given plainDataList ketSet");
-
-
 		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
 		try {
 			restHighLevelClient.index(getHeadDocument(indexName,blockNumber,versionNumber), RequestOptions.DEFAULT);
@@ -210,7 +197,6 @@ public class EsRestClient {
 			builder.append(" Cause :Document inserting already executing by other replica");
 			throw new EsConcurrencyException(builder.toString());
 		}
-
 		//make query
 		Base64.Encoder encoder = Base64.getEncoder();
 		BulkRequest request = new BulkRequest();
@@ -243,7 +229,6 @@ public class EsRestClient {
 					throw new EsException(bulkResponse.buildFailureMessage());
 				}
 			}
-
 		}
 		//if Bulk request has left IndexRequest, execute last of them
 		if(request.requests().size() != 0){
@@ -254,7 +239,6 @@ public class EsRestClient {
 		}
 		return bulkResponse;
 	}
-
 	/**
 	 * This store PlainData + encData
 	 * @param indexName
@@ -287,7 +271,6 @@ public class EsRestClient {
 		if(!plainDataList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
 			throw new EsException("index :"+indexName+" field mapping does NOT equal to given plainDataList ketSet");
 
-
 		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
 		try {
 			restHighLevelClient.index(getHeadDocument(indexName,blockNumber,versionNumber), RequestOptions.DEFAULT);
@@ -298,19 +281,16 @@ public class EsRestClient {
 			builder.append(" Cause :Document inserting already executing by other replica");
 			throw new EsConcurrencyException(builder.toString());
 		}
-
 		BulkProcessor.Listener listener = new BulkProcessor.Listener() {
 			@Override
 			public void beforeBulk(long executionId, BulkRequest request) {
 				//System.err.println("bulk insertion START, LEN :"+request.numberOfActions()+" SIZE :"+request.estimatedSizeInBytes());
 			}
-
 			@Override
 			public void afterBulk(long executionId, BulkRequest request,
 								  BulkResponse response) {
 				//System.err.println("bulk insertion OK, LEN :"+request.numberOfActions()+" SIZE :"+request.estimatedSizeInBytes()+" exeID :"+executionId);
 			}
-
 			@Override
 			public void afterBulk(long executionId, BulkRequest request,
 								  Throwable failure) {
@@ -328,11 +308,9 @@ public class EsRestClient {
 				.constantBackoff(TimeValue.timeValueSeconds(1L), 3));
 		BulkProcessor bulkProcessor = processorBuilder.build();
 
-
 		//make query
 		Base64.Encoder encoder = Base64.getEncoder();
 		for(int entryNumber = 0; entryNumber<encData.size(); entryNumber++) {
-
 			String id = idGenerator(indexName,blockNumber,entryNumber);
 			String base64EncodedData = encoder.encodeToString(encData.get(entryNumber));
 			XContentBuilder builder = new XContentFactory().jsonBuilder();
@@ -360,7 +338,6 @@ public class EsRestClient {
 	 * @throws EsException
 	 */
 	public Pair<List<Map<String,Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException, NoSuchFieldException{
-
 		if(!isIndexExists(indexName)){
 			throw new EsException(indexName+ " does not exists");
 		}
@@ -409,7 +386,6 @@ public class EsRestClient {
 	}
 
 	public Pair<Map<String, Object>, byte[]> getBlockEntryDataPair(String indexName, int blockNumber, int entryNumber) throws IOException, EsException{
-
 		if(!isIndexExists(indexName)){
 			throw new EsException(indexName+ " does not exists");
 		}
@@ -438,7 +414,6 @@ public class EsRestClient {
 
 		return Pair.of(plain_data, encrypt_data);
 	}
-
 	/**
 	 * read "resources/master.json" and parse to httpHost format
 	 * @throws NoSuchFieldException
@@ -448,7 +423,6 @@ public class EsRestClient {
 			EsJsonParser esJsonParser = new EsJsonParser();
 			esJsonParser.setFilePath(masterJsonPath);
 			List<Map> masterMap = esJsonParser.listedJsonFileToList(masterJsonKey);
-
 			Boolean[] checkList = new Boolean[3];
 
 			for(var masterInfo : masterMap) {
@@ -544,7 +518,6 @@ public class EsRestClient {
 		CountResponse response = restHighLevelClient.count(request, RequestOptions.DEFAULT);
 		return (int) response.getCount();
 	}
-
 	/**
 	 * @param indexName
 	 * @param blockNumber
@@ -556,7 +529,6 @@ public class EsRestClient {
 		builder.append(indexName).append("_").append(blockNumber).append("_").append(entryNumber);
 		return String.valueOf(builder);
 	}
-
 	/**
 	 * @param indexName
 	 * @param blockNumber
@@ -605,18 +577,25 @@ public class EsRestClient {
 			version = searchHits[0].getVersion();
 		}
 		return version;
+	}
 
+	public RestHighLevelClient getClient(){
+		return restHighLevelClient;
+	}
+
+	public final ClusterHealthResponse getClusterInfo() throws IOException{
+		ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
+		ClusterHealthResponse response = restHighLevelClient.cluster().health(clusterHealthRequest, RequestOptions.DEFAULT);
+		return response;
 	}
 
 	public static class EsException extends Exception {
-
 		public EsException(String s){
 			super(s);
 		}
 	}
 
 	public static class EsConcurrencyException extends Exception {
-
 		public EsConcurrencyException(String s){
 			super(s);
 		}

@@ -3,7 +3,6 @@ package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.HeaderMessage;
 import kr.ac.hongik.apl.Messages.Message;
-import kr.ac.hongik.apl.Messages.RequestMessage;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -111,11 +110,6 @@ abstract class Connector {
 	 * @param message
 	 */
 	public void send(SocketChannel channel, Message message) {
-		if (Replica.DEBUG) {
-			if (message instanceof RequestMessage) {
-				System.err.println("Send Request Message : " + ((RequestMessage) message).getTime());
-			}
-		}
 		byte[] payload = serialize(message);
 
 		try {
