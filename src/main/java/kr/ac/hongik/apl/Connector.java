@@ -176,8 +176,11 @@ abstract class Connector {
 					//ByteArrayOutputStream doubles its buffer when it is full
 					ByteBuffer intBuffer = ByteBuffer.allocate(4);
 					try {
-						int n = channel.read(intBuffer);
-						if (n == -1) {
+						int intReadn = 0;
+						while (intReadn < 4 && intReadn > -1) {
+							intReadn = channel.read(intBuffer);
+						}
+						if (intReadn == -1) {
 							/* Get end of file */
 							closeWithoutException(channel);
 							continue;    //continue if the stream reads end-of-stream
