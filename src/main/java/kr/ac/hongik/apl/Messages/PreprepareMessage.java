@@ -44,21 +44,21 @@ public class PreprepareMessage implements Message {
 	 * Checks for signature, watermark, current view, and duplication
 	 *
      * @param primaryPublicKey
-	 * @param currentPrimary
+	 * @param currentView
      * @param clientPublicKey
 	 * @param prepareStatement
 	 * @return
 	 */
 
     public boolean isVerified(PublicKey primaryPublicKey,
-                              final int currentPrimary,
-                              PublicKey clientPublicKey,
-                              Function<String, PreparedStatement> prepareStatement) {
+							  final int currentView,
+							  PublicKey clientPublicKey,
+							  Function<String, PreparedStatement> prepareStatement) {
 		Boolean[] checklist = new Boolean[4];
 
         checklist[0] = verify(primaryPublicKey, this.data, this.signature);
 
-		checklist[1] = (getViewNum() % Replica.getReplicaMap().size()) == currentPrimary;
+		checklist[1] = getViewNum() == currentView;
 
 		checklist[2] = checkUniqueTuple(prepareStatement);
 

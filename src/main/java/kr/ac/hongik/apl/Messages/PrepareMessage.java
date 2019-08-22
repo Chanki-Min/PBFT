@@ -65,12 +65,12 @@ public class PrepareMessage implements Message {
     }
 
 
-	public boolean isVerified(PublicKey publicKey, final int currentPrimary, Supplier<int[]> watermarkGetter) {
+	public boolean isVerified(PublicKey publicKey, final int currentView, Supplier<int[]> watermarkGetter) {
         Boolean[] checklist = new Boolean[3];
 
         checklist[0] = this.verify(publicKey);
 
-        checklist[1] = currentPrimary == this.getViewNum() % Replica.getReplicaMap().size();
+		checklist[1] = currentView == this.getViewNum();
 
         int[] watermarks = watermarkGetter.get();
         int lowWatermark = watermarks[0],

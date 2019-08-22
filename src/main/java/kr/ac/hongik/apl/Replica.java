@@ -44,6 +44,8 @@ public class Replica extends Connector {
 	//private Queue<Message> receiveBuffer = new PriorityQueue<>(Comparator.comparing(Replica::getSeqNumFromMsg));
 	private PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getSeqNumFromMsg));
 
+	public Object watermarkLock = new Object();
+
 	private static int getSeqNumFromMsg(Message message) {
 		if (message instanceof HeaderMessage) {
 			return -4;
@@ -273,6 +275,7 @@ public class Replica extends Connector {
 	 */
 	private void handleRequestMessage(RequestMessage message) {
 		if (DEBUG) {
+			this.getPublicKeyMap().keySet().stream().forEach(x -> System.err.println("replica publicKey : key : " + x + " value : " + publicKeyMap.get(x).toString().substring(45, 60)));
 			System.err.println("	timestamp : " + message.getTime());
 		}
 		ReplyMessage replyMessage = findReplyMessageOrNull(message);
@@ -501,7 +504,7 @@ public class Replica extends Connector {
 		clientPublicKey = publicKeyMap.get(PublicKeySocket);
 
 
-		boolean isVerified = message.isVerified(primaryPublicKey, this.getPrimary(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
+		boolean isVerified = message.isVerified(primaryPublicKey, this.getViewNum(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
 			if (DEBUG) {
@@ -524,7 +527,7 @@ public class Replica extends Connector {
 
 	private void handlePrepareMessage(PrepareMessage message) {
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
-		if (message.isVerified(publicKey, this.getPrimary(), this::getWatermarks)) {
+		if (message.isVerified(publicKey, this.getViewNum(), this::getWatermarks)) {
 			logger.insertMessage(message);
 			if (DEBUG) {
 				System.err.println("	verify pass");
@@ -609,6 +612,9 @@ public class Replica extends Connector {
 						var viewNum = cmsg.getViewNum();
 						var timestamp = operation.getTimestamp();
 						var clientInfo = operation.getClientInfo();
+						if (DEBUG) {
+							System.err.println("	clientInfo :" + clientInfo.toString().substring(45, 60));
+						}
 						ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
 								clientInfo, myNumber, ret, operation.isDistributed());
 
@@ -710,13 +716,15 @@ public class Replica extends Connector {
 							.orElse(0);
 
 					if (max > 2 * getMaximumFaulty() && message.getSeqNum() > this.lowWatermark) {
-						if(DEBUG){
-							System.err.print("start Garbage Collection");
-						}
-						logger.executeGarbageCollection(message.getSeqNum());
-						lowWatermark += WATERMARK_UNIT;
-						if(DEBUG){
-							System.err.println("	low watermark : " + this.lowWatermark);
+						synchronized (watermarkLock) {
+							if (DEBUG) {
+								System.err.print("start Garbage Collection");
+							}
+							logger.executeGarbageCollection(message.getSeqNum());
+							lowWatermark += WATERMARK_UNIT;
+							if (DEBUG) {
+								System.err.println("	low watermark : " + this.lowWatermark);
+							}
 						}
 					}
 				}
@@ -927,13 +935,15 @@ public class Replica extends Connector {
 				.get()
 				.getLastCheckpointNum();
 		if ((getWatermarks()[0] > newLowWatermark)) throw new AssertionError();
-		this.lowWatermark = newLowWatermark;
-		message.getViewChangeMessageList()
-				.stream()
-				.flatMap(x -> x.getCheckPointMessages().stream())
-				.forEach(c -> logger.insertMessage(c));
-		//Execute GC
-		logger.executeGarbageCollection(getWatermarks()[0] - 1);
+		synchronized (watermarkLock) {
+			this.lowWatermark = newLowWatermark;
+			message.getViewChangeMessageList()
+					.stream()
+					.flatMap(x -> x.getCheckPointMessages().stream())
+					.forEach(c -> logger.insertMessage(c));
+			//Execute GC
+			logger.executeGarbageCollection(getWatermarks()[0] - 1);
+		}
 		if (DEBUG) {
 			if (this.getPrimary() == getMyNumber()) {
 				System.err.println("I'm new Primary");
