@@ -1,8 +1,6 @@
 package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.*;
-import kr.ac.hongik.apl.Operations.GreetingOperation;
-import kr.ac.hongik.apl.Operations.Operation;
 import org.echocat.jsu.JdbcUtils;
 
 import java.io.IOException;
@@ -24,7 +22,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
-import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
@@ -358,7 +355,7 @@ public class Replica extends Connector {
 		}
 	}
 
-	private SocketChannel getChannelFromClientInfo(PublicKey key) {
+	public SocketChannel getChannelFromClientInfo(PublicKey key) {
 		return publicKeyMap.entrySet().stream()
 				.filter(x -> x.getValue().equals(key))
 				.findFirst().get().getKey();
@@ -379,28 +376,8 @@ public class Replica extends Connector {
 				/*
 					make primary replica faulty
 				 */
-				int errno = 1;
-				int primaryErrSeqNum = 4;
-				if ((seqNum % 10 == primaryErrSeqNum && 0 == this.getViewNum() % getReplicaMap().size()) ||
-						(seqNum % 10 == primaryErrSeqNum - 1 && 1 == this.getViewNum() % getReplicaMap().size()) ||
-						(seqNum % 10 == primaryErrSeqNum - 2 && 2 == this.getViewNum() % getReplicaMap().size()) ||
-						(seqNum % 10 == primaryErrSeqNum - 3 && 3 == this.getViewNum() % getReplicaMap().size())
-				) {
-					if (errno == 1) { //primary stops suddenly[
-						System.err.println("I'm faulty at #" + seqNum);
-						primaryStopCase();
-					} else if (errno == 2) { //primary sends bad pre-prepare message which consists of wrong request message
-						primarySendBadPrepreCase(seqNum);
-					} else if (errno == 3) { // primary sends reply messages more than 2*f and does not broadcast pre-prepare message
-						primarySendAllReplyMsg(seqNum, preprepareMessage);
-					} else if (errno == 4) { // primary sends reply messages more than 2*f and broadcast pre-prepare message
-						primarySendAllReplyMsg(seqNum, preprepareMessage);
-						getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
-					} else { // normal case
-						getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
-					}
-					return;
-				}
+				ErrorCase.doFaulty(this, 2, 4, preprepareMessage);
+				return;
 			}
 			//Broadcast messages
 			getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
@@ -409,60 +386,7 @@ public class Replica extends Connector {
 		}
 	}
 
-	public void primaryStopCase() {
-		//exit(1);
 
-		if (DEBUG) {
-			try {
-				sleep(TIMEOUT * 3);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-
-	}
-
-	public void primarySendBadPrepreCase(int seqNum) {
-		if (DEBUG) {
-			InputStream in = getClass().getResourceAsStream("/replica.properties");
-			Properties prop = new Properties();
-			try {
-				prop.load(in);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-
-			Client client = new Client(prop);
-			Operation op = new GreetingOperation(client.getPublicKey());
-			RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(this.getPrivateKey(), this.getViewNum(), seqNum, requestMessage);
-			getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
-		}
-	}
-
-	public void primarySendAllReplyMsg(int seqNum, PreprepareMessage preprepareMessage) {
-		if (DEBUG) {
-			PrepareMessage prepareMessage = makePrepareMsg(getPrivateKey(), getViewNum(), seqNum, preprepareMessage.getDigest(), this.myNumber);
-			CommitMessage commitMessage = CommitMessage.makeCommitMsg(getPrivateKey(), getViewNum(), seqNum, prepareMessage.getDigest(), this.myNumber);
-			var operation = preprepareMessage.getOperation();
-			Object ret = operation.execute(this.logger);
-
-			var viewNum = getViewNum();
-			var timestamp = operation.getTimestamp();
-			var clientInfo = operation.getClientInfo();
-			ReplyMessage replyMessage = makeReplyMsg(getPrivateKey(), viewNum, timestamp,
-					clientInfo, this.myNumber, ret, operation.isDistributed());
-
-			logger.insertMessage(prepareMessage);
-			logger.insertMessage(commitMessage);
-			logger.insertMessage(seqNum, replyMessage);
-
-			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
-			for (int i = 0; i < 4; i++)
-				send(destination, replyMessage);
-			return;
-		}
-	}
 	/**
 	 * @return An array which contains (low watermark, high watermark).
 	 */
@@ -478,7 +402,7 @@ public class Replica extends Connector {
 		this.viewNum = primary;
 	}
 
-	private int getLatestSequenceNumber() throws SQLException {
+	protected int getLatestSequenceNumber() throws SQLException {
 		String query = "SELECT P.seqNum FROM Preprepares P where viewNum = ?";
 		PreparedStatement pstmt = logger.getPreparedStatement(query);
 		pstmt.setInt(1, this.getViewNum());
