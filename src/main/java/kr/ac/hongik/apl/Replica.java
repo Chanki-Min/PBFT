@@ -614,6 +614,8 @@ public class Replica extends Connector {
 						.collect(Collectors.toList());
 
 				int soFarMaxSeqNum = seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
+				if (soFarMaxSeqNum < getWatermarks()[0])
+					soFarMaxSeqNum = getWatermarks()[0] - 1;
 
 				var first = priorityQueue.peek();
 
