@@ -164,7 +164,8 @@ public class Logger {
 		StringBuilder builder = new StringBuilder();
 
 		while (ret.next()) {
-			builder.append(ret.getInt(1));
+			builder.append(ret.getString(1));
+			builder.append(ret.getInt(2));
 		}
 
 		return String.valueOf(builder);
