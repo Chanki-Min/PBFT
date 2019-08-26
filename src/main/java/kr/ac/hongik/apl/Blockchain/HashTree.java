@@ -24,7 +24,6 @@ public class HashTree implements Serializable {
 		this.root = buildTree(leafs);
 	}
 
-
 	private Node buildTree(List<Node> siblings) {
 		if (siblings.size() == 1)
 			return siblings.get(0);

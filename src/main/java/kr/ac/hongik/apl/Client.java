@@ -90,7 +90,7 @@ public class Client extends Connector {
 				if (replies.containsKey(uniqueKey)) {
 					checkReplica = replies.get(uniqueKey);
 				} else {
-					checkReplica = new Integer[]{0, 0, 0, 0};
+					checkReplica = new Integer[] {0, 0, 0, 0};
 				}
 
 				checkReplica[replyMessage.getReplicaNum()] = 1;
@@ -134,9 +134,9 @@ public class Client extends Connector {
 
 	static class BroadcastTask extends TimerTask {
 
-		RequestMessage requestMessage;
 		final private Connector conn;
 		final private int timerCount;
+		RequestMessage requestMessage;
 		private Map<Long, Timer> timerMap;
 
 		BroadcastTask(RequestMessage requestMessage, Connector conn, Map<Long, Timer> timerMap, int timerCount) {

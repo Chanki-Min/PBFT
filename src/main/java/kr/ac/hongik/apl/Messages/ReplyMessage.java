@@ -26,7 +26,7 @@ public class ReplyMessage implements Message {
 		return new ReplyMessage(data, signature);
 	}
 
-	public int getViewNum(){
+	public int getViewNum() {
 		return this.data.viewNum;
 	}
 
@@ -38,7 +38,7 @@ public class ReplyMessage implements Message {
 		return this.data.clientInfo;
 	}
 
-	public int getReplicaNum(){
+	public int getReplicaNum() {
 		return this.data.replicaNum;
 	}
 

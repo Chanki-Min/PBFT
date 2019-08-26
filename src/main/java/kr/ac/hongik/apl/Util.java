@@ -27,7 +27,7 @@ public class Util {
 
 		ret.put(myNumber, myPiece);
 
-		for (var i : input) {
+		for (var i: input) {
 			ret.put((Integer) i[0], (byte[]) i[1]);
 		}
 

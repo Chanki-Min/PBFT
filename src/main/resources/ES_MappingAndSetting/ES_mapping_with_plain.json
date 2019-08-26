@@ -45,67 +45,67 @@ The date format(s) that can be parsed. Defaults to strict_date_optional_time||ep
 Reference: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html
 */
 {
-//"mapping": {
-    "dynamic": "strict",
-    "properties": {
-      //block META data
-      "block_number": {
-        "type": "long",
-        "ignore_malformed": true,
-        "coerce": false
-      },
-      "entry_number": {
-        "type": "long",
-        "ignore_malformed": true,
-        "coerce": false
-      },
-      //cipher data (Base64 encoded String)
-      "encrypt_data": {
-        "type": "binary"
-      },
-      //imaginary plain data
-      "real_name": {
-        "type": "keyword",
-        "ignore_above": 50,
-        "index": true,
-        "null_value": "NULL"
-      },
-      "user_name": {
-        "type": "keyword",
-        "ignore_above": 50,
-        "index": true,
-        "null_value": "NULL"
-      },
-      //photo data
-      "profile_photo": {
-        "type": "binary"
-      },
-      "start_time": {
-        "type": "date",
-        "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
-        "ignore_malformed": true,
-        "index": true,
-        "null_value": "NULL"
-      },
-      "end_time": {
-        "type": "date",
-        "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
-        "ignore_malformed": true,
-        "index": true,
-        "null_value": "NULL"
-      },
-      "start_location": {
-        "type": "geo_point",
-        "ignore_malformed": true,
-        "ignore_z_value": true,
-        "index": true
-      },
-      "end_location": {
-        "type": "geo_point",
-        "ignore_malformed": true,
-        "ignore_z_value": true,
-        "index": true
-      }
-//  }
+  //"mapping": {
+  "dynamic": "strict",
+  "properties": {
+    //block META data
+    "block_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false
+    },
+    "entry_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false
+    },
+    //cipher data (Base64 encoded String)
+    "encrypt_data": {
+      "type": "binary"
+    },
+    //imaginary plain data
+    "real_name": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "user_name": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true,
+      "null_value": "NULL"
+    },
+    //photo data
+    "profile_photo": {
+      "type": "binary"
+    },
+    "start_time": {
+      "type": "date",
+      "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
+      "ignore_malformed": true,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "end_time": {
+      "type": "date",
+      "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
+      "ignore_malformed": true,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "start_location": {
+      "type": "geo_point",
+      "ignore_malformed": true,
+      "ignore_z_value": true,
+      "index": true
+    },
+    "end_location": {
+      "type": "geo_point",
+      "ignore_malformed": true,
+      "ignore_z_value": true,
+      "index": true
+    }
+    //  }
   }
 }

@@ -79,7 +79,7 @@ public class Logger {
 				"CREATE TABLE VerificationLogs (timestamp DATE, blockNum INT, entryNum INT, errorCode TEXT, PRIMARY KEY (timestamp, blockNum, entryNum) )",
 				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
 		};
-		for (String query : queries) {
+		for (String query: queries) {
 			try {
 				PreparedStatement preparedStatement = conn.prepareStatement(query);
 				preparedStatement.execute();
@@ -182,8 +182,8 @@ public class Logger {
 			cleanUpCommitMsg(seqNum);
 			cleanUpCheckpointMsg(seqNum);
 		} catch (SQLException e) {
-            if (e.getErrorCode() == CONSTRAINT_ERROR)
-                return;
+			if (e.getErrorCode() == CONSTRAINT_ERROR)
+				return;
 			e.printStackTrace();
 		}
 	}
@@ -215,6 +215,7 @@ public class Logger {
 		pstmt.setInt(1, seqNum);
 		pstmt.execute();
 	}
+
 	//new-view-msg 에서 digest(null)이 올 때 의도한 대로 null이 리턴되는지 확인이 필요함.
 	Operation getOperation(CommitMessage message) {
 		String baseQuery = new StringBuilder()
@@ -246,7 +247,7 @@ public class Logger {
 		String baseQuery = "INSERT INTO VerificationLogs (timestamp, blockNum, entryNum, errorCode) VALUES (?, ?, ?, ? )";
 		try {
 			PreparedStatement psmt = conn.prepareStatement(baseQuery);
-			psmt.setLong(1 ,timeStamp);
+			psmt.setLong(1, timeStamp);
 			psmt.setInt(2, blockNum);
 			psmt.setInt(3, entryNum);
 			psmt.setString(4, errorCode);
@@ -266,7 +267,7 @@ public class Logger {
 			insertPrepareMessage((PrepareMessage) message);
 		} else if (message instanceof CommitMessage) {
 			insertCommitMessage((CommitMessage) message);
-		}  else if (message instanceof CheckPointMessage) {
+		} else if (message instanceof CheckPointMessage) {
 			insertCheckPointMessage((CheckPointMessage) message);
 		} else if (message instanceof ViewChangeMessage) {
 			insertViewChangeMessage((ViewChangeMessage) message);
@@ -289,7 +290,7 @@ public class Logger {
 
 			pstmt.execute();
 		} catch (SQLException e) {
-			if(e.getErrorCode()==CONSTRAINT_ERROR) return;
+			if (e.getErrorCode() == CONSTRAINT_ERROR) return;
 			e.printStackTrace();
 		}
 	}

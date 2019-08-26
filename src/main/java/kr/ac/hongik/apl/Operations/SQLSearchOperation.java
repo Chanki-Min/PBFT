@@ -16,11 +16,11 @@ public class SQLSearchOperation extends Operation {
 	private String SqlQuery;
 
 	/**
-	 * @param clientInfo client's PublicKey
-	 * @param HttpProtocol	HttpProtocol of following query (GET, PUT, POST)
-	 * @param SqlQuery	Query String that following ElasticSearch's SQL query format
+	 * @param clientInfo   client's PublicKey
+	 * @param HttpProtocol HttpProtocol of following query (GET, PUT, POST)
+	 * @param SqlQuery     Query String that following ElasticSearch's SQL query format
 	 */
-	public SQLSearchOperation(PublicKey clientInfo, String HttpProtocol, String SqlQuery){
+	public SQLSearchOperation(PublicKey clientInfo, String HttpProtocol, String SqlQuery) {
 		super(clientInfo);
 		this.HttpProtocol = HttpProtocol;
 		StringBuilder builder = new StringBuilder();
@@ -29,10 +29,10 @@ public class SQLSearchOperation extends Operation {
 
 	/**
 	 * @param obj Logger.class's instance
-	 * @return	json format String of response that occur by SQL request
+	 * @return json format String of response that occur by SQL request
 	 */
 	@Override
-	public String execute(Object obj){
+	public String execute(Object obj) {
 		try {
 			EsRestClient esRestClient = new EsRestClient();
 			esRestClient.connectToEs();

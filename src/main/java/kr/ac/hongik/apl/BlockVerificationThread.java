@@ -20,7 +20,7 @@ import java.util.Map;
 import static kr.ac.hongik.apl.Util.*;
 
 /**
- *Block Verification Thread, this will run as thread when start() calls <br><br>
+ * Block Verification Thread, this will run as thread when start() calls <br><br>
  * tableName :the sqlDB's tableName that holds HEADER information <br>
  * indexName :ElasticSearch's indexName that want to verify <br>
  * logger    :Logger.class needed to acesses to sqlDB <br>
@@ -33,44 +33,44 @@ public class BlockVerificationThread extends Thread {
 	private String indexName;
 	private Logger logger;
 
-	public BlockVerificationThread(Logger logger, String indexName, String tableName){
+	public BlockVerificationThread(Logger logger, String indexName, String tableName) {
 		this.logger = logger;
 		this.indexName = indexName;
 		this.tableName = tableName;
 	}
 
 	@Override
-	public void run(){
-		if(DEBUG) System.err.println("BlockVerificationThread Start");
+	public void run() {
+		if (DEBUG) System.err.println("BlockVerificationThread Start");
 		try {
-			if(DEBUG) System.err.println("trigger is HIGH, Starting verification");
+			if (DEBUG) System.err.println("trigger is HIGH, Starting verification");
 			int latestHeaderNum = -1;
 			int latestEsBlockNum = -1;
 			try {
 				latestHeaderNum = getLatestHeaderNum(tableName);
 				if (DEBUG) System.err.println("latestHeaderNum :" + latestHeaderNum);
-			}catch (SQLException e){
+			} catch (SQLException e) {
 			}
 			try {
 				latestEsBlockNum = getLatestEsBlockNum(indexName);
-				if(DEBUG) System.err.println("latestHeaderNum :"+latestHeaderNum);
-			}catch (ElasticsearchException e){
+				if (DEBUG) System.err.println("latestHeaderNum :" + latestHeaderNum);
+			} catch (ElasticsearchException e) {
 			}
-			int maxVerifyNum = (latestHeaderNum < latestEsBlockNum) ? latestHeaderNum -1 : latestEsBlockNum -1;
-			if(maxVerifyNum < 0) {
+			int maxVerifyNum = (latestHeaderNum < latestEsBlockNum) ? latestHeaderNum - 1 : latestEsBlockNum - 1;
+			if (maxVerifyNum < 0) {
 				System.err.println("Block has not discovered, stop verifying");
 				return;
 			}
 			verifyChain(maxVerifyNum);
-			if(DEBUG) System.err.println("All verification PASS");
+			if (DEBUG) System.err.println("All verification PASS");
 			//trigger = false;
-		} catch (IOException | NoSuchFieldException | SQLException | EsRestClient.EsException | HeaderVerifyException | DataVerifyException |EsRestClient.EsSSLException e) {
+		} catch (IOException | NoSuchFieldException | SQLException | EsRestClient.EsException | HeaderVerifyException | DataVerifyException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}
 	}
 
 
-	private int getLatestHeaderNum(String tableName) throws SQLException{
+	private int getLatestHeaderNum(String tableName) throws SQLException {
 		String query = "SELECT max(idx) from " + tableName;
 		var psmt = logger.getPreparedStatement(query);
 		var rs = psmt.executeQuery();
@@ -81,7 +81,7 @@ public class BlockVerificationThread extends Thread {
 		}
 	}
 
-	private int getLatestEsBlockNum(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
+	private int getLatestEsBlockNum(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		int max = esRestClient.getRightNextBlockNumber(indexName);
@@ -89,16 +89,16 @@ public class BlockVerificationThread extends Thread {
 		return max;
 	}
 
-	private void verifyChain(int lastVerifyNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException{
+	private void verifyChain(int lastVerifyNum) throws SQLException, HeaderVerifyException, DataVerifyException, IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
 		for (int i = 0; i < lastVerifyNum + 1; i++) {
 			verifyHeader(i);
-			if(DEBUG) System.err.println("Blk#"+i+" HEADER PASS");
+			if (DEBUG) System.err.println("Blk#" + i + " HEADER PASS");
 			verifyData(i);
-			if(DEBUG) System.err.println("Blk#"+i+" ELASTIC PASS");
+			if (DEBUG) System.err.println("Blk#" + i + " ELASTIC PASS");
 		}
 	}
 
-	private void verifyHeader(int i) throws SQLException, HeaderVerifyException{
+	private void verifyHeader(int i) throws SQLException, HeaderVerifyException {
 		Triple<Integer, String, String> prevHeader = getHeader(i - 1);
 		Triple<Integer, String, String> currHeader = getHeader(i);
 		Boolean[] checkList = new Boolean[3];
@@ -139,7 +139,7 @@ public class BlockVerificationThread extends Thread {
 		}
 	}
 
-	private void verifyData(int blockNum) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, DataVerifyException, EsRestClient.EsSSLException{
+	private void verifyData(int blockNum) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, DataVerifyException, EsRestClient.EsSSLException {
 		if (blockNum == 0) return;
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
@@ -157,13 +157,12 @@ public class BlockVerificationThread extends Thread {
 				byte[] enc = data.getRight().get(entryNum);
 				restoreMapList.add(desToObject(new String(decrypt(enc, key)), Map.class));
 			}
-		}catch (NoSuchFieldException e) {
-			if(DEBUG) System.err.println(e.getMessage());
+		} catch (NoSuchFieldException e) {
+			if (DEBUG) System.err.println(e.getMessage());
 			entryNum = Integer.parseInt(e.getMessage());
 			logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_KeySet_Malformed");
 			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_KeySet_Malformed");
-		}
-		catch (IllegalArgumentException e) {
+		} catch (IllegalArgumentException e) {
 			entryNum = Integer.parseInt(e.getMessage());
 			logger.insertErrorLog(System.currentTimeMillis(), blockNum, entryNum, "Entry_Base64_Decoding_Fail");
 			throw new DataVerifyException("BlockNum :" + blockNum + ", EntryNum :" + entryNum + " Entry_Base64_Decoding_Fail");
@@ -197,7 +196,7 @@ public class BlockVerificationThread extends Thread {
 		logger.insertErrorLog(System.currentTimeMillis(), blockNum, data.getRight().size(), "ALL_PASS");
 	}
 
-	private Triple<Integer, String, String> getHeader(int headerNum) throws SQLException{
+	private Triple<Integer, String, String> getHeader(int headerNum) throws SQLException {
 		if (headerNum < 0) {
 			return null;
 		}
@@ -211,7 +210,7 @@ public class BlockVerificationThread extends Thread {
 		}
 	}
 
-	private boolean isMapSame(Map<String, Object> ori, Map<String, Object> res){
+	private boolean isMapSame(Map<String, Object> ori, Map<String, Object> res) {
 		if (ori.size() != res.size())
 			return false;
 
@@ -220,13 +219,13 @@ public class BlockVerificationThread extends Thread {
 	}
 
 	public static class HeaderVerifyException extends Exception {
-		HeaderVerifyException(String s){
+		HeaderVerifyException(String s) {
 			super(s);
 		}
 	}
 
 	public static class DataVerifyException extends Exception {
-		DataVerifyException(String s){
+		DataVerifyException(String s) {
 			super(s);
 		}
 	}

@@ -1,6 +1,5 @@
 package kr.ac.hongik.apl.Messages;
 
-import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 
 import java.io.Serializable;
@@ -87,10 +86,11 @@ public class CommitMessage implements Message {
             e.printStackTrace();
             return false;
         }
-        checklist[2] =  !isAlreadyExecuted(prepareStatement, this.getSeqNum());
+        checklist[2] = !isAlreadyExecuted(prepareStatement, this.getSeqNum());
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }
+
     boolean isAlreadyExecuted(Function<String, PreparedStatement> prepareStatement, int sequenceNumber) {
         String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
         try (var pstmt = prepareStatement.apply(query)) {

@@ -27,10 +27,10 @@ public class PreprepareMessage implements Message {
 	}
 
 	/**
-	 * @param privateKey for digital signature
-	 * @param viewNum    current view number represents current leader.
-	 *                   Each replicas can access .properties file to get its own number.
-	 * @param seqNum     Current sequence number to identify. It didn't yet reach to agreement.
+	 * @param privateKey     for digital signature
+	 * @param viewNum        current view number represents current leader.
+	 *                       Each replicas can access .properties file to get its own number.
+	 * @param seqNum         Current sequence number to identify. It didn't yet reach to agreement.
 	 * @param requestMessage
 	 */
 
@@ -43,26 +43,26 @@ public class PreprepareMessage implements Message {
 	/**
 	 * Checks for signature, watermark, current view, and duplication
 	 *
-     * @param primaryPublicKey
+	 * @param primaryPublicKey
 	 * @param currentView
-     * @param clientPublicKey
+	 * @param clientPublicKey
 	 * @param prepareStatement
 	 * @return
 	 */
 
-    public boolean isVerified(PublicKey primaryPublicKey,
+	public boolean isVerified(PublicKey primaryPublicKey,
 							  final int currentView,
 							  PublicKey clientPublicKey,
 							  Function<String, PreparedStatement> prepareStatement) {
 		Boolean[] checklist = new Boolean[4];
 
-        checklist[0] = verify(primaryPublicKey, this.data, this.signature);
+		checklist[0] = verify(primaryPublicKey, this.data, this.signature);
 
 		checklist[1] = getViewNum() == currentView;
 
 		checklist[2] = checkUniqueTuple(prepareStatement);
 
-        checklist[3] = requestMessage.verify(clientPublicKey);
+		checklist[3] = requestMessage.verify(clientPublicKey);
 		if (Replica.DEBUG) {
 			Arrays.stream(checklist).forEach(x -> System.err.print(" " + x + " "));
 		}
@@ -129,17 +129,6 @@ public class PreprepareMessage implements Message {
 	public RequestMessage getRequestMessage() {
 		return this.requestMessage;
 	}
-	private static class Data implements Serializable {
-		private int viewNum;
-		private int seqNum;
-		private String digest;
-
-		private Data(final int viewNum, final int seqNum, RequestMessage requestMessage) {
-			this.viewNum = viewNum;
-			this.seqNum = seqNum;
-			this.digest = hash(requestMessage);
-		}
-	}
 
 	@Override
 	public boolean equals(Object obj) {
@@ -154,6 +143,18 @@ public class PreprepareMessage implements Message {
 	public int hashCode() {
 		return (getViewNum() + getSeqNum() + getDigest()).hashCode();
 
+	}
+
+	private static class Data implements Serializable {
+		private int viewNum;
+		private int seqNum;
+		private String digest;
+
+		private Data(final int viewNum, final int seqNum, RequestMessage requestMessage) {
+			this.viewNum = viewNum;
+			this.seqNum = seqNum;
+			this.digest = hash(requestMessage);
+		}
 	}
 
 }

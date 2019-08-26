@@ -28,7 +28,7 @@ public class RunnableTest {
         System.err.println("Client: Request");
         client.request(requestMessage);
         System.err.println("Client: try to get reply");
-        var ret =  client.getReply();
+        var ret = client.getReply();
 
         Assertions.assertEquals("Hello, World!", ret.toString());
     }
@@ -42,17 +42,17 @@ public class RunnableTest {
 
         int maxClientNum = 20;
         List<Thread> clientThreadList = new ArrayList<>(maxClientNum);
-        for(int i = 0; i < maxClientNum; i++){
+        for (int i = 0; i < maxClientNum; i++) {
             Thread thread = new Thread(new CountlessClientTest(prop, i));
             clientThreadList.add(thread);
         }
 
-        for(var i : clientThreadList){
+        for (var i: clientThreadList) {
             i.start();
         }
 
-        for(var i : clientThreadList){
-           i.join();
+        for (var i: clientThreadList) {
+            i.join();
         }
     }
 
@@ -66,14 +66,14 @@ public class RunnableTest {
         Client client = new Client(prop);
         System.err.println("Client: Request");
         Integer repeatTime = 5;
-        for(int i = 0; i < repeatTime; i++) {
+        for (int i = 0; i < repeatTime; i++) {
             Operation op = new GreetingOperation(client.getPublicKey());
 			RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
             client.request(requestMessage);
             sleep(1000);
         }
         System.err.println("Client: try to get reply");
-        for(int i = 0; i < repeatTime; i++) {
+        for (int i = 0; i < repeatTime; i++) {
             var ret = client.getReply();
             System.err.println(ret.toString());
             Assertions.assertEquals("Hello, World!", ret.toString());

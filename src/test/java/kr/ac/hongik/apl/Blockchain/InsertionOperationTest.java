@@ -24,22 +24,22 @@ import java.util.stream.IntStream;
 
 public class InsertionOperationTest {
 	@Test
-	public void SynchronizedInsertionTest(){
+	public void SynchronizedInsertionTest() {
 		final int loop = 25;
 		Boolean[] checkList = new Boolean[loop];
 
-		for(int i=0; i<loop; i++){
+		for (int i = 0; i < loop; i++) {
 			checkList[i] = oneClientInsertionTester();
 		}
 		Assertions.assertTrue(Arrays.stream(checkList).allMatch(Boolean::booleanValue));
 	}
 
 	@Test
-	public void ManyManyAsyncInsertionTest(){
+	public void ManyManyAsyncInsertionTest() {
 		final int loop = 10;
 
 		long[] eachTookTime = new long[loop];
-		for(int i=0; i<loop; i++){
+		for (int i = 0; i < loop; i++) {
 			long originTime = System.currentTimeMillis();
 			AsynchronousInsertionTest();
 			eachTookTime[i] = (System.currentTimeMillis() - originTime);
@@ -48,14 +48,15 @@ public class InsertionOperationTest {
 
 		System.err.println("All AsyncInsertionTest FINISH");
 		System.err.print("EachTookTime : [");
-		Arrays.stream(eachTookTime).forEach(t -> System.err.print(t + "ms, ")); System.err.println("]");
+		Arrays.stream(eachTookTime).forEach(t -> System.err.print(t + "ms, "));
+		System.err.println("]");
 
 		System.err.println("AverageTookTime of Test :" + average);
-		System.err.println("AverageTookTime of One Insertion & GetDecrypt :" + (average/10.0) );
+		System.err.println("AverageTookTime of One Insertion & GetDecrypt :" + (average / 10.0));
 	}
 
 	@Test
-	public void AsynchronousInsertionTest(){
+	public void AsynchronousInsertionTest() {
 		final int maxEntryNum = 10;
 		final int maxThreadNum = 10;
 		List<Thread> threadList = new ArrayList<>(maxThreadNum);
@@ -63,14 +64,14 @@ public class InsertionOperationTest {
 
 		System.err.println("InsertionOpTest::Asynchronous");
 		try {
-			for(int i=0; i<maxThreadNum; i++){
-				Thread thread = new Thread(new AsynchronousInsertionThread(indexName,maxEntryNum,i));
+			for (int i = 0; i < maxThreadNum; i++) {
+				Thread thread = new Thread(new AsynchronousInsertionThread(indexName, maxEntryNum, i));
 				threadList.add(thread);
 			}
-			for(var t : threadList){
+			for (var t: threadList) {
 				t.start();
 			}
-			for(var t : threadList){
+			for (var t: threadList) {
 				t.join();
 			}
 		} catch (InterruptedException e) {
@@ -78,7 +79,7 @@ public class InsertionOperationTest {
 		}
 	}
 
-	public boolean oneClientInsertionTester(){
+	public boolean oneClientInsertionTester() {
 		final String indexName = "block_chain";
 		final int entryNumber = 128;
 		final long sleepTime = 0;
@@ -87,9 +88,9 @@ public class InsertionOperationTest {
 		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		try {
-			blockNumberToGet = getLatestBlockNumber(indexName) +1;
-			System.err.println("blockNumber2Get :"+blockNumberToGet);
-			for(int i=0; i<entryNumber; i++) {
+			blockNumberToGet = getLatestBlockNumber(indexName) + 1;
+			System.err.println("blockNumber2Get :" + blockNumberToGet);
+			for (int i = 0; i < entryNumber; i++) {
 				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
@@ -104,8 +105,8 @@ public class InsertionOperationTest {
 			Operation insertionOp = new InsertionOperation(client.getPublicKey(), sampleUserData);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertionOp);
 			client.request(insertRequestMsg);
-			int  result = (int) client.getReply();
-			if(result == blockNumberToGet)
+			int result = (int) client.getReply();
+			if (result == blockNumberToGet)
 				return true;
 /*
 			sleep(sleepTime);
@@ -133,20 +134,20 @@ public class InsertionOperationTest {
 		return false;
 	}
 
-	public void clearEsDB(String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException{
+	public void clearEsDB(String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
-		if(esRestClient.isIndexExists(indexName)){
+		if (esRestClient.isIndexExists(indexName)) {
 			esRestClient.deleteIndex(indexName);
-			System.err.println("clearEsDB::index :"+indexName+" was already exists, DELETE index");
+			System.err.println("clearEsDB::index :" + indexName + " was already exists, DELETE index");
 		}
 	}
 
-	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
+	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
-		if(esRestClient.isIndexExists(indexName)) {
+		if (esRestClient.isIndexExists(indexName)) {
 			SearchRequest searchMaxRequest = new SearchRequest(indexName);
 			SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
 
@@ -162,13 +163,12 @@ public class InsertionOperationTest {
 			}
 			ParsedMax maxValue = response.getAggregations().get("maxValueAgg");    //get max_aggregation from response
 			return (int) maxValue.getValue();
-		}
-		else
+		} else
 			return 0;
 	}
 
-	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
-		if(ori.size() != res.size())
+	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res) {
+		if (ori.size() != res.size())
 			return false;
 
 		return IntStream.range(0, ori.size())

@@ -20,6 +20,7 @@ public abstract class Operation implements Serializable {
         random = UUID.randomUUID().toString();
         return this;
     }
+
     public abstract Object execute(Object obj);
 
 	public PublicKey getClientInfo() {

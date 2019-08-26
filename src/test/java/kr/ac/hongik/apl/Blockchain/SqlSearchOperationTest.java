@@ -28,7 +28,7 @@ import java.util.Properties;
 public class SqlSearchOperationTest {
 
 	@Test
-	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException{
+	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
 		String HttpProtocol = "GET";
 		String query = "SELECT MAX(block_number)  from block_chain WHERE block_number = 20 AND entry_number = 0";
 
@@ -37,15 +37,15 @@ public class SqlSearchOperationTest {
 		prop.load(in);
 		Client client = new Client(prop);
 
-		Operation sqlOp = new SQLSearchOperation(client.getPublicKey(),HttpProtocol ,query);
+		Operation sqlOp = new SQLSearchOperation(client.getPublicKey(), HttpProtocol, query);
 		RequestMessage message = RequestMessage.makeRequestMsg(client.getPrivateKey(), sqlOp);
 
 		long startTime = System.currentTimeMillis();
 		client.request(message);
 		String pbftResultBody = (String) client.getReply();
 
-		System.err.println("Search by PBFT with SQL query finish with time : "+(System.currentTimeMillis()-startTime)
-				+"ms. trying to search directly from Es...");
+		System.err.println("Search by PBFT with SQL query finish with time : " + (System.currentTimeMillis() - startTime)
+				+ "ms. trying to search directly from Es...");
 
 		String lowLevelQuery = "{ \"query\" : \"" + query + "\" }";
 		EsRestClient esRestClient = new EsRestClient();
@@ -67,7 +67,7 @@ public class SqlSearchOperationTest {
 
 		System.err.println("Assersion OK, printing pbftResultBody...");
 		XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-				.createParser(NamedXContentRegistry.EMPTY,DeprecationHandler.THROW_UNSUPPORTED_OPERATION ,pbftResultBody.getBytes());
+				.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, pbftResultBody.getBytes());
 		parser.close();
 		XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().copyCurrentStructure(parser);
 		System.err.println(Strings.toString(builder));
@@ -80,7 +80,7 @@ public class SqlSearchOperationTest {
 	}
 
 	@Test
-	public void SqlQueryByLowClientTest() throws NoSuchFieldException, IOException{
+	public void SqlQueryByLowClientTest() throws NoSuchFieldException, IOException {
 		try {
 			String query = "{ \"query\" : \"SELECT block_number, entry_number, start_time from block_chain where block_number = 1 AND entry_number = 0\" }";
 			EsRestClient esRestClient = new EsRestClient();
@@ -100,7 +100,7 @@ public class SqlSearchOperationTest {
 			esRestClient.disConnectToEs();
 
 			XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-					.createParser(NamedXContentRegistry.EMPTY,DeprecationHandler.THROW_UNSUPPORTED_OPERATION ,responseBody.getBytes());
+					.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, responseBody.getBytes());
 			parser.close();
 			XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().copyCurrentStructure(parser);
 			System.err.println(Strings.toString(builder));
@@ -109,7 +109,7 @@ public class SqlSearchOperationTest {
 			LinkedHashMap resultMap = esJsonParser.sqlResponseStringToLinkedMap(responseBody);
 			resultMap.keySet().stream()
 					.forEachOrdered(k -> System.err.print("[" + k + ", " + resultMap.get(k) + "], "));
-		}catch (ResponseException | EsRestClient.EsSSLException e) {
+		} catch (ResponseException | EsRestClient.EsSSLException e) {
 			System.err.println(e.getMessage());
 		}
 	}

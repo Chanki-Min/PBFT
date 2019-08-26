@@ -16,11 +16,11 @@ import java.util.stream.IntStream;
 
 import static kr.ac.hongik.apl.Util.*;
 
-public class GetBlockOperation extends Operation{
-	private int blockNumber;
+public class GetBlockOperation extends Operation {
 	private static final String tableName = "BlockChain";
+	private int blockNumber;
 
-	public GetBlockOperation(PublicKey publicKey, int blockNumber){
+	public GetBlockOperation(PublicKey publicKey, int blockNumber) {
 		super(publicKey);
 		this.blockNumber = blockNumber;
 	}
@@ -31,31 +31,31 @@ public class GetBlockOperation extends Operation{
 			Logger logger = (Logger) obj;
 			return getDecryptedData(blockNumber, logger);
 
-		}catch (IOException | EncryptionException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
+		} catch (IOException | EncryptionException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}
 	}
 
-	private List<Map<String, Object>> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException, EsRestClient.EsSSLException{
+	private List<Map<String, Object>> getDecryptedData(int blockNumber, Logger logger) throws NoSuchFieldException, IOException, EsRestClient.EsException, EncryptionException, EsRestClient.EsSSLException {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
 		List<Map<String, Object>> decryptedData = new ArrayList<>();
 		Pair<List<Map<String, Object>>, List<byte[]>> pair = esRestClient.getBlockDataPair("block_chain", blockNumber);
 		SecretKey key = getSecretKey(blockNumber, logger);
-		if(key == null){
+		if (key == null) {
 			throw new EncryptionException(new InvalidKeyException("key cannot be null"));
 		}
 		//make decryptData (map) by symmetric key. to check faultless of plain data(Pair.getLeft)
-		for(byte[] x: pair.getRight()){
+		for (byte[] x: pair.getRight()) {
 			byte[] decryptDataByKey = decrypt(x, key);
 			decryptedData.add(desToObject(new String(decryptDataByKey), Map.class));
 		}
 
 		esRestClient.disConnectToEs();
-		if(isListMapSame(pair.getLeft(), decryptedData)){
+		if (isListMapSame(pair.getLeft(), decryptedData)) {
 			return decryptedData;
-		}else{
+		} else {
 			return null;
 		}
 	}
@@ -70,7 +70,7 @@ public class GetBlockOperation extends Operation{
 			if (ret.next()) {
 				root = ret.getString(1);
 			}
-			if(root == null) {
+			if (root == null) {
 				return null;
 			}
 			return makeSymmetricKey(root);
@@ -80,8 +80,8 @@ public class GetBlockOperation extends Operation{
 		return null;
 	}
 
-	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
-		if(ori.size() != res.size())
+	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res) {
+		if (ori.size() != res.size())
 			return false;
 
 		return IntStream.range(0, ori.size())

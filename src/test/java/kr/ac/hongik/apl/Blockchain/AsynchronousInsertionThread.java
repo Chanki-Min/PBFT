@@ -22,25 +22,25 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.stream.IntStream;
 
-public class AsynchronousInsertionThread extends Thread{
+public class AsynchronousInsertionThread extends Thread {
 	String indexName = "block_chain";
 	int maxEntryNumber = 128;
 	int threadID;
 
-	public AsynchronousInsertionThread(String indexName, int maxEntryNumber, int threadID){
+	public AsynchronousInsertionThread(String indexName, int maxEntryNumber, int threadID) {
 		this.indexName = indexName;
 		this.maxEntryNumber = maxEntryNumber;
 		this.threadID = threadID;
 	}
 
-	public void run(){
+	public void run() {
 		System.err.println("Thread #" + threadID + " Started");
 
 		EsJsonParser parser = new EsJsonParser();
 		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		try {
-			for(int i=0; i<maxEntryNumber; i++) {
+			for (int i = 0; i < maxEntryNumber; i++) {
 				var map = parser.jsonFileToMap();
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
@@ -76,11 +76,11 @@ public class AsynchronousInsertionThread extends Thread{
 		}
 	}
 
-	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
+	private int getLatestBlockNumber(String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
-		if(esRestClient.isIndexExists(indexName)) {
+		if (esRestClient.isIndexExists(indexName)) {
 			SearchRequest searchMaxRequest = new SearchRequest(indexName);
 			SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
 
@@ -96,24 +96,23 @@ public class AsynchronousInsertionThread extends Thread{
 			}
 			ParsedMax maxValue = response.getAggregations().get("maxValueAgg");    //get max_aggregation from response
 			return (int) maxValue.getValue();
-		}
-		else
+		} else
 			return 0;
 	}
 
-	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
-		if(arr1.size() != arr2.size())
+	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2) {
+		if (arr1.size() != arr2.size())
 			return false;
 		Boolean[] checkList = new Boolean[arr1.size()];
 
-		for(int i=0; i<arr1.size(); i++){
+		for (int i = 0; i < arr1.size(); i++) {
 			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
 		}
 		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
 
-	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res){
-		if(ori.size() != res.size())
+	private boolean isListMapSame(List<Map<String, Object>> ori, List<Map<String, Object>> res) {
+		if (ori.size() != res.size())
 			return false;
 
 		return IntStream.range(0, ori.size())

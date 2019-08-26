@@ -9,12 +9,12 @@ import java.util.List;
 
 public class GetBlockVerificationLogOperation extends Operation {
 
-	public GetBlockVerificationLogOperation(PublicKey clientInfo){
+	public GetBlockVerificationLogOperation(PublicKey clientInfo) {
 		super(clientInfo);
 	}
 
 	@Override
-	public Object execute(Object obj){
+	public Object execute(Object obj) {
 		try {
 			Logger logger = (Logger) obj;
 			return getErrorLogs(logger);
@@ -28,13 +28,13 @@ public class GetBlockVerificationLogOperation extends Operation {
 		}
 	}
 
-	private List<List<String>> getErrorLogs(Logger logger) throws SQLException{
+	private List<List<String>> getErrorLogs(Logger logger) throws SQLException {
 		String query = "SELECT timestamp, blockNum, entryNum, errorCode FROM VerificationLogs";
 		var psmt = logger.getPreparedStatement(query);
 		var rs = psmt.executeQuery();
 
 		List<List<String>> logs = new ArrayList<>();
-		while (rs.next()){
+		while (rs.next()) {
 			List<String> log = new ArrayList<>();
 			log.add(String.valueOf(rs.getLong(1)));
 			log.add(String.valueOf(rs.getInt(2)));

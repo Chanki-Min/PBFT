@@ -24,17 +24,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class SearchOperation extends Operation{
+public class SearchOperation extends Operation {
 	private Map queryMap;
 	private String[] indices;
 
-	public SearchOperation(PublicKey clientInfo, Map queryMap, String[] indices) throws IOException{
+	public SearchOperation(PublicKey clientInfo, Map queryMap, String[] indices) throws IOException {
 		super(clientInfo);
 		this.queryMap = queryMap;
 		this.indices = indices;
 	}
 
-	public SearchOperation(PublicKey clientInfo, XContentBuilder queryXContent, String[] indices){
+	public SearchOperation(PublicKey clientInfo, XContentBuilder queryXContent, String[] indices) {
 		super(clientInfo);
 		Genson genson = new Genson();
 		this.queryMap = genson.deserialize(Strings.toString(queryXContent), Map.class);
@@ -42,15 +42,15 @@ public class SearchOperation extends Operation{
 	}
 
 	@Override
-	public List<String> execute(Object obj){
+	public List<String> execute(Object obj) {
 		try {
 			QueryBuilder query = QueryBuilders.wrapperQuery(Strings.toString(XContentFactory.jsonBuilder().map(queryMap)));
 			final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L)); //expire scrolling after 1Minute
 			List<SearchHits> finalResult = new ArrayList<>();
 			SearchRequest request = null;
-			if(indices == null){
+			if (indices == null) {
 				request = new SearchRequest();
-			}else{
+			} else {
 				request = new SearchRequest().indices(indices);
 			}
 			SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -67,7 +67,7 @@ public class SearchOperation extends Operation{
 			SearchHits hits = response.getHits();
 			finalResult.add(hits);
 
-			while(hits != null && hits.getHits().length > 0) {
+			while (hits != null && hits.getHits().length > 0) {
 				SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
 				scrollRequest.scroll(scroll);
 				response = esRestClient.getClient().scroll(scrollRequest, RequestOptions.DEFAULT);
@@ -76,7 +76,7 @@ public class SearchOperation extends Operation{
 				hits = response.getHits();
 				finalResult.add(hits);
 			}
-			finalResult.remove(finalResult.size()-1); //마지막에 스크롤된 빈 원소는 삭제함
+			finalResult.remove(finalResult.size() - 1); //마지막에 스크롤된 빈 원소는 삭제함
 			ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
 			clearScrollRequest.addScrollId(scrollId);
 			esRestClient.getClient().clearScroll(clearScrollRequest, RequestOptions.DEFAULT);

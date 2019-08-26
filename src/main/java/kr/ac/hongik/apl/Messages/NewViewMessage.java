@@ -50,7 +50,7 @@ public class NewViewMessage implements Message {
 		return new NewViewMessage(data, signature);
 	}
 
-	private static List<PreprepareMessage> getOperationList(Replica replica, List<ViewChangeMessage> viewChangeMessages, int newViewNum){
+	private static List<PreprepareMessage> getOperationList(Replica replica, List<ViewChangeMessage> viewChangeMessages, int newViewNum) {
 		List<PrepareMessage> prepareList = viewChangeMessages.stream()
 				.flatMap(v -> v.getMessageList().stream())
 				.flatMap(pm -> pm.getPrepareMessages().stream())
@@ -97,8 +97,8 @@ public class NewViewMessage implements Message {
 				.get()
 				.getRequestMessage();
 		/**
-			make Stream of Pre-prepare Msgs that has non-null Operation Op.
-			Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience
+		 make Stream of Pre-prepare Msgs that has non-null Operation Op.
+		 Please note that "Op" is not Digest of operation, Not like original paper. cause of Development Convenience
 		 */
 		Stream<PreprepareMessage> pre_preparesStream = prepareList.stream()
 				.map(p -> makePrePrepareMsg(replica.getPrivateKey(), newViewNum, p.getSeqNum(), getOp.apply(p)))

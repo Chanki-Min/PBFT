@@ -12,11 +12,14 @@ import java.util.stream.IntStream;
 public class EsJsonParser {
 	String filePath;
 
-	public EsJsonParser() { }
+	public EsJsonParser() {
+	}
 
-	public void setFilePath(String filePath) { this.filePath = filePath; }
+	public void setFilePath(String filePath) {
+		this.filePath = filePath;
+	}
 
-	public List<Map> listedJsonFileToList(String key){
+	public List<Map> listedJsonFileToList(String key) {
 		Genson genson = new Genson();
 		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
 
@@ -24,23 +27,23 @@ public class EsJsonParser {
 		return (List<Map>) json.get(key);
 	}
 
-	public Map jsonFileToMap(){
+	public Map jsonFileToMap() {
 		try {
 			Genson genson = new Genson();
 			InputStream in = EsJsonParser.class.getResourceAsStream(filePath);
 			Map<String, Object> map = genson.deserialize(in, Map.class);
-			for(var ent : map.entrySet()){
-				if(ent.getValue() instanceof String && ((String) ent.getValue()).startsWith("BINARY_PATH::")) {
+			for (var ent: map.entrySet()) {
+				if (ent.getValue() instanceof String && ((String) ent.getValue()).startsWith("BINARY_PATH::")) {
 					Base64.Encoder encoder = Base64.getEncoder();
-					String resourcePath = ((String) ent.getValue()).replace("BINARY_PATH::","");
+					String resourcePath = ((String) ent.getValue()).replace("BINARY_PATH::", "");
 					URL fileURL = EsJsonParser.class.getResource(resourcePath);
 					File file = new File(fileURL.getPath());
-					if(file.exists()) {
+					if (file.exists()) {
 						FileInputStream fin = new FileInputStream(file);
 						ByteArrayOutputStream bao = new ByteArrayOutputStream();
 						int len = 0;
 						byte[] buf = new byte[1024];
-						while( (len = fin.read( buf )) != -1 ) {
+						while ((len = fin.read(buf)) != -1) {
 							bao.write(buf, 0, len);
 						}
 						String encodeValue = Base64.getEncoder().encodeToString(bao.toByteArray());
@@ -48,18 +51,18 @@ public class EsJsonParser {
 					}
 				}
 			}
-				return map;
-		}catch (IOException e){
+			return map;
+		} catch (IOException e) {
 			e.printStackTrace();
 			return null;
 		}
 	}
 
-	public XContentBuilder jsonFileToXContentBuilder(boolean isPrettyPrint) throws IOException{
+	public XContentBuilder jsonFileToXContentBuilder(boolean isPrettyPrint) throws IOException {
 		Genson genson = new Genson();
 		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
 		XContentBuilder builder;
-		if(isPrettyPrint)
+		if (isPrettyPrint)
 			builder = XContentFactory.jsonBuilder().prettyPrint();
 		else
 			builder = XContentFactory.jsonBuilder();
@@ -70,13 +73,13 @@ public class EsJsonParser {
 
 	public Map jsonStringToMap(String json) {
 		Genson genson = new Genson();
-		return genson.deserialize(json,Map.class);
+		return genson.deserialize(json, Map.class);
 	}
 
-	public XContentBuilder jsonStringToXContentBuilder(String json, boolean isPrettyPrint) throws IOException{
+	public XContentBuilder jsonStringToXContentBuilder(String json, boolean isPrettyPrint) throws IOException {
 		Genson genson = new Genson();
 		XContentBuilder builder;
-		if(isPrettyPrint)
+		if (isPrettyPrint)
 			builder = XContentFactory.jsonBuilder().prettyPrint();
 		else
 			builder = XContentFactory.jsonBuilder();
@@ -84,9 +87,9 @@ public class EsJsonParser {
 		return builder;
 	}
 
-	public LinkedHashMap sqlResponseStringToLinkedMap(String sqlResponse) throws IOException{
+	public LinkedHashMap sqlResponseStringToLinkedMap(String sqlResponse) throws IOException {
 		Map map = jsonStringToMap(sqlResponse);
-		if(map.containsKey("columns") && map.containsKey("rows")){
+		if (map.containsKey("columns") && map.containsKey("rows")) {
 			List<HashMap> columns = (List) (map.get("columns"));
 			List<ArrayList> rows = (List) map.get("rows");
 
@@ -94,7 +97,7 @@ public class EsJsonParser {
 			IntStream.range(0, columns.size())
 					.forEach(i -> resultMap.put(columns.get(i).get("name"), rows.get(0).get(i)));
 			return resultMap;
-		}else {
+		} else {
 			throw new IOException("sqlResponse param does not has \"columns\", \"rows\"");
 		}
 	}

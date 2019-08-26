@@ -13,7 +13,6 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -27,22 +26,41 @@ import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 
 public class Replica extends Connector {
-	public static final boolean DEBUG = true;
-
+	public static final boolean DEBUG = false;
 	final static int WATERMARK_UNIT = 10;
-
-
+	public static int VERIFY_UNIT = 10; //Verify Block at every 100th insertion
 	private final int myNumber;
+	public Object watermarkLock = new Object();
 	private int viewNum = 0;
 	private ServerSocketChannel listener;
 	private List<SocketChannel> clients;
 	private PriorityQueue<CommitMessage> priorityQueue = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
-
 	private PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getSeqNumFromMsg));
+	private Logger logger;
+	private int lowWatermark;
+	private ConcurrentHashMap<String, Timer> timerMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<Long, Timer> receiveTimerMap = new ConcurrentHashMap<>();
+	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 
-	public static int VERIFY_UNIT = 10; //Verify Block at every 100th insertion
+	public Replica(Properties prop, String serverIp, int serverPort) {
+		super(prop);
+		String loggerFileName = String.format("consensus_%s_%d.db", serverIp, serverPort);
+		this.logger = new Logger(loggerFileName);
+		this.clients = new ArrayList<>();
+		this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
+		this.lowWatermark = 0;
 
-	public Object watermarkLock = new Object();
+		try {
+			listener = ServerSocketChannel.open();
+			listener.socket().setReuseAddress(true);
+			listener.configureBlocking(false);
+			listener.bind(new InetSocketAddress(serverPort));
+			listener.register(this.selector, SelectionKey.OP_ACCEPT);
+		} catch (IOException e) {
+			System.err.println(e);
+		}
+		super.connect();
+	}
 
 	private static int getSeqNumFromMsg(Message message) {
 		if (message instanceof HeaderMessage) {
@@ -65,104 +83,6 @@ public class Replica extends Connector {
 		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
 
-	private Logger logger;
-	private int lowWatermark;
-
-	private ConcurrentHashMap<String, Timer> timerMap = new ConcurrentHashMap<>();
-	private ConcurrentHashMap<Long, Timer> receiveTimerMap = new ConcurrentHashMap<>();
-	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
-
-	void start() {
-		//Assume that every connection is established
-
-		new Thread(() -> {
-			while (true) {
-				try {
-					receiveBuffer.put(Replica.super.receive());
-				} catch (InterruptedException e) {
-					continue;
-				}
-			}
-		}).start();
-
-		while (true) {
-			Message message = null;
-			try {
-				message = receive();
-			} catch (InterruptedException e) {
-				continue;
-			}
-			if (DEBUG) {
-				receiveTimerMap.values().stream().forEach(x -> x.cancel());
-				receiveTimerMap.keySet().stream().forEach(x -> receiveTimerMap.remove(x));
-				Timer timer = new Timer();
-				timer.schedule(new printQueue(this), 30000);
-				receiveTimerMap.put(Instant.now().toEpochMilli(), timer);
-			}
-			if (message instanceof HeaderMessage) {
-				handleHeaderMessage((HeaderMessage) message);
-			} else if (message instanceof RequestMessage) {
-				if (DEBUG) {
-					System.err.println("got request");
-				}
-				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
-					loopback(message);
-				else
-					handleRequestMessage((RequestMessage) message);
-			} else if (message instanceof PreprepareMessage) {
-				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
-					loopback(message);
-				else
-					handlePreprepareMessage((PreprepareMessage) message);
-			} else if (message instanceof PrepareMessage) {
-				if (DEBUG) {
-					System.err.print("got Prepare message #" + ((PrepareMessage) message).getSeqNum() + " from " + ((PrepareMessage) message).getReplicaNum() + " view : " + ((PrepareMessage) message).getViewNum());
-				}
-				handlePrepareMessage((PrepareMessage) message);
-			} else if (message instanceof CommitMessage) {
-				if (DEBUG) {
-					System.err.println("got Commit message #" + ((CommitMessage) message).getSeqNum() + " from " + ((CommitMessage) message).getReplicaNum() + " view : " + ((CommitMessage) message).getViewNum());
-				}
-				handleCommitMessage((CommitMessage) message);
-			} else if (message instanceof CheckPointMessage) {
-				handleCheckPointMessage((CheckPointMessage) message);
-			} else if (message instanceof ViewChangeMessage) {
-				handleViewChangeMessage((ViewChangeMessage) message);
-			} else if (message instanceof NewViewMessage) {
-				handleNewViewMessage((NewViewMessage) message);
-			} else {
-				if (DEBUG) {
-					System.err.println("Invalid message");
-				}
-				throw new UnsupportedOperationException("Invalid message");
-			}
-		}
-	}
-
-	public Replica(Properties prop, String serverIp, int serverPort) {
-		super(prop);
-
-
-		String loggerFileName = String.format("consensus_%s_%d.db", serverIp, serverPort);
-
-		this.logger = new Logger(loggerFileName);
-		this.clients = new ArrayList<>();
-
-		this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
-		this.lowWatermark = 0;
-
-		try {
-			listener = ServerSocketChannel.open();
-			listener.socket().setReuseAddress(true);
-			listener.configureBlocking(false);
-			listener.bind(new InetSocketAddress(serverPort));
-			listener.register(this.selector, SelectionKey.OP_ACCEPT);
-		} catch (IOException e) {
-			System.err.println(e);
-		}
-		super.connect();
-	}
-
 	public static void main(String[] args) throws IOException {
 		try {
 			String ip = args[0];
@@ -178,30 +98,71 @@ public class Replica extends Connector {
 		}
 	}
 
-	/**
-	 * @return
-	 */
+	void start() {
+		new Thread(() -> {
+			while (true) {
+				try {
+					receiveBuffer.put(Replica.super.receive());
+				} catch (InterruptedException e) {
+					continue;
+				}
+			}
+		}).start();
+
+		while (true) {
+			Message message;
+			try {
+				message = receive();
+			} catch (InterruptedException e) {
+				continue;
+			}
+			if (message instanceof HeaderMessage) {
+				handleHeaderMessage((HeaderMessage) message);
+			} else if (message instanceof RequestMessage) {
+				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
+					loopback(message);
+				else
+					handleRequestMessage((RequestMessage) message);
+			} else if (message instanceof PreprepareMessage) {
+				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
+					loopback(message);
+				else
+					handlePreprepareMessage((PreprepareMessage) message);
+			} else if (message instanceof PrepareMessage) {
+				handlePrepareMessage((PrepareMessage) message);
+			} else if (message instanceof CommitMessage) {
+				handleCommitMessage((CommitMessage) message);
+			} else if (message instanceof CheckPointMessage) {
+				handleCheckPointMessage((CheckPointMessage) message);
+			} else if (message instanceof ViewChangeMessage) {
+				handleViewChangeMessage((ViewChangeMessage) message);
+			} else if (message instanceof NewViewMessage) {
+				handleNewViewMessage((NewViewMessage) message);
+			} else {
+				throw new UnsupportedOperationException("Invalid message");
+			}
+		}
+	}
+
 	@Override
-	protected Message receive() throws InterruptedException{
-
+	protected Message receive() throws InterruptedException {
 		Message message;
+		Class[] waterMarkCheckTypes = new Class[] {PreprepareMessage.class, PrepareMessage.class};
+		Class[] viewChangeUnblockTypes = new Class[] {CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
 
-		Class[] shouldCheckWaterMark = new Class[]{PreprepareMessage.class, PrepareMessage.class};
-		Predicate<Message> isWaterMarkSensitive = (msg) -> Arrays.stream(shouldCheckWaterMark).anyMatch(msgType -> msgType.isInstance(msg));
-		Class[] viewChangeUnblockTypes = new Class[]{CheckPointMessage.class, ViewChangeMessage.class, NewViewMessage.class};
-		Predicate<Message> isBlockTypes = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
+		Predicate<Message> isWaterMarkType = (msg) -> Arrays.stream(waterMarkCheckTypes).anyMatch(msgType -> msgType.isInstance(msg));
+		Predicate<Message> isBlockType = (msg) -> Arrays.stream(viewChangeUnblockTypes).noneMatch(msgType -> msgType.isInstance(msg));
 
 		while (true) {
 			message = receiveBuffer.take();
-
 			if (getviewChangePhase()) {
-				if (isBlockTypes.test(message)) {
+				if (isBlockType.test(message)) {
 					receiveBuffer.offer(message);
 					continue;
 				}
 				return message;
 			} else {
-				if (!isWaterMarkSensitive.test(message)) {
+				if (!isWaterMarkType.test(message)) {
 					return message;
 				}
 				int SeqNum = getSeqNumFromMsg(message);
@@ -217,7 +178,7 @@ public class Replica extends Connector {
 	}
 
 	private int getMyNumberFromProperty(Properties prop, String serverIp, int serverPort) {
-		int numOfReplica = Integer.valueOf(prop.getProperty("replica"));
+		int numOfReplica = Integer.parseInt(prop.getProperty("replica"));
 		for (int i = 0; i < numOfReplica; i++) {
 			if (prop.getProperty("replica" + i).equals(serverIp + ":" + serverPort)) {
 				return i;
@@ -239,7 +200,6 @@ public class Replica extends Connector {
 					soFarMaxSeqNum = getWatermarks()[0] - 1;
 
 				var first = priorityQueue.peek();
-
 				if (first != null && soFarMaxSeqNum + 1 == first.getSeqNum()) {
 					priorityQueue.poll();
 					return first;
@@ -251,23 +211,17 @@ public class Replica extends Connector {
 			throw new NoSuchElementException();
 		}
 	}
+
 	private void loopback(Message message) {
 		TimerTask task = new TimerTask() {
 			@Override
 			public void run() {
 				send(getReplicaMap().get(getMyNumber()), message);
-				if (DEBUG) {
-					System.err.println("Loopback: send " + message.getClass().getName());
-				}
 			}
 		};
-
 		new Timer().schedule(task, 10000);
 	}
 
-	/**
-	 * @return
-	 */
 	private void handleRequestMessage(RequestMessage message) {
 		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
@@ -275,24 +229,19 @@ public class Replica extends Connector {
 			send(destination, replyMessage);
 			return;
 		}
-
 		if (this.logger.findMessage(message)) {
 			return;
 		}
-
 		var sock = getChannelFromClientInfo(message.getClientInfo());
 		PublicKey publicKey = publicKeyMap.get(sock);
 		boolean canGoNextState = message.verify(publicKey) &&
 				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
-
 		if (canGoNextState) {
 			logger.insertMessage(message);
 			if (this.getPrimary() == this.myNumber) {
-				//Enter broadcast phase
 				broadcastToReplica(message);
 			} else {
-				//Relay to viewNum
 				super.send(getReplicaMap().get(getPrimary()), message);
 
 				//Set a timer for view-change phase
@@ -347,18 +296,8 @@ public class Replica extends Connector {
 	private void broadcastToReplica(RequestMessage message) {
 		try {
 			int seqNum = getLatestSequenceNumber() + 1;
-
 			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getViewNum(), seqNum, message);
 			logger.insertMessage(preprepareMessage);
-
-			if (DEBUG) {
-				/*
-					make primary replica faulty
-				 */
-				ErrorCase.doFaulty(this, 2, 4, preprepareMessage);
-				return;
-			}
-			//Broadcast messages
 			getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -369,7 +308,7 @@ public class Replica extends Connector {
 	 * @return An array which contains (low watermark, high watermark).
 	 */
 	public int[] getWatermarks() {
-		return new int[]{this.lowWatermark, this.lowWatermark + WATERMARK_UNIT};
+		return new int[] {this.lowWatermark, this.lowWatermark + WATERMARK_UNIT};
 	}
 
 	public int getViewNum() {
@@ -384,14 +323,10 @@ public class Replica extends Connector {
 		String query = "SELECT P.seqNum FROM Preprepares P where viewNum = ?";
 		PreparedStatement pstmt = logger.getPreparedStatement(query);
 		pstmt.setInt(1, this.getViewNum());
-		if (DEBUG) {
-			System.err.println("Current viewNum = " + this.getViewNum());
-		}
 		ResultSet ret = pstmt.executeQuery();
 		List<Integer> seqList = JdbcUtils.toStream(ret)
 				.map(rethrow().wrapFunction(x -> x.getInt(1)))
 				.collect(Collectors.toList());
-
 		return seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
 	}
 
@@ -401,8 +336,6 @@ public class Replica extends Connector {
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
 		SocketChannel PublicKeySocket = getChannelFromClientInfo(clientPublicKey);
 		clientPublicKey = publicKeyMap.get(PublicKeySocket);
-
-
 		boolean isVerified = message.isVerified(primaryPublicKey, this.getViewNum(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
@@ -468,7 +401,6 @@ public class Replica extends Connector {
 			default:
 				System.err.printf("Invalid header message: %s\n", message);
 		}
-
 	}
 
 	private void handleCommitMessage(CommitMessage cmsg) {
@@ -479,20 +411,17 @@ public class Replica extends Connector {
 		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
 				getMaximumFaulty(), this.myNumber);
 
-
 		if (isCommitted) {
-			if(priorityQueue.stream().noneMatch(x -> x.getSeqNum() == cmsg.getSeqNum()))
+			if (priorityQueue.stream().noneMatch(x -> x.getSeqNum() == cmsg.getSeqNum()))
 				priorityQueue.add(cmsg);
 			try {
-				while(true){
+				while (true) {
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
 					var operation = logger.getOperation(rightNextCommitMsg);
-
 					// Release backup's view-change timer
 					String key = makeKeyForTimer(rightNextCommitMsg);
 					Timer timer = timerMap.remove(key);
-					if (timer != null)
-						timer.cancel();
+					Optional.ofNullable(timer).ifPresent(Timer::cancel);
 
 					if (operation != null) {
 						System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
@@ -518,9 +447,6 @@ public class Replica extends Connector {
 								seqNum,
 								logger.getStateDigest(seqNum, getMaximumFaulty(), this.getViewNum()),
 								this.myNumber);
-						if (DEBUG) {
-							System.err.println("Enter Checkpoint phase");
-						}
 						//Broadcast message
 						getReplicaMap().values().forEach(sock -> send(sock, checkpointMessage));
 					}
@@ -530,18 +456,6 @@ public class Replica extends Connector {
 			} catch (NoSuchElementException e) {
 				return;
 			}
-		}
-	}
-
-	public class printQueue extends TimerTask {
-		Replica replica;
-
-		public printQueue(Replica replica) {
-			this.replica = replica;
-		}
-
-		public void run() {
-			replica.receiveBuffer.stream().forEach(x -> System.err.println(x.getClass().getName()));
 		}
 	}
 
@@ -567,9 +481,7 @@ public class Replica extends Connector {
 		if (message.getSeqNum() < getWatermarks()[0]) {
 			return;
 		}
-
 		try {
-			/* Check whether my checkpoint exists */
 			String query = "SELECT count(*) FROM Checkpoints C WHERE C.seqNum = ? AND C.replica = ?";
 			try (var psmt = logger.getPreparedStatement(query)) {
 				psmt.setInt(1, message.getSeqNum());
@@ -579,7 +491,6 @@ public class Replica extends Connector {
 				if (ret.getInt(1) != 1)
 					return;
 			}
-
 			query = "SELECT stateDigest FROM Checkpoints C WHERE C.seqNum = ?";
 			try (var psmt = logger.getPreparedStatement(query)) {
 				psmt.setInt(1, message.getSeqNum());
@@ -598,14 +509,8 @@ public class Replica extends Connector {
 
 					if (max > 2 * getMaximumFaulty() && message.getSeqNum() > this.lowWatermark) {
 						synchronized (watermarkLock) {
-							if (DEBUG) {
-								System.err.print("start Garbage Collection");
-							}
 							logger.executeGarbageCollection(message.getSeqNum());
 							lowWatermark += WATERMARK_UNIT;
-							if (DEBUG) {
-								System.err.println("	low watermark : " + this.lowWatermark);
-							}
 						}
 					}
 				}
@@ -617,14 +522,13 @@ public class Replica extends Connector {
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
-		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT))
+		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT)) {
 			return;
-
+		}
 		logger.insertMessage(message);
-
-		if (this.getViewNum() >= message.getNewViewNum())
+		if (this.getViewNum() >= message.getNewViewNum()) {
 			return;
-
+		}
 		try {
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {
 				/* 정확히 2f + 1개일 때만 broadcast */
@@ -640,7 +544,6 @@ public class Replica extends Connector {
 
 				timerMap.put(generateTimerKey(message.getNewViewNum() + 1), timer);
 			} else {
-
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
 				String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ?";
@@ -653,7 +556,6 @@ public class Replica extends Connector {
 						return;
 					}
 				}
-
 				List<Integer> newViewNumList;
 				String query = "SELECT V1.newViewNum FROM Viewchanges V1 "
 						+ "WHERE V1.newViewNum > ? AND "
@@ -692,10 +594,10 @@ public class Replica extends Connector {
 	public String generateTimerKey(int newViewNum) {
 		return "view: " + (newViewNum);
 	}
+
 	public int getMyNumber() {
 		return this.myNumber;
 	}
-
 
 	@Override
 	protected void sendHeaderMessage(SocketChannel channel) {
@@ -743,7 +645,6 @@ public class Replica extends Connector {
 	}
 
 	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
-
 		Boolean[] checklist = new Boolean[3];
 		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
 		try (var pstmt = logger.getPreparedStatement(query1)) {
@@ -761,24 +662,20 @@ public class Replica extends Connector {
 			if (ret.next())
 				checklist[1] = ret.getInt(1) >= 2 * getMaximumFaulty();
 		}
-
 		String query3 = "SELECT count(*) FROM NewViewMessages WHERE newViewNum = ?";
-		try(var psmt = logger.getPreparedStatement(query3)) {
+		try (var psmt = logger.getPreparedStatement(query3)) {
 			psmt.setInt(1, message.getNewViewNum());
 			var ret = psmt.executeQuery();
-			if(ret.next())
+			if (ret.next())
 				checklist[2] = ret.getInt(1) == 0;
 		}
-
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
-
 
 	private void handleNewViewMessage(NewViewMessage message) {
 		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum()) {
 			return;
 		}
-
 		this.logger.insertMessage(message);
 
 		removeViewChangeTimer();
@@ -786,33 +683,24 @@ public class Replica extends Connector {
 
 		setViewChangePhase(false);
 
-		//Set new view number
 		setViewNum(message.getNewViewNum());
 
-		//Set new low watermark
 		int newLowWatermark = message.getViewChangeMessageList()
 				.stream()
 				.max(Comparator.comparingInt(ViewChangeMessage::getLastCheckpointNum))
 				.get()
 				.getLastCheckpointNum();
-		if ((getWatermarks()[0] > newLowWatermark)) throw new AssertionError();
+
 		synchronized (watermarkLock) {
 			this.lowWatermark = newLowWatermark;
 			message.getViewChangeMessageList()
 					.stream()
 					.flatMap(x -> x.getCheckPointMessages().stream())
 					.forEach(c -> logger.insertMessage(c));
-			//Execute GC
 			logger.executeGarbageCollection(getWatermarks()[0] - 1);
 		}
-		if (DEBUG) {
-			if (this.getPrimary() == getMyNumber()) {
-				System.err.println("I'm new Primary");
-			}
-		}
-		if (message.getOperationList() == null)
-			return;
-		else {
+
+		if (message.getOperationList() != null) {
 			message.getOperationList()
 					.stream()
 					.forEach(pp -> handlePreprepareMessage(pp));
@@ -824,16 +712,26 @@ public class Replica extends Connector {
 	}
 
 	public void removeNewViewTimer(int newViewNum) {
-
 		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> x.equals(generateTimerKey(newViewNum))).collect(Collectors.toList());
 		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
 	}
 
 	public void removeViewChangeTimer() {
-
 		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> !x.equals("view")).collect(Collectors.toList());
 		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
+	}
+
+	public class printQueue extends TimerTask {
+		Replica replica;
+
+		public printQueue(Replica replica) {
+			this.replica = replica;
+		}
+
+		public void run() {
+			replica.receiveBuffer.stream().forEach(x -> System.err.println(x.getClass().getName()));
+		}
 	}
 }

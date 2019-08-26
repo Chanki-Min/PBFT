@@ -13,25 +13,25 @@ import static kr.ac.hongik.apl.Util.generateKeyPair;
 
 class RequestOperation extends Operation {
 
-    RequestOperation(PublicKey clientInfo, long timestamp) {
-        super(clientInfo);
-    }
+	RequestOperation(PublicKey clientInfo, long timestamp) {
+		super(clientInfo);
+	}
 
-    @Override
-    public Object execute(Object obj) {
-        return null;
-    }
+	@Override
+	public Object execute(Object obj) {
+		return null;
+	}
 }
 
 class RequestMessageTest {
-    @Test
+	@Test
 	void test() {
-        System.out.println("RequestMessage Class Unit Test Start");
-        KeyPair keyPair = generateKeyPair();
-        PublicKey clientInfo = keyPair.getPublic();
-        long timestamp = Instant.now().getEpochSecond();
-        Operation operation = new RequestOperation(clientInfo, timestamp);
+		System.out.println("RequestMessage Class Unit Test Start");
+		KeyPair keyPair = generateKeyPair();
+		PublicKey clientInfo = keyPair.getPublic();
+		long timestamp = Instant.now().getEpochSecond();
+		Operation operation = new RequestOperation(clientInfo, timestamp);
 		RequestMessage requestMessage = RequestMessage.makeRequestMsg(keyPair.getPrivate(), operation);
-        System.out.println("RequestMessage Class Unit Test Success");
-    }
+		System.out.println("RequestMessage Class Unit Test Success");
+	}
 }

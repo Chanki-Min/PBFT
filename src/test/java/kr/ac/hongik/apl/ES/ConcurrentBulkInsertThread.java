@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class ConcurrentBulkInsertThread extends Thread{
+public class ConcurrentBulkInsertThread extends Thread {
 	private final String indexName;
 	private final int block_number;
 	private final List<Map<String, Object>> plain_data;
@@ -26,7 +26,7 @@ public class ConcurrentBulkInsertThread extends Thread{
 	private EsRestClient esRestClient;
 
 
-	public ConcurrentBulkInsertThread(String indexName, int block_number, List<Map<String, Object>> plain_data,List<byte[]> encrypt_data,int sleepTime, int versionNumber, int threadID){
+	public ConcurrentBulkInsertThread(String indexName, int block_number, List<Map<String, Object>> plain_data, List<byte[]> encrypt_data, int sleepTime, int versionNumber, int threadID) {
 		this.indexName = indexName;
 		this.block_number = block_number;
 		this.plain_data = plain_data;
@@ -38,7 +38,7 @@ public class ConcurrentBulkInsertThread extends Thread{
 
 	@Override
 	public void run() {
-		System.err.println("Thread stated, ThreadNum #"+threadID);
+		System.err.println("Thread stated, ThreadNum #" + threadID);
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient();
 		try {
@@ -57,8 +57,8 @@ public class ConcurrentBulkInsertThread extends Thread{
 					EsRestClient esRestClient = new EsRestClient();
 					esRestClient.connectToEs();
 					esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
-				}catch (EsRestClient.EsConcurrencyException e){
-					System.err.println("Thread #"+threadID+" "+e.getClass().toString()+" "+e.getMessage());
+				} catch (EsRestClient.EsConcurrencyException e) {
+					System.err.println("Thread #" + threadID + " " + e.getClass().toString() + " " + e.getMessage());
 				}
 			}
 			esRestClient.bulkInsertDocumentByProcessor(
@@ -66,30 +66,30 @@ public class ConcurrentBulkInsertThread extends Thread{
 			esRestClient.deleteIndex(indexName);
 			esRestClient.disConnectToEs();
 
-		} catch (IOException | InterruptedException | EsRestClient.EsSSLException e){
+		} catch (IOException | InterruptedException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		} catch (NoSuchFieldException | EsRestClient.EsException | EsRestClient.EsConcurrencyException e) {
-			System.err.println("Thread #"+threadID+" "+e.getMessage());
+			System.err.println("Thread #" + threadID + " " + e.getMessage());
 		}
 	}
 
-	private boolean isIndexExists(String indexName) throws IOException{
+	private boolean isIndexExists(String indexName) throws IOException {
 		GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);
 		return esRestClient.getClient().indices().exists(getIndexRequest, RequestOptions.DEFAULT);
 	}
 
-	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2){
-		if(arr1.size() != arr2.size())
+	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2) {
+		if (arr1.size() != arr2.size())
 			return false;
 		Boolean[] checkList = new Boolean[arr1.size()];
 
-		for(int i=0; i<arr1.size(); i++){
+		for (int i = 0; i < arr1.size(); i++) {
 			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
 		}
 		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
 
-	private boolean isBlockExists(String indexName, int blockNumber) throws IOException{
+	private boolean isBlockExists(String indexName, int blockNumber) throws IOException {
 		CountRequest getCorrupedCount = new CountRequest(indexName);
 		SearchSourceBuilder builder = new SearchSourceBuilder();
 		builder.query(QueryBuilders.termQuery("block_number", blockNumber));

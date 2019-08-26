@@ -13,7 +13,7 @@ import java.util.Properties;
 
 public class GetBlockVerificationLogOperationTest {
 	@Test
-	public void GetBilkVerificationOpTest() throws IOException{
+	public void GetBilkVerificationOpTest() throws IOException {
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
@@ -24,11 +24,11 @@ public class GetBlockVerificationLogOperationTest {
 		RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), getVerifyLogOp);
 		client.request(requestMessage);
 		List<List<String>> result = (List<List<String>>) client.getReply();
-		for(var lst : result){
+		for (var lst: result) {
 			System.out.print("[ ");
-			lst.stream().forEachOrdered(ent -> System.out.print(ent+", "));
+			lst.stream().forEachOrdered(ent -> System.out.print(ent + ", "));
 			System.out.println(" ]");
 		}
-		System.err.println("Total size :"+result.size());
+		System.err.println("Total size :" + result.size());
 	}
 }

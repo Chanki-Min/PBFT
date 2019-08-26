@@ -9,7 +9,7 @@ import java.util.Scanner;
 
 public class BlockVerificationTest {
 	@Test
-	public void verificationTest() throws InterruptedException, IOException{
+	public void verificationTest() throws InterruptedException, IOException {
 		String filePath = "Please Insert Proper sqlDB Path that stores HEADER";
 		String esIndexName = "block_chain";
 		String dbTableName = "BlockChain";

@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public class SearchOperationTest {
 
 	@Test
-	public void searchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException{
+	public void searchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
 		String queryPath = "/EsSearchQuery/Query.json";
 		String[] indices = {"block_chain"};
 
@@ -45,14 +45,14 @@ public class SearchOperationTest {
 		parser.setFilePath(queryPath);
 
 		Map queryMap = parser.jsonFileToMap();
-		Operation searchOp = new SearchOperation(client.getPublicKey(),queryMap, indices);
+		Operation searchOp = new SearchOperation(client.getPublicKey(), queryMap, indices);
 		RequestMessage message = RequestMessage.makeRequestMsg(client.getPrivateKey(), searchOp);
 
 		long startTime = System.currentTimeMillis();
 		client.request(message);
 		List<String> resultString = (List<String>) client.getReply();
 
-		System.err.println("search end, resultSize :"+resultString.size()+" took :"+(System.currentTimeMillis()-startTime)+"ms");
+		System.err.println("search end, resultSize :" + resultString.size() + " took :" + (System.currentTimeMillis() - startTime) + "ms");
 
 		System.err.println("searchOperationTest : PBFT searchOp end, search to ES directly...");
 
@@ -88,16 +88,16 @@ public class SearchOperationTest {
 		}
 		esRestClient.disConnectToEs();
 		List<String> ser = finalResult.stream().map(x -> Strings.toString(x)).collect(Collectors.toList());
-		ser.remove(ser.size()-1);
+		ser.remove(ser.size() - 1);
 
-		System.err.println("Direct search end with size : "+finalResult.size()+" TIME :" + (System.currentTimeMillis() - startTime));
+		System.err.println("Direct search end with size : " + finalResult.size() + " TIME :" + (System.currentTimeMillis() - startTime));
 
 		System.err.println("result of PBFT search & Direct search SAME? : " + resultString.equals(ser));
 		Assertions.assertTrue(resultString.equals(ser));
 	}
 
 	@Test
-	public void searchByParsedMapTest() throws NoSuchFieldException, IOException, EsRestClient.EsSSLException{
+	public void searchByParsedMapTest() throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
 		String queryPath = "/EsSearchQuery/Query.json";
 		String indexName = "block_chain";
 		List<SearchHits> finalResult = new ArrayList();
@@ -134,7 +134,7 @@ public class SearchOperationTest {
 			hits = response.getHits();
 			finalResult.add(hits);
 		}
-		System.err.println("size : "+finalResult.size());
+		System.err.println("size : " + finalResult.size());
 		System.err.println("passed TIME :" + (System.currentTimeMillis() - startTime));
 		esRestClient.disConnectToEs();
 

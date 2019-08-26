@@ -57,7 +57,7 @@ public class ViewChangeMessage implements Message {
 		List<Pm> pmList = new ArrayList<>();
 		var watermarkRange = getWatermarkRange(checkpointNum, waterMark);
 
-		for (int i : watermarkRange) {
+		for (int i: watermarkRange) {
 			pmList.add(makePmOrNull(i, preparedStatement, getMaximumFaulty));
 		}
 

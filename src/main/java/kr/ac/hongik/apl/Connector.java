@@ -26,15 +26,14 @@ import static kr.ac.hongik.apl.Util.*;
  */
 abstract class Connector {
 	public final static long TIMEOUT = 15000;    //Unit: milliseconds
-
+	static private Map<Integer, SocketChannel> replicas = new HashMap<>();
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
-	static private Map<Integer, SocketChannel> replicas = new HashMap<>();
 	protected Selector selector;
 
 	protected Map<SocketChannel, PublicKey> publicKeyMap = new HashMap<>();
-	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 	protected PublicKey publicKey;
+	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 
 
 	public Connector(Properties prop) {
@@ -68,7 +67,7 @@ abstract class Connector {
 
 	private SocketChannel handshake(SocketAddress address) throws IOException {
 		SocketChannel channel = SocketChannel.open(address);
-		while(!channel.finishConnect());
+		while (!channel.finishConnect()) ;
 		channel.configureBlocking(false);
 		channel.register(selector, SelectionKey.OP_READ);
 		return channel;
@@ -123,7 +122,7 @@ abstract class Connector {
 			}
 			return;
 
-		} catch(IOException e) {
+		} catch (IOException e) {
 			//System.err.println(e);
 			reconnect(channel);
 		}
@@ -139,6 +138,7 @@ abstract class Connector {
 	/**
 	 * If the selector contains any listening socket, acceptOp method must be implemented!
 	 * Receive mehtod also handles public key sharing situation
+	 *
 	 * @return Message
 	 */
 	protected Message receive() throws InterruptedException {
@@ -183,10 +183,10 @@ abstract class Connector {
 						int length = intBuffer.getInt();    //Default order: big endian
 						byte[] receivedBytes = new byte[length];
 						ByteBuffer byteBuffer = ByteBuffer.wrap(receivedBytes);
-                        int readn = 0;
-                        while (readn < length) {
-                            readn += channel.read(byteBuffer);
-                        }
+						int readn = 0;
+						while (readn < length) {
+							readn += channel.read(byteBuffer);
+						}
 
 						Serializable message = deserialize(receivedBytes);
 						if (message instanceof HeaderMessage) {
@@ -250,7 +250,7 @@ abstract class Connector {
 		return this.privateKey;
 	}
 
-	public Map<SocketChannel, PublicKey> getPublicKeyMap(){
+	public Map<SocketChannel, PublicKey> getPublicKeyMap() {
 		return publicKeyMap;
 	}
 }
