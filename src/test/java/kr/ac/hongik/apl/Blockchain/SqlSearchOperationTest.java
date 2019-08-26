@@ -82,7 +82,9 @@ public class SqlSearchOperationTest {
 	@Test
 	public void SqlQueryByLowClientTest() throws NoSuchFieldException, IOException {
 		try {
-			String query = "{ \"query\" : \"SELECT block_number, entry_number, start_time from block_chain where block_number = 1 AND entry_number = 0\" }";
+			String query = "SELECT block_number, entry_number, start_time from block_chain where block_number = 1 AND entry_number = 0";
+			query = "SELECT * from block_chain";
+			query = sqlQueryGenerator(query);
 			EsRestClient esRestClient = new EsRestClient();
 			esRestClient.connectToEs();
 
@@ -106,11 +108,16 @@ public class SqlSearchOperationTest {
 			System.err.println(Strings.toString(builder));
 
 			EsJsonParser esJsonParser = new EsJsonParser();
-			LinkedHashMap resultMap = esJsonParser.sqlResponseStringToLinkedMap(responseBody);
+			LinkedHashMap<Integer, LinkedHashMap> resultMap = esJsonParser.sqlResponseStringToLinkedMap(responseBody);
 			resultMap.keySet().stream()
-					.forEachOrdered(k -> System.err.print("[" + k + ", " + resultMap.get(k) + "], "));
+					.forEachOrdered(k -> System.err.println(k + " : [" + k + ", " + resultMap.get(k) + "], "));
 		} catch (ResponseException | EsRestClient.EsSSLException e) {
 			System.err.println(e.getMessage());
 		}
+	}
+
+	private String sqlQueryGenerator(String query) {
+		StringBuilder builder = new StringBuilder();
+		return builder.append("{ \"query\" : \"").append(query).append("\" }").toString();
 	}
 }

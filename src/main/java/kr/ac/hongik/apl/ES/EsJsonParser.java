@@ -7,7 +7,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
-import java.util.stream.IntStream;
 
 public class EsJsonParser {
 	String filePath;
@@ -87,15 +86,25 @@ public class EsJsonParser {
 		return builder;
 	}
 
-	public LinkedHashMap sqlResponseStringToLinkedMap(String sqlResponse) throws IOException {
+	/**
+	 * @param sqlResponse String that result of SQL query that given by SQLSearchOperation
+	 * @return LinkedHashMap of sqlResponse (indexNum, [column#1 :row#1-1, ...,column#n :row#1-n])
+	 * @throws IOException
+	 */
+	public LinkedHashMap<Integer, LinkedHashMap> sqlResponseStringToLinkedMap(String sqlResponse) throws IOException {
 		Map map = jsonStringToMap(sqlResponse);
 		if (map.containsKey("columns") && map.containsKey("rows")) {
 			List<HashMap> columns = (List) (map.get("columns"));
 			List<ArrayList> rows = (List) map.get("rows");
 
 			LinkedHashMap resultMap = new LinkedHashMap();
-			IntStream.range(0, columns.size())
-					.forEach(i -> resultMap.put(columns.get(i).get("name"), rows.get(0).get(i)));
+			LinkedHashMap tmpMap = new LinkedHashMap();
+			for (int i = 0; i < rows.size(); i++) {
+				for (int j = 0; j < columns.size(); j++) {
+					tmpMap.put(columns.get(j).get("name"), rows.get(i).get(j));
+				}
+				resultMap.put(i, tmpMap);
+			}
 			return resultMap;
 		} else {
 			throw new IOException("sqlResponse param does not has \"columns\", \"rows\"");
