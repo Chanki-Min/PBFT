@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.ES;
 
 import com.owlike.genson.Genson;
+import kr.ac.hongik.apl.Replica;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -96,14 +97,26 @@ public class EsJsonParser {
 		if (map.containsKey("columns") && map.containsKey("rows")) {
 			List<HashMap> columns = (List) (map.get("columns"));
 			List<ArrayList> rows = (List) map.get("rows");
+			if (Replica.DEBUG) {
+				System.err.println("columns size: " + columns.size());
+				System.err.println("rows size: " + rows.size());
+			}
 
 			LinkedHashMap resultMap = new LinkedHashMap();
-			LinkedHashMap tmpMap = new LinkedHashMap();
+			int count = 0;
 			for (int i = 0; i < rows.size(); i++) {
+				LinkedHashMap tmpMap = new LinkedHashMap();
 				for (int j = 0; j < columns.size(); j++) {
 					tmpMap.put(columns.get(j).get("name"), rows.get(i).get(j));
 				}
 				resultMap.put(i, tmpMap);
+				count++;
+				if (Replica.DEBUG) {
+					System.err.println("Add tmp. block_no: " + tmpMap.get("block_number") + " entry_no: " + tmpMap.get("entry_number"));
+				}
+			}
+			if (Replica.DEBUG) {
+				System.err.println("count: " + count);
 			}
 			return resultMap;
 		} else {
