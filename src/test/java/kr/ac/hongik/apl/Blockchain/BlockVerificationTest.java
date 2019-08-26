@@ -1,6 +1,5 @@
 package kr.ac.hongik.apl.Blockchain;
 
-import kr.ac.hongik.apl.BlockVerificationThread;
 import kr.ac.hongik.apl.Logger;
 import org.junit.jupiter.api.Test;
 

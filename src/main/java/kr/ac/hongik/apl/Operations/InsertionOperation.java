@@ -1,6 +1,6 @@
 package kr.ac.hongik.apl.Operations;
 
-import kr.ac.hongik.apl.BlockVerificationThread;
+import kr.ac.hongik.apl.Blockchain.BlockVerificationThread;
 import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;

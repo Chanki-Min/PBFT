@@ -1,7 +1,8 @@
-package kr.ac.hongik.apl;
+package kr.ac.hongik.apl.Blockchain;
 
-import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.ES.EsRestClient;
+import kr.ac.hongik.apl.Logger;
+import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
@@ -17,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static kr.ac.hongik.apl.Replica.DEBUG;
 import static kr.ac.hongik.apl.Util.*;
 
 /**
@@ -28,7 +30,6 @@ import static kr.ac.hongik.apl.Util.*;
  * trigger   :when trigger == true, verification will starts
  */
 public class BlockVerificationThread extends Thread {
-	private boolean DEBUG = true;
 	private String tableName;
 	private String indexName;
 	private Logger logger;
