@@ -22,6 +22,8 @@ Liveness는 클라이언트의 요청을 처리해 줄 수 있음을 보장하�
 > This is a commmit body. You can describe as you want.
  
     * 제목의 첫 글자는 대문자이고, 제목에는 온점을 달지 아니함에 유의한다.
+* 완료된 issue는 Pull Request를 사용하여 병합한다.
+    * Master branch에 병합하기 전에 peer-review를 거침으로써 코드를 한번 더 검증하기 위함
 * intellij를 이용하여 commit을 할 시에
     * Reformat code
     * Rearrange code
