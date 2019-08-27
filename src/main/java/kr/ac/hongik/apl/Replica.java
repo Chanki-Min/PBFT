@@ -26,8 +26,8 @@ import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 
 public class Replica extends Connector {
-	public static final boolean DEBUG = false;
-	final static int WATERMARK_UNIT = 10;
+	public static final boolean DEBUG = true;
+	public final static int WATERMARK_UNIT = 10;
 	public static int VERIFY_UNIT = 10; //Verify Block at every 100th insertion
 	private final int myNumber;
 	public Object watermarkLock = new Object();
@@ -298,6 +298,10 @@ public class Replica extends Connector {
 			int seqNum = getLatestSequenceNumber() + 1;
 			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getViewNum(), seqNum, message);
 			logger.insertMessage(preprepareMessage);
+			if(DEBUG){
+				ErrorCase.doFaulty(this, 1, 4, preprepareMessage);
+				return;
+			}
 			getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -331,6 +335,9 @@ public class Replica extends Connector {
 	}
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
+		if(DEBUG){
+			System.err.println("got prepre msg from " + message.getViewNum() + " seq : " + message.getSeqNum());
+		}
 		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
@@ -353,6 +360,9 @@ public class Replica extends Connector {
 	}
 
 	private void handlePrepareMessage(PrepareMessage message) {
+		if(DEBUG){
+			System.err.println("got prepare msg from " + message.getReplicaNum() + " seq : " + message.getSeqNum());
+		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (message.isVerified(publicKey, this.getViewNum(), this::getWatermarks)) {
 			logger.insertMessage(message);
@@ -404,6 +414,9 @@ public class Replica extends Connector {
 	}
 
 	private void handleCommitMessage(CommitMessage cmsg) {
+		if(DEBUG){
+			System.err.println("got Commit msg view : " + cmsg.getViewNum()+ " from " + cmsg.getReplicaNum() + " seq : " + cmsg.getSeqNum());
+		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(cmsg.getReplicaNum()));
 		if (!cmsg.verify(publicKey))
 			return;
@@ -472,6 +485,9 @@ public class Replica extends Connector {
 	}
 
 	private void handleCheckPointMessage(CheckPointMessage message) {
+		if(DEBUG){
+			System.err.println("got Checkpoint msg from " + message.getReplicaNum() + " seq : " + message.getSeqNum());
+		}
 		PublicKey publicKey = publicKeyMap.get(this.getReplicaMap().get(message.getReplicaNum()));
 		if (!message.verify(publicKey))
 			return;
@@ -521,6 +537,9 @@ public class Replica extends Connector {
 	}
 
 	private void handleViewChangeMessage(ViewChangeMessage message) {
+		if(DEBUG){
+			System.err.println("got ViewChange msg NEWVIEW : " + message.getNewViewNum() + " from " + message.getReplicaNum() + " seq : ");
+		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT)) {
 			return;
@@ -578,12 +597,13 @@ public class Replica extends Connector {
 					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
 
 					message.getCheckPointMessages().stream().forEach(x -> logger.insertMessage(x));
-
-					ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
-							message.getLastCheckpointNum(), minNewViewNum, this,
-							getPreparedStatementFn);
-					getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
-					removeViewChangeTimer();
+					synchronized (watermarkLock) {
+						ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
+								message.getLastCheckpointNum(), minNewViewNum, this,
+								getPreparedStatementFn);
+						getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
+						removeViewChangeTimer();
+					}
 				}
 			}
 		} catch (SQLException e) {
@@ -673,6 +693,11 @@ public class Replica extends Connector {
 	}
 
 	private void handleNewViewMessage(NewViewMessage message) {
+		if(DEBUG){
+			System.err.println("got Newview msg from " + message.getNewViewNum());
+			if(message.getNewViewNum()%getReplicaMap().size() == getMyNumber())
+				System.err.println("\nI'm new primary!\n");
+		}
 		if (!message.isVerified(this) || message.getNewViewNum() <= this.getViewNum()) {
 			return;
 		}

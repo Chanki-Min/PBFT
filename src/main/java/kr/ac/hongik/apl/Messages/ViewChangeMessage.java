@@ -6,6 +6,7 @@ import org.echocat.jsu.JdbcUtils;
 
 import java.io.Serializable;
 import java.security.PublicKey;
+import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -39,7 +40,8 @@ public class ViewChangeMessage implements Message {
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum,
 				replica.getMaximumFaulty());
-		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum, replica.getWatermarks(),
+
+		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum, new int[] {lastCheckpointNum, lastCheckpointNum + Replica.WATERMARK_UNIT - 1},
 				replica.getMaximumFaulty());
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replica.getMyNumber());
@@ -210,7 +212,10 @@ public class ViewChangeMessage implements Message {
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getViewNum() == pm.preprepareMessage.getViewNum()))
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getSeqNum() == pm.preprepareMessage.getSeqNum()))
 				.count() == data.messageList.size();
-
+		if(Replica.DEBUG){
+			System.err.print("\t");
+			Arrays.stream(checkList).forEach(x->System.err.print(x+" "));
+		}
 		return Arrays.stream(checkList).allMatch(x -> x);
 	}
 
