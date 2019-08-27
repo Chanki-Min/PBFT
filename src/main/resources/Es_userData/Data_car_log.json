@@ -1,0 +1,16 @@
+{
+  "data_car_log": [
+    {
+      "car_id": "12가1234",
+      "timestamp": "2019-08-27 19:57:00",
+      "mileage": 0,
+      "battery-percent": 100.0,
+      "car_location": [
+        37.55,
+        126.92
+      ]
+    },
+    {
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+/*
+car_specification 스키마
+
+car_id : 차량 번호판 (띄어쓰기 없이 50자 내외로 부탁드립니다)
+timestamp : yyyy-mm-dd hh:mm:ss 형식 스트링
+mileage : 총 주행 거리
+battery-percent : 배터리 잔량(float 0~100)
+car_location : 차량의 위치 [위도, 경도] 소수점 2번째 자리까지
+*/
+{
+  //"mapping": {
+  "dynamic": "strict",
+  "properties": {
+    //block META data
+    "block_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false,
+      "null_value": "NULL"
+    },
+    "entry_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false,
+      "null_value": "NULL"
+    },
+    //cipher data (Base64 encoded String)
+    "encrypt_data": {
+      "type": "binary",
+      "null_value": "NULL"
+    },
+    //imaginary plain data
+    "car_id": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "timestamp": {
+      "type": "date",
+      "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
+      "ignore_malformed": true,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "mileage": {
+      "type": "integer",
+      "coerce": true,
+      "ignore_malformed": false,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "battery_percent": {
+      "type": "float",
+      "coerce": true,
+      "ignore_malformed": false,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "car_location": {
+      "type": "geo_point",
+      "ignore_malformed": true,
+      "ignore_z_value": true,
+      "index": true,
+      "null_value": "NULL"
+    }
+    //  }
+  }
+}

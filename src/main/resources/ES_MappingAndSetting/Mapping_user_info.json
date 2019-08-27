@@ -1,0 +1,40 @@
+/*
+user_info 스키마
+
+user_id : 50자 내외 스트링
+user_name : 50자 내외 스트링
+birth : yyyy-mm-dd hh:mm:ss 형식 스트링
+gender : male, female 등 알아볼수 있는 영단어로 50자 내외 스트링 적당히
+*/
+{
+  //"mapping": {
+  "dynamic": "strict",
+  "properties": {
+    "user_id": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "name": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "birth": {
+      "type": "date",
+      "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
+      "ignore_malformed": true,
+      "index": true,
+      "null_value": "NULL"
+    },
+    "gender": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true,
+      "null_value": "NULL"
+    }
+    //  }
+  }
+}
