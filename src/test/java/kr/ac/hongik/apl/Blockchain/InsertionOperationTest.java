@@ -27,9 +27,10 @@ public class InsertionOperationTest {
 	public void SynchronizedInsertionTest() {
 		final int loop = 25;
 		Boolean[] checkList = new Boolean[loop];
-
 		for (int i = 0; i < loop; i++) {
+			long start = System.currentTimeMillis();
 			checkList[i] = oneClientInsertionTester();
+			System.err.println("time : " + (System.currentTimeMillis() - start));
 		}
 		Assertions.assertTrue(Arrays.stream(checkList).allMatch(Boolean::booleanValue));
 	}
