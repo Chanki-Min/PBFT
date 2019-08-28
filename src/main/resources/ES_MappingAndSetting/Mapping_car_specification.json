@@ -2,7 +2,7 @@
 car_specification 스키마
 
 car_name : 차종, 50자 내외 스트링
-bender : 브랜드(BMX,Hyundae...)
+vendor : 브랜드(BMX,Hyundae...)
 displacement : 배기량
 release-year : 연식
 */
@@ -14,7 +14,7 @@ release-year : 연식
       "type": "text",
       "index": true
     },
-    "bender": {
+    "vendor": {
       "type": "keyword",
       "ignore_above": 50,
       "index": true,

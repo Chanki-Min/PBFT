@@ -50,7 +50,7 @@ car_location : 차량의 위치 [위도, 경도] 소수점 2번째 자리까지
       "index": true,
       "null_value": "NULL"
     },
-    "battery_percent": {
+    "fuel_level": {
       "type": "float",
       "coerce": true,
       "ignore_malformed": false,
