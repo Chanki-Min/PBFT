@@ -26,7 +26,7 @@ import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 
 public class Replica extends Connector {
-	public static final boolean DEBUG = true;
+	public static final boolean DEBUG = false;
 	public final static int WATERMARK_UNIT = 10;
 	public static int VERIFY_UNIT = 10; //Verify Block at every 100th insertion
 	private final int myNumber;
@@ -223,14 +223,23 @@ public class Replica extends Connector {
 	}
 
 	private void handleRequestMessage(RequestMessage message) {
+		if(DEBUG){
+			System.err.println("got RequestMessage "+ message.getTime());
+		}
 		ReplyMessage replyMessage = findReplyMessageOrNull(message);
 		if (replyMessage != null) {
 			SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 			send(destination, replyMessage);
 			return;
 		}
+		if(DEBUG){
+			System.err.println("\tnot in reply");
+		}
 		if (this.logger.findMessage(message)) {
 			return;
+		}
+		if(DEBUG){
+			System.err.println("\tnot in request");
 		}
 		var sock = getChannelFromClientInfo(message.getClientInfo());
 		PublicKey publicKey = publicKeyMap.get(sock);
@@ -238,6 +247,9 @@ public class Replica extends Connector {
 				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
 
 		if (canGoNextState) {
+			if(DEBUG){
+				System.err.println("\tcangoNextState");
+			}
 			logger.insertMessage(message);
 			if (this.getPrimary() == this.myNumber) {
 				broadcastToReplica(message);
@@ -336,7 +348,7 @@ public class Replica extends Connector {
 
 	private void handlePreprepareMessage(PreprepareMessage message) {
 		if(DEBUG){
-			System.err.println("got prepre msg from " + message.getViewNum() + " seq : " + message.getSeqNum());
+			System.err.println("got PrePre msg from " + message.getViewNum() + " seq : " + message.getSeqNum() + " request timestamp : " + message.getRequestMessage().getTime());
 		}
 		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
@@ -361,15 +373,16 @@ public class Replica extends Connector {
 
 	private void handlePrepareMessage(PrepareMessage message) {
 		if(DEBUG){
-			System.err.println("got prepare msg from " + message.getReplicaNum() + " seq : " + message.getSeqNum());
+			System.err.println("got Prepare msg viewNum : " + message.getViewNum() + " from " + message.getReplicaNum() + " seq : " + message.getSeqNum());
 		}
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (message.isVerified(publicKey, this.getViewNum(), this::getWatermarks)) {
 			logger.insertMessage(message);
 		}
-		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ?")) {
+		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ? AND C.digest = ?")) {
 			pstmt.setInt(1, message.getSeqNum());
 			pstmt.setInt(2, this.myNumber);
+			pstmt.setString(3, message.getDigest());
 			try (var ret = pstmt.executeQuery()) {
 				if (ret.next()) {
 					var i = ret.getInt(1);
@@ -390,7 +403,7 @@ public class Replica extends Connector {
 					message.getDigest(),
 					this.myNumber);
 
-			logger.insertMessage(commitMessage);
+			handleCommitMessage(commitMessage);
 
 			getReplicaMap().values().forEach(channel -> send(channel, commitMessage));
 		}
@@ -458,7 +471,7 @@ public class Replica extends Connector {
 						CheckPointMessage checkpointMessage = CheckPointMessage.makeCheckPointMessage(
 								this.getPrivateKey(),
 								seqNum,
-								logger.getStateDigest(seqNum, getMaximumFaulty(), this.getViewNum()),
+								logger.getStateDigest(seqNum, getMaximumFaulty(), rightNextCommitMsg.getViewNum()),
 								this.myNumber);
 						//Broadcast message
 						getReplicaMap().values().forEach(sock -> send(sock, checkpointMessage));
@@ -526,7 +539,13 @@ public class Replica extends Connector {
 					if (max > 2 * getMaximumFaulty() && message.getSeqNum() > this.lowWatermark) {
 						synchronized (watermarkLock) {
 							logger.executeGarbageCollection(message.getSeqNum());
+							if(DEBUG){
+								System.err.println("GARBAGE COLLECTION Done");
+							}
 							lowWatermark += WATERMARK_UNIT;
+							if(DEBUG){
+								System.err.println("		-> new low watermark : " + lowWatermark);
+							}
 						}
 					}
 				}
@@ -598,11 +617,11 @@ public class Replica extends Connector {
 
 					message.getCheckPointMessages().stream().forEach(x -> logger.insertMessage(x));
 					synchronized (watermarkLock) {
+						removeViewChangeTimer();
 						ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
 								message.getLastCheckpointNum(), minNewViewNum, this,
 								getPreparedStatementFn);
 						getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
-						removeViewChangeTimer();
 					}
 				}
 			}
@@ -717,7 +736,7 @@ public class Replica extends Connector {
 				.getLastCheckpointNum();
 
 		synchronized (watermarkLock) {
-			this.lowWatermark = newLowWatermark;
+			this.lowWatermark = getWatermarks()[0] > newLowWatermark ? getWatermarks()[0] : newLowWatermark;
 			message.getViewChangeMessageList()
 					.stream()
 					.flatMap(x -> x.getCheckPointMessages().stream())

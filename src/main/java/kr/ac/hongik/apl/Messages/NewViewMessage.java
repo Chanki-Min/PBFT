@@ -119,9 +119,10 @@ public class NewViewMessage implements Message {
 
 		String query = "SELECT V.data FROM ViewChanges V " +
 				"WHERE V.newViewNum = ? " +
-				"AND V.checkpointNum = (SELECT MAX(V3.checkpointNum) FROM ViewChanges V3)";    /* newViewNum은 단조증가함! */
+				"AND V.checkpointNum = (SELECT MAX(V3.checkpointNum) FROM ViewChanges V3 WHERE V3.newViewNum = ?)";    /* newViewNum은 단조증가함! */
 		try (var pstmt = queryFn.apply(query)) {
 			pstmt.setInt(1, newViewNum);
+			pstmt.setInt(2, newViewNum);
 			var ret = pstmt.executeQuery();
 			List<ViewChangeMessage> viewChangeMessages = JdbcUtils.toStream(ret)
 					.map(rethrow().wrapFunction(rs -> Util.desToObject(rs.getString(1), ViewChangeMessage.class)))

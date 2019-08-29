@@ -90,7 +90,11 @@ public class Client extends Connector {
 				if (replies.containsKey(uniqueKey)) {
 					checkReplica = replies.get(uniqueKey);
 				} else {
-					checkReplica = new Integer[] {0, 0, 0, 0};
+					checkReplica = new Integer[getReplicaMap().size()];
+					if(Replica.DEBUG)
+						System.err.println(checkReplica.length);
+					for(int i=0; i<getReplicaMap().size();i++)
+						checkReplica[i] = 0;
 				}
 
 				checkReplica[replyMessage.getReplicaNum()] = 1;
@@ -149,7 +153,7 @@ public class Client extends Connector {
 		@Override
 		public void run() {
 			if (Replica.DEBUG) {
-				System.err.println((timerCount) + " Timer expired");
+				System.err.println((timerCount) + " Timer expired! timestamp : " + requestMessage.getTime());
 			}
 			RequestMessage nextRequestMessage = requestMessage;
 			if (timerCount > 1) {
