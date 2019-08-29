@@ -109,26 +109,6 @@ public class InsertionOperationTest {
 			int result = (int) client.getReply();
 			if (result == blockNumberToGet)
 				return true;
-/*
-			sleep(sleepTime);
-
-			Operation getBlockOp = new GetBlockOperation(client.getPublicKey(), blockNumberToGet);
-			RequestMessage getBlockRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getBlockOp);
-			client.request(getBlockRequestMsg);
-			List<Map<String, Object>> restoredData = (List<Map<String, Object>>) client.getReply();
-
-			System.err.print("Original Data : [");
-			sampleUserData.stream().forEach(x -> System.err.print(x + ", "));
-			System.err.print(" ] \n");
-			System.err.print("Restored Data : [");
-			restoredData.stream().forEach(x -> System.err.print(x + ", "));
-			System.err.print(" ] \n");
-
-			Assertions.assertEquals(blockNumberToGet, result);
-			Assertions.assertTrue(isListMapSame(sampleUserData, restoredData));
-			if(isListMapSame(sampleUserData, restoredData))
-				return true;
- */
 		} catch (IOException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			throw new Error(e);
 		}

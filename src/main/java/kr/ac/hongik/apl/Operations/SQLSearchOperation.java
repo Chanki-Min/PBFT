@@ -18,6 +18,8 @@ import java.util.Map;
 public class SQLSearchOperation extends Operation {
 	private String HttpProtocol;
 	private String SqlQuery;
+	private int fetchSize;
+	private boolean enableAutoPaging;
 	private EsRestClient esRestClient;
 
 	/**
@@ -26,9 +28,22 @@ public class SQLSearchOperation extends Operation {
 	 * @param SqlQuery     Query String that following ElasticSearch's SQL query format
 	 */
 	public SQLSearchOperation(PublicKey clientInfo, String HttpProtocol, String SqlQuery) {
+		this(clientInfo, HttpProtocol, SqlQuery, 100, true);
+	}
+
+	/**
+	 * @param clientInfo   client's PublicKey
+	 * @param HttpProtocol HttpProtocol of following query (GET, PUT, POST)
+	 * @param SqlQuery     Query String that following ElasticSearch's SQL query format
+	 * @param fetchSize    determine maximum size of one page
+	 * @param enableAutoPaging if true, enable auto paging
+	 */
+	public SQLSearchOperation(PublicKey clientInfo, String HttpProtocol, String SqlQuery, int fetchSize, boolean enableAutoPaging) {
 		super(clientInfo);
 		this.HttpProtocol = HttpProtocol;
-		this.SqlQuery = getSqlQuery("query", SqlQuery);
+		this.SqlQuery = getSqlQuery("query", SqlQuery, fetchSize);
+		this.fetchSize = fetchSize;
+		this.enableAutoPaging = enableAutoPaging;
 	}
 
 	/**
@@ -41,13 +56,14 @@ public class SQLSearchOperation extends Operation {
 			esRestClient = new EsRestClient();
 			esRestClient.connectToEs();
 			String responseBody = EntityUtils.toString(getResponse(SqlQuery).getEntity());
-			String cursorID = getCursorId(responseBody);
-
-			while (cursorID != null) {
-				String cursorQuery = getSqlQuery("cursor", cursorID);
-				String cursorBody = EntityUtils.toString(getResponse(cursorQuery).getEntity());
-				responseBody = concatBody(responseBody, cursorBody);
-				cursorID = getCursorId(responseBody);
+			if (enableAutoPaging) {
+				String cursorID = getCursorId(responseBody);
+				while (cursorID != null) {
+					String cursorQuery = getSqlQuery("cursor", cursorID, fetchSize);
+					String cursorBody = EntityUtils.toString(getResponse(cursorQuery).getEntity());
+					responseBody = concatBody(responseBody, cursorBody);
+					cursorID = getCursorId(responseBody);
+				}
 			}
 			esRestClient.disConnectToEs();
 			return responseBody;
@@ -95,8 +111,10 @@ public class SQLSearchOperation extends Operation {
 		return genson.serialize(toMap);
 	}
 
-	private String getSqlQuery(String key, String query) {
+	private String getSqlQuery(String key, String query, int fetchSize) {
 		StringBuilder builder = new StringBuilder();
-		return builder.append("{ \"").append(key).append("\" : \"").append(query).append("\"}").toString();
+		return builder.append("{ \"").append(key).append("\" : \"").append(query).append("\"")
+				.append(", \"fetch_size\" : ").append(fetchSize).append("}")
+				.toString();
 	}
 }

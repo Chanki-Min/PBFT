@@ -27,15 +27,16 @@ public class SqlSearchOperationTest {
 
 	@Test
 	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
+		int fetchSize = 5;
 		String HttpProtocol = "GET";
-		String query = "SELECT * from block_chain where block_number = 1";
+		String query = "SELECT * from block_chain";
 
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 		Client client = new Client(prop);
 
-		Operation sqlOp = new SQLSearchOperation(client.getPublicKey(), HttpProtocol, query);
+		Operation sqlOp = new SQLSearchOperation(client.getPublicKey(), HttpProtocol, query, fetchSize, false);
 		RequestMessage message = RequestMessage.makeRequestMsg(client.getPrivateKey(), sqlOp);
 
 		client.request(message);
