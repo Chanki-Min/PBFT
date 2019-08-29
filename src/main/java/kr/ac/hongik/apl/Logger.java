@@ -68,7 +68,7 @@ public class Logger {
 				"CREATE TABLE Prepares (viewNum INT, seqNum INT, digest TEXT, replica INT, data TEXT, PRIMARY KEY" +
 						"(viewNum, " +
 						"seqNum, digest, replica))",
-				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica))",
+				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica, digest))",
 				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT,data TEXT, PRIMARY KEY(seqNum, " +
 						"stateDigest, replica))",
 				"CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
