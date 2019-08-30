@@ -91,8 +91,6 @@ public class Client extends Connector {
 					checkReplica = replies.get(uniqueKey);
 				} else {
 					checkReplica = new Integer[getReplicaMap().size()];
-					if(Replica.DEBUG)
-						System.err.println(checkReplica.length);
 					for(int i=0; i<getReplicaMap().size();i++)
 						checkReplica[i] = 0;
 				}

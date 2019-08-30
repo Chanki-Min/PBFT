@@ -24,6 +24,7 @@ import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
+import static kr.ac.hongik.apl.Messages.UnstableCheckPoint.makeUnstableCheckPoint;
 
 public class Replica extends Connector {
 	public static final boolean DEBUG = false;
@@ -462,6 +463,9 @@ public class Replica extends Connector {
 						logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 						SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 						send(destination, replyMessage);
+
+						UnstableCheckPoint unstableCheckPoint = makeUnstableCheckPoint(getPrivateKey(), this.getWatermarks()[0], rightNextCommitMsg.getSeqNum(), rightNextCommitMsg.getDigest());
+						logger.insertMessage(unstableCheckPoint);
 					}
 
 					/****** Checkpoint Phase *******/

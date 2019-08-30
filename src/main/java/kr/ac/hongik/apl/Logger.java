@@ -71,11 +71,11 @@ public class Logger {
 				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica, digest))",
 				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT,data TEXT, PRIMARY KEY(seqNum, " +
 						"stateDigest, replica))",
+				"CREATE TABLE UnstableCheckPoints (lastStableCheckpoint INT, checkpointNum INT, digest TEXT, PRIMARY KEY(lastStableCheckpoint, checkpointNum, digest))",
 				"CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
-
 				"CREATE TABLE VerificationLogs (timestamp DATE, blockNum INT, entryNum INT, errorCode TEXT, PRIMARY KEY (timestamp, blockNum, entryNum) )",
 				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
 		};
@@ -104,10 +104,15 @@ public class Logger {
 
 	public String getStateDigest(int seqNum, int maxFaulty, int viewNum) throws SQLException {
 		StringBuilder builder = new StringBuilder();
-		builder.append(getPrePrepareMsgs(seqNum, viewNum));
-		builder.append(getPrepareMsgs(seqNum, maxFaulty, viewNum));
-		builder.append(getCommitMsgs(seqNum, maxFaulty));
 
+		String baseQuery = "SELECT lastStableCheckpoint, checkpointNum, digest FROM UnstableCheckPoints";
+		PreparedStatement pstmt = conn.prepareStatement(baseQuery);
+		ResultSet ret = pstmt.executeQuery();
+		while(ret.next()){
+			builder.append(ret.getInt(1));
+			builder.append(ret.getInt(2));
+			builder.append(ret.getString(3));
+		}
 		return Util.hash(builder.toString().getBytes());
 	}
 
@@ -180,6 +185,7 @@ public class Logger {
 			cleanUpPrePrepareMsg(seqNum);
 			cleanUpPrepareMsg(seqNum);
 			cleanUpCommitMsg(seqNum);
+			cleanUpUnstableCheckpoint(seqNum);
 			cleanUpCheckpointMsg(seqNum);
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
@@ -208,7 +214,12 @@ public class Logger {
 		pstmt.setInt(1, seqNum);
 		pstmt.execute();
 	}
-
+	private void cleanUpUnstableCheckpoint(int seqNum) throws SQLException {
+		String query = "DELETE FROM UnstableCheckPoints WHERE checkpointNum <= ?";
+		PreparedStatement pstmt = conn.prepareStatement(query);
+		pstmt.setInt(1, seqNum);
+		pstmt.execute();
+	}
 	private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
 		String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
 		PreparedStatement pstmt = conn.prepareStatement(query);
@@ -267,6 +278,8 @@ public class Logger {
 			insertPrepareMessage((PrepareMessage) message);
 		} else if (message instanceof CommitMessage) {
 			insertCommitMessage((CommitMessage) message);
+		} else if(message instanceof UnstableCheckPoint){
+			insertNewUnstableCheckPoint((UnstableCheckPoint) message);
 		} else if (message instanceof CheckPointMessage) {
 			insertCheckPointMessage((CheckPointMessage) message);
 		} else if (message instanceof ViewChangeMessage) {
@@ -351,7 +364,22 @@ public class Logger {
 			e.printStackTrace();
 		}
 	}
+	private void insertNewUnstableCheckPoint(UnstableCheckPoint unstableCheckPoint){
+		String baseQuery = "INSERT INTO UnstableCheckPoints VALUES (? , ? , ?)";
+		try{
+			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
+			preparedStatement.setInt(1, unstableCheckPoint.getLastStableCheckPointNum());
+			preparedStatement.setInt(2, unstableCheckPoint.getCheckPointNum());
+			preparedStatement.setString(3, unstableCheckPoint.getDiget());
+
+			preparedStatement.execute();
+		} catch (SQLException e) {
+			if (e.getErrorCode() == CONSTRAINT_ERROR)
+				return;
+			e.printStackTrace();
+		}
+	}
 	private void insertCheckPointMessage(CheckPointMessage message) {
 		String baseQuery = "INSERT INTO Checkpoints VALUES (? , ? , ?, ?)";
 		try {
