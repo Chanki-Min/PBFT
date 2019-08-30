@@ -287,7 +287,7 @@ public class ElasticSearchTest {
 			}
 
 			long time = System.currentTimeMillis();
-			esRestClient.bulkInsertDocumentByProcessor(indexName, 0, sampleUserData, encData, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
+			esRestClient.bulkInsertDocumentByProcessor(indexName, blockNumber, sampleUserData, encData, versionNumber, 10000, 10, ByteSizeUnit.MB, 5);
 			System.err.println("time :" + (System.currentTimeMillis() - time));
 
 			if (deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);

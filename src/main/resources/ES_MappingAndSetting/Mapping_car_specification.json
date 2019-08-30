@@ -11,28 +11,24 @@ release-year : 연식
   "dynamic": "strict",
   "properties": {
     "car_name": {
-      "type": "text",
-      "index": true
+      "type": "text"
     },
     "vendor": {
       "type": "keyword",
       "ignore_above": 50,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     },
     "displacement": {
       "type": "integer",
       "coerce": true,
       "ignore_malformed": false,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     },
     "release-year": {
       "type": "integer",
       "coerce": true,
       "ignore_malformed": false,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     }
     //  }
   }

@@ -1,12 +1,10 @@
 {
-  "data_car_log": [
+  "data_car_specification": [
     {
       "car_name": "SONATA_DN8",
-      "bender": "HYUNDAE",
+      "vendor": "HYUNDAE",
       "displacement": 2000,
       "release-year": 2019
-    },
-    {
     }
   ]
 }

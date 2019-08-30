@@ -1,12 +1,12 @@
 {
-  "data_car_log": [
-    {
-      "user_id": "alscksrl2010",
-      "login_time": "2019-08-27 20:04:00",
-      "verification_method": "fingerprint",
-      "car_id": "12가1234"
-    },
-    {
-    }
+  "data_user_log": [
+    [
+      {
+        "user_id": "alscksrl2010",
+        "login_time": "2019-08-27 20:04:00",
+        "verification_method": "fingerprint",
+        "car_id": "12가1234"
+      }
+    ]
   ]
 }

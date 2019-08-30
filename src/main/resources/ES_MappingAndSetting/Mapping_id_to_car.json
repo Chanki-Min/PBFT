@@ -12,15 +12,11 @@ car_name : 50자 내외 스트링
     "car_id": {
       "type": "keyword",
       "ignore_above": 50,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     },
     "car_name": {
       "type": "text",
-      "coerce": true,
-      "ignore_malformed": false,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     }
     //  }
   }

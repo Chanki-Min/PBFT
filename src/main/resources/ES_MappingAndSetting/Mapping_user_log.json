@@ -10,30 +10,42 @@ car_id : 차량 번호판 (띄어쓰기 없이 50자 내외로 부탁드립니�
   //"mapping": {
   "dynamic": "strict",
   "properties": {
+    //block META data
+    "block_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false
+    },
+    "entry_number": {
+      "type": "long",
+      "ignore_malformed": true,
+      "coerce": false
+    },
+    //cipher data (Base64 encoded String)
+    "encrypt_data": {
+      "type": "binary"
+    },
+    //plain data
     "user_id": {
       "type": "keyword",
       "ignore_above": 50,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     },
     "login_time": {
       "type": "date",
       "format": "yyyy-MM-dd HH:mm:ss||epoch_millis",
       "ignore_malformed": true,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     },
     "verification_method": {
       "type": "keyword",
       "ignore_above": 50,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     },
     "car_id": {
       "type": "keyword",
       "ignore_above": 50,
-      "index": true,
-      "null_value": "NULL"
+      "index": true
     }
     //  }
   }
