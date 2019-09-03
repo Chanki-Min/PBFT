@@ -14,6 +14,9 @@ public class Launcher {
 				case "client":
 					Client.main(Arrays.stream(args).skip(1).toArray(String[]::new));
 					break;
+				case "monitor":
+					Monitor.main(Arrays.stream(args).skip(1).toArray(String[]::new));
+					break;
 				default:
 					throw new IllegalArgumentException();
 			}
@@ -25,6 +28,7 @@ public class Launcher {
 			).getName();
 			System.err.println(e);
 			System.err.printf("Usage: java -jar %s server|client [<ip> <port>]\n", name);
+			System.err.printf("Usage: java -jar %s monitor [<time as seconds, default = 1Hour>]\n", name);
 		}
 	}
 }

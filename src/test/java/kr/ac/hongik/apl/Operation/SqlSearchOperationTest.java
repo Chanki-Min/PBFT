@@ -1,4 +1,4 @@
-package kr.ac.hongik.apl.Blockchain;
+package kr.ac.hongik.apl.Operation;
 
 import com.owlike.genson.Genson;
 import com.owlike.genson.GensonBuilder;

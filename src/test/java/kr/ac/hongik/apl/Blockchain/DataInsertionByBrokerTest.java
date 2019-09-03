@@ -52,7 +52,7 @@ public class DataInsertionByBrokerTest {
 		mappingToData.put("/ES_MappingAndSetting/Mapping_car_specification.json", "/Es_userData/Data_car_specification.json");
 		mappingToData.put("/ES_MappingAndSetting/Mapping_id_to_car.json", "/ES_userData/Data_id_to_car.json");
 		mappingToData.put("/ES_MappingAndSetting/Mapping_user_info.json", "/Es_userData/Data_user_info.json");
-		String settingPath = "/ES_MappingAndSetting/ES_setting_with_plain.json";
+		String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
@@ -101,7 +101,7 @@ public class DataInsertionByBrokerTest {
 		Map<String, String> mappingToData = new HashMap<>();
 		mappingToData.put("/ES_MappingAndSetting/Mapping_car_log.json", "/Es_userData/Data_car_log.json");
 		mappingToData.put("/ES_MappingAndSetting/Mapping_user_log.json", "/ES_userData/Data_user_log.json");
-		String settingPath = "/ES_MappingAndSetting/ES_setting_with_plain.json";
+		String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();

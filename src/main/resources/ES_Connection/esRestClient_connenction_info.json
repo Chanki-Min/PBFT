@@ -1,6 +1,6 @@
 {
   "userName": "apl",
   "passWord": "wowsan2015@!@#$",
-  "certPath": "/Certificates/esRestClient-cert.p12",
+  "certPath": "/ES_Connection/esRestClient-cert.p12",
   "certPassWord": "wowsan2015@!@#$"
 }

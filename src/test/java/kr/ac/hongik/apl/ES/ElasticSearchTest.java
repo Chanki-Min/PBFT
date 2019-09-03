@@ -38,15 +38,12 @@ import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.*;
-import java.util.stream.IntStream;
 
 import static java.lang.Thread.sleep;
 
@@ -60,10 +57,10 @@ public class ElasticSearchTest {
 		credentialsProvider.setCredentials(AuthScope.ANY,
 				new UsernamePasswordCredentials("elastic", "wowsan2015@!@#$"));
 
-		String certPath = "C:\\Users\\Chanki_Min\\Desktop\\APL\\PBFT\\src\\main\\resources\\Certificates\\esRestClient-cert.p12";
+		String certPath = "/ES_Connection/esRestClient-cert.p12";
 
 		KeyStore trustStore = KeyStore.getInstance("jks");
-		InputStream is = Files.newInputStream(Paths.get(certPath));
+		InputStream is = this.getClass().getResourceAsStream(certPath);
 		trustStore.load(is, new String("wowsan2015@!@#$").toCharArray());
 
 		SSLContextBuilder sslBuilder = SSLContexts.custom()
@@ -118,10 +115,10 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			EsRestClient esRestClient = new EsRestClient();
@@ -153,15 +150,15 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+			parser.setFilePath("/Es_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -199,58 +196,6 @@ public class ElasticSearchTest {
 	}
 
 	@Test
-	void BulkInsertTest() throws IOException {
-		String indexName = "test_block_chain3";
-		int blockNumber = 0;
-		int entrySize = 10;
-		int sleepTime = 1000;
-		int versionNumber = 1;
-		boolean deleteIndexAfterFinish = false;
-		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
-		try {
-			esRestClient.connectToEs();
-			XContentBuilder mappingBuilder;
-			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonFileToXContentBuilder(false);
-
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonFileToXContentBuilder(false);
-
-			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
-
-			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
-			List<Map<String, Object>> sampleUserData = new ArrayList<>();
-			List<byte[]> encData = new ArrayList<>();
-
-			String seed = "Hello World!";
-			SecretKey key = Util.makeSymmetricKey(seed);
-
-			for (int i = 0; i < entrySize; i++) {
-				var map = parser.jsonFileToMap();
-				map.put("start_time", String.valueOf(System.currentTimeMillis()));
-				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
-			}
-
-
-			esRestClient.bulkInsertDocument(indexName, blockNumber, sampleUserData, encData, versionNumber);
-			sleep(sleepTime);
-
-			Assertions.assertTrue(isBlockExists(indexName, blockNumber));
-			Assertions.assertEquals(entrySize, getBlockEntrySize(indexName, blockNumber) - 1);
-			if (deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | Util.EncryptionException | EsRestClient.EsSSLException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			throw new IOError(e);
-		} finally {
-			esRestClient.disConnectToEs();
-		}
-	}
-
-	@Test
 	public void bulkProcessorTest() throws IOException {
 		String indexName = "test_block_chain101";
 		int blockNumber = 1;
@@ -264,15 +209,15 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+			parser.setFilePath("/Es_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -318,10 +263,10 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 			String seed = "Hello World!";
@@ -329,7 +274,7 @@ public class ElasticSearchTest {
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+			parser.setFilePath("/Es_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -364,61 +309,6 @@ public class ElasticSearchTest {
 	}
 
 	@Test
-	void getBlockEntryDataPairTest() {
-		String indexName = "test_block_chain";
-		int blockNumber = 0;
-		int entrySize = 5000;
-		int versionNumber = 1;
-		int sleepTime = 1000;
-		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
-		try {
-			XContentBuilder mappingBuilder;
-			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-			mappingBuilder = parser.jsonFileToXContentBuilder(false);
-
-			parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
-			settingBuilder = parser.jsonFileToXContentBuilder(false);
-
-			esRestClient.connectToEs();
-			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
-
-			parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
-			List<Map<String, Object>> sampleUserData = new ArrayList<>();
-			List<byte[]> encData = new ArrayList<>();
-
-			for (int i = 0; i < entrySize; i++) {
-				var map = parser.jsonFileToMap();
-				map.put("start_time", String.valueOf(System.currentTimeMillis()));
-				sampleUserData.add(map);
-				encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
-			}
-			esRestClient.bulkInsertDocumentByProcessor(
-					indexName, 0, sampleUserData, encData, 1, 100, 10, ByteSizeUnit.MB, 5);
-			sleep(sleepTime);
-
-			List<byte[]> restoredByteList = new ArrayList<>();
-
-			IntStream.range(0, sampleUserData.size()).forEach(i -> {
-				try {
-					restoredByteList.add(esRestClient.getBlockEntryDataPair(indexName, blockNumber, i).getRight());
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (EsRestClient.EsException e) {
-					e.printStackTrace();
-				}
-			});
-			Assertions.assertTrue(isDataEquals(restoredByteList, encData));
-			esRestClient.deleteIndex("test_block_chain");
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			throw new IOError(e);
-		}
-	}
-
-	@Test
 	void concurrentBulkInsertTest() {
 		int entrySize = 1000;
 		int sleepTime = 1000;
@@ -428,7 +318,7 @@ public class ElasticSearchTest {
 		int blockNumber = 0;
 
 		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+		parser.setFilePath("/Es_userData/Debug_test_data.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		List<byte[]> encData = new ArrayList<>();
 

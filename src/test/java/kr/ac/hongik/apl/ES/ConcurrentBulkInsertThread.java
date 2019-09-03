@@ -1,16 +1,11 @@
 package kr.ac.hongik.apl.ES;
 
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.core.CountRequest;
-import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -48,10 +43,10 @@ public class ConcurrentBulkInsertThread extends Thread {
 				try {
 					XContentBuilder mappingBuilder;
 					XContentBuilder settingBuilder;
-					parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+					parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 					mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-					parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+					parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 					settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 					EsRestClient esRestClient = new EsRestClient();
@@ -77,26 +72,4 @@ public class ConcurrentBulkInsertThread extends Thread {
 		GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);
 		return esRestClient.getClient().indices().exists(getIndexRequest, RequestOptions.DEFAULT);
 	}
-
-	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2) {
-		if (arr1.size() != arr2.size())
-			return false;
-		Boolean[] checkList = new Boolean[arr1.size()];
-
-		for (int i = 0; i < arr1.size(); i++) {
-			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
-		}
-		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
-	}
-
-	private boolean isBlockExists(String indexName, int blockNumber) throws IOException {
-		CountRequest getCorrupedCount = new CountRequest(indexName);
-		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(QueryBuilders.termQuery("block_number", blockNumber));
-		getCorrupedCount.source(builder);
-
-		CountResponse response = esRestClient.getClient().count(getCorrupedCount, RequestOptions.DEFAULT);
-		return response.getCount() != 0;
-	}
-
 }

@@ -25,7 +25,7 @@ public class EsJsonParserTest {
 		keyList.add("masterHostInfo");
 
 		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/ES_MappingAndSetting/master.json");
+		parser.setFilePath("/ES_Connection/esMasterInfo.json");
 		List<Map> masters = parser.listedJsonFileToList("masterHostInfo");
 	}
 
@@ -33,7 +33,7 @@ public class EsJsonParserTest {
 	public void parseQueryToMapTest() {
 
 		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+		parser.setFilePath("/Es_userData/Debug_test_data.json");
 		Map info = parser.jsonFileToMap();
 	}
 
@@ -41,8 +41,8 @@ public class EsJsonParserTest {
 	public void parseIndexMappingToMapTest() throws IOException {
 		EsJsonParser mappingParser = new EsJsonParser();
 		EsJsonParser settingParser = new EsJsonParser();
-		mappingParser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
-		settingParser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+		mappingParser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
+		settingParser.setFilePath("/ES_MappingAndSetting/Setting.json");
 
 		XContentBuilder mappingBuilder;
 		XContentBuilder settingBuilder;
@@ -59,10 +59,10 @@ public class EsJsonParserTest {
 		XContentBuilder mappingBuilder;
 		XContentBuilder settingBuilder;
 
-		parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+		parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 		mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-		parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+		parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 		settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 		EsRestClient esRestClient = new EsRestClient();
@@ -79,17 +79,17 @@ public class EsJsonParserTest {
 		XContentBuilder mappingBuilder;
 		XContentBuilder settingBuilder;
 
-		parser.setFilePath("/ES_MappingAndSetting/ES_mapping_with_plain.json");
+		parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
 		mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-		parser.setFilePath("/ES_MappingAndSetting/ES_setting_with_plain.json");
+		parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 		settingBuilder = parser.jsonFileToXContentBuilder(false);
 
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 		esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+		parser.setFilePath("/Es_userData/Debug_test_data.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		List<byte[]> encData = new ArrayList<>();
 
@@ -112,7 +112,7 @@ public class EsJsonParserTest {
 		EsJsonParser parser = new EsJsonParser();
 		String seed = "Hello World!";
 		SecretKey key = Util.makeSymmetricKey(seed);
-		parser.setFilePath("/ES_MappingAndSetting/sample_one_userInfo.json");
+		parser.setFilePath("/Es_userData/Debug_test_data.json");
 
 		Map originalMap = parser.jsonFileToMap();
 

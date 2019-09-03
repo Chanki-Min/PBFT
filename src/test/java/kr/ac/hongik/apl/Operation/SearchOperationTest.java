@@ -1,4 +1,4 @@
-package kr.ac.hongik.apl.Blockchain;
+package kr.ac.hongik.apl.Operation;
 
 import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.ES.EsJsonParser;
@@ -33,7 +33,7 @@ public class SearchOperationTest {
 
 	@Test
 	public void searchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
-		String queryPath = "/EsSearchQuery/Query.json";
+		String queryPath = "/ES_searchQuery/Query.json";
 		String[] indices = {"block_chain"};
 
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
@@ -98,7 +98,7 @@ public class SearchOperationTest {
 
 	@Test
 	public void searchByParsedMapTest() throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
-		String queryPath = "/EsSearchQuery/Query.json";
+		String queryPath = "/ES_searchQuery/Query.json";
 		String indexName = "block_chain";
 		List<SearchHits> finalResult = new ArrayList();
 		EsRestClient esRestClient = new EsRestClient();

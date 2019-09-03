@@ -40,9 +40,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -59,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 
 public class EsRestClient {
 	private final boolean DEBUG = false;
-	private String masterJsonPath = "/ES_MappingAndSetting/master.json";
+	private String masterJsonPath = "/ES_Connection/esMasterInfo.json";
 	private String masterJsonKey = "masterHostInfo";
 	private List<String> hostNames = new ArrayList<>();
 	private List<Integer> ports = new ArrayList<>();
@@ -73,12 +70,12 @@ public class EsRestClient {
 		getMasterNodeInfo();
 		try {
 			EsJsonParser parser = new EsJsonParser();
-			parser.setFilePath("/Certificates/esRestClient_connenction_info.json");
+			parser.setFilePath("/ES_Connection/esRestClient_connenction_info.json");
 			Map<String, String> connInfo = parser.jsonFileToMap();
 
 			final CredentialsProvider credentialsProvider =
 					new BasicCredentialsProvider();
-			//TODO: superuser가 아닌 계정을 사용하게 변경, passpword 암호화
+			//TODO: superuser가 아닌 계정을 사용하게 변경, password 암호화
 			credentialsProvider.setCredentials(AuthScope.ANY,
 					new UsernamePasswordCredentials(connInfo.get("userName"), connInfo.get("passWord")));
 
@@ -164,93 +161,6 @@ public class EsRestClient {
 	 * @param plainDataList original userData
 	 * @param encData
 	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
-	 * @return ElasticSearch's BulkResponse instance of  data-insertion
-	 * @throws IOException
-	 * @throws EsException            throws when (index not exists, some of insertion failed)
-	 * @throws EsConcurrencyException throws when headDocument of (indexName,BlockNumber) already exists.
-	 *                                that means other replica already bulkInserting to certain version, so cancel method
-	 */
-	public BulkResponse bulkInsertDocument(String indexName, int blockNumber, List<Map<String, Object>> plainDataList, List<byte[]> encData, long versionNumber) throws IOException, EsException, EsConcurrencyException {
-		if (versionNumber <= getDocumentVersion(indexName, blockNumber, -1))
-			throw new EsConcurrencyException("current version is higher than this");
-
-		BulkResponse bulkResponse = null;
-		final int BULKBUFFER;
-		if (DEBUG)
-			BULKBUFFER = 500;
-		else
-			BULKBUFFER = encData.size() + 1;
-
-		if (!this.isIndexExists(indexName))
-			throw new EsException("index :" + indexName + " does not exists");
-		//Check plainDataList's mapping equals to Index's mapping
-		Set indexKeySet = getFieldKeySet(indexName);
-		indexKeySet.remove("block_number");
-		indexKeySet.remove("entry_number");
-		indexKeySet.remove("encrypt_data");
-		if (!plainDataList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
-			throw new EsException("index :" + indexName + " field mapping does NOT equal to given plainDataList ketSet");
-		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
-		try {
-			restHighLevelClient.index(getHeadDocument(indexName, blockNumber, versionNumber), RequestOptions.DEFAULT);
-		} catch (ElasticsearchStatusException e) {
-			StringBuilder builder = new StringBuilder();
-			builder.append(this.getClass().getName()).append("::bulkInsertDocument").append(" ConcurrencyException");
-			builder.append(" indexName :").append(indexName).append(" BlockNum :").append(blockNumber);
-			builder.append(" Cause :Document inserting already executing by other replica");
-			throw new EsConcurrencyException(builder.toString());
-		}
-		//make query
-		Base64.Encoder encoder = Base64.getEncoder();
-		BulkRequest request = new BulkRequest();
-		request.setRefreshPolicy("wait_for");    //do not refresh (searchable) index until bulk request finish
-		for (int entryNumber = 0; entryNumber < encData.size(); entryNumber++) {
-
-			String id = idGenerator(indexName, blockNumber, entryNumber);
-			String base64EncodedData = encoder.encodeToString(encData.get(entryNumber));
-			XContentBuilder builder = new XContentFactory().jsonBuilder();
-			builder.startObject();
-			{
-				builder.field("block_number", blockNumber);
-				builder.field("entry_number", entryNumber);
-				builder.field("encrypt_data", base64EncodedData);
-			}
-			for (String plainKey: plainDataList.get(entryNumber).keySet()) {
-				builder.field(plainKey, plainDataList.get(entryNumber).get(plainKey));
-			}
-			builder.endObject();
-			request.add(new IndexRequest(indexName).id(id).source(builder).version(versionNumber).versionType(VersionType.EXTERNAL));
-
-			//if Bulk request's size equals to BULKBUFFER size. execute request
-			if (entryNumber % BULKBUFFER == BULKBUFFER - 1) {
-				bulkResponse = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
-				request = new BulkRequest();
-				System.out.println("BULK_CREATED, status: " + bulkResponse.status());
-				System.out.println(bulkResponse.buildFailureMessage());
-				System.out.println("Request sent | Cause: BULKBUFFER EXCEED | Entry Number: " + entryNumber);
-				if (bulkResponse.hasFailures()) {
-					throw new EsException(bulkResponse.buildFailureMessage());
-				}
-			}
-		}
-		//if Bulk request has left IndexRequest, execute last of them
-		if (request.requests().size() != 0) {
-			bulkResponse = restHighLevelClient.bulk(request, RequestOptions.DEFAULT);
-			System.out.println("BULK_Created, status: " + bulkResponse.status());
-			System.out.println(bulkResponse.buildFailureMessage());
-			System.out.println("Request sent | Cause: This is Last buffer |");
-		}
-		return bulkResponse;
-	}
-
-	/**
-	 * This store PlainData + encData
-	 *
-	 * @param indexName
-	 * @param blockNumber
-	 * @param plainDataList original userData
-	 * @param encData
-	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
 	 * @param maxAction     limit of request number of One bulk execution
 	 * @param maxSize       limit of request all size of One bulk execution
 	 * @param maxSizeUnit   unit of maxSize(Kb, Mb, etc...)
@@ -264,8 +174,6 @@ public class EsRestClient {
 	public void bulkInsertDocumentByProcessor(
 			String indexName, int blockNumber, List<Map<String, Object>> plainDataList, List<byte[]> encData, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
 			throws IOException, EsException, EsConcurrencyException, InterruptedException {
-		if (versionNumber <= getDocumentVersion(indexName, blockNumber, -1))
-			throw new EsConcurrencyException("current version is higher than this");
 
 		if (!this.isIndexExists(indexName))
 			throw new EsException("index :" + indexName + " does not exists");
@@ -320,7 +228,7 @@ public class EsRestClient {
 		//make query
 		Base64.Encoder encoder = Base64.getEncoder();
 		for (int entryNumber = 0; entryNumber < encData.size(); entryNumber++) {
-			String id = idGenerator(indexName, blockNumber, entryNumber);
+			String id = generateId(indexName, blockNumber, entryNumber);
 			String base64EncodedData = encoder.encodeToString(encData.get(entryNumber));
 			XContentBuilder builder = new XContentFactory().jsonBuilder();
 			builder.startObject();
@@ -359,7 +267,7 @@ public class EsRestClient {
 		BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
 		boolQueryBuilder.must(QueryBuilders.matchQuery("block_number", blockNumber));
-		boolQueryBuilder.mustNot(QueryBuilders.matchQuery("_id", idGenerator(indexName, blockNumber, -1)));
+		boolQueryBuilder.mustNot(QueryBuilders.matchQuery("_id", generateId(indexName, blockNumber, -1)));
 
 		searchSourceBuilder.query(boolQueryBuilder);
 		searchSourceBuilder.sort("entry_number", SortOrder.ASC);    //set sort option to "entry_number" ascending
@@ -394,38 +302,8 @@ public class EsRestClient {
 		return Pair.of(plain_data_list, encrypt_data_list);
 	}
 
-	public Pair<Map<String, Object>, byte[]> getBlockEntryDataPair(String indexName, int blockNumber, int entryNumber) throws IOException, EsException {
-		if (!isIndexExists(indexName)) {
-			throw new EsException(indexName + " does not exists");
-		}
-		if (!isBlockExists(indexName, blockNumber)) {
-			throw new EsException(blockNumber + " does not exists in " + indexName);
-		}
-		if (!isEntryExists(indexName, blockNumber, entryNumber)) {
-			throw new EsException(entryNumber + " does not exists in block " + blockNumber);
-		}
-
-		Base64.Decoder decoder = Base64.getDecoder();
-		SearchRequest request = new SearchRequest(indexName);
-		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(QueryBuilders.termQuery("block_number", blockNumber));
-		builder.query(QueryBuilders.termQuery("entry_number", entryNumber));
-		request.source(builder);
-
-		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
-		SearchHit[] searchHits = response.getHits().getHits();
-
-		byte[] encrypt_data;
-		Map<String, Object> plain_data;
-		encrypt_data = decoder.decode((String) searchHits[0].getSourceAsMap().get("encrypt_data"));
-		plain_data = searchHits[0].getSourceAsMap();
-		plain_data.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
-
-		return Pair.of(plain_data, encrypt_data);
-	}
-
 	/**
-	 * read "resources/master.json" and parse to httpHost format
+	 * read "resources/esMasterInfo.json" and parse to httpHost format
 	 *
 	 * @throws NoSuchFieldException
 	 */
@@ -448,7 +326,7 @@ public class EsRestClient {
 			if (Arrays.stream(checkList).allMatch(x -> x)) {
 				return;
 			} else {
-				System.err.println("master.json has unexpected format");
+				System.err.println("esMasterInfo.json has unexpected format");
 				throw new NoSuchFieldException();
 			}
 		} catch (Exception e) {
@@ -471,7 +349,7 @@ public class EsRestClient {
 		return restHighLevelClient.indices().exists(getIndexRequest, RequestOptions.DEFAULT);
 	}
 
-	private boolean isBlockExists(String indexName, int blockNumber) throws IOException {
+	public boolean isBlockExists(String indexName, int blockNumber) throws IOException {
 		CountRequest getCorrupedCount = new CountRequest(indexName);
 		SearchSourceBuilder builder = new SearchSourceBuilder();
 		builder.query(QueryBuilders.termQuery("block_number", blockNumber));
@@ -481,43 +359,31 @@ public class EsRestClient {
 		return response.getCount() != 0;
 	}
 
-	private boolean isEntryExists(String indexName, int blockNumber, int entryNumber) throws IOException {
-		CountRequest getCorrupedCount = new CountRequest(indexName);
-		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(QueryBuilders.termQuery("block_number", blockNumber));
-		builder.query(QueryBuilders.termQuery("entry_number", entryNumber));
-		getCorrupedCount.source(builder);
+	/**
+	 * @param indices list of search target indices
+	 * @return latest block_number of indices
+	 * @throws NoSuchFieldException
+	 * @throws IOException
+	 * @throws EsRestClient.EsSSLException
+	 */
+	public String getIndexNameFromBlockNumber(int blockNumber, List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
 
-		CountResponse response = restHighLevelClient.count(getCorrupedCount, RequestOptions.DEFAULT);
-		return response.getCount() != 0;
-	}
+		SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[indices.size()]));
+		SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
 
-	public boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2) {
-		if (arr1.size() != arr2.size())
-			return false;
-		Boolean[] checkList = new Boolean[arr1.size()];
+		sourceBuilder.query(QueryBuilders.termQuery("block_number", blockNumber));
+		sourceBuilder.size(1);
+		sourceBuilder.fetchSource(false);
 
-		for (int i = 0; i < arr1.size(); i++) {
-			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
-		}
-		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
-	}
-
-	public int getRightNextBlockNumber(String indexName) throws IOException {
-		SearchRequest searchMaxRequest = new SearchRequest(indexName);
-		SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
-		maxBuilder.query(QueryBuilders.matchAllQuery());
-		MaxAggregationBuilder aggregation =
-				AggregationBuilders.max("maxValueAgg").field("block_number");
-		maxBuilder.aggregation(aggregation);
-		searchMaxRequest.source(maxBuilder);
-		SearchResponse response = restHighLevelClient.search(searchMaxRequest, RequestOptions.DEFAULT);
+		searchRequest.source(sourceBuilder);
+		SearchResponse response = esRestClient.getClient().search(searchRequest, RequestOptions.DEFAULT);
 
 		if (response.getHits().getTotalHits().value == 0) {
-			return -1;
+			return null;
 		}
-		ParsedMax maxValue = response.getAggregations().get("maxValueAgg");    //get max_aggregation from response
-		return (int) maxValue.getValue();
+		return response.getHits().getHits()[0].getIndex();
 	}
 
 	private int getBlockEntrySize(String indexName, int blockNumber) throws IOException {
@@ -535,7 +401,7 @@ public class EsRestClient {
 	 * @param entryNumber
 	 * @return String that format : indexName_blockNumber_entryNumber
 	 */
-	private String idGenerator(String indexName, int blockNumber, int entryNumber) {
+	private String generateId(String indexName, int blockNumber, int entryNumber) {
 		StringBuilder builder = new StringBuilder();
 		builder.append(indexName).append("_").append(blockNumber).append("_").append(entryNumber);
 		return String.valueOf(builder);
@@ -566,29 +432,8 @@ public class EsRestClient {
 		}
 		builder.endObject();
 
-		return new IndexRequest(indexName).id(idGenerator(indexName, blockNumber, -1))
+		return new IndexRequest(indexName).id(generateId(indexName, blockNumber, -1))
 				.source(builder).version(versionNumber).versionType(VersionType.EXTERNAL);
-	}
-
-	public long getDocumentVersion(String indexName, int blockNumber, int entryNumber) throws IOException {
-		long version;
-		String id = idGenerator(indexName, blockNumber, entryNumber);
-		SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-		searchSourceBuilder.query(QueryBuilders.termQuery("_id", id));
-		searchSourceBuilder.version(true);
-		SearchRequest request = new SearchRequest();
-		request.indices(indexName);
-		request.source(searchSourceBuilder);
-
-		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
-		SearchHit[] searchHits = response.getHits().getHits();
-
-		if (searchHits.length == 0) {
-			version = 0;
-		} else {
-			version = searchHits[0].getVersion();
-		}
-		return version;
 	}
 
 	public RestHighLevelClient getClient() {

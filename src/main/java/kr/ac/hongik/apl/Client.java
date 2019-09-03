@@ -6,6 +6,7 @@ import kr.ac.hongik.apl.Messages.Message;
 import kr.ac.hongik.apl.Messages.ReplyMessage;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 
+import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
@@ -24,7 +25,7 @@ public class Client extends Connector {
 		super.connect();
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 	}
 
 	@Override
