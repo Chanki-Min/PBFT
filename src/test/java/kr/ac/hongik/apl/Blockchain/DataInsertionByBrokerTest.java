@@ -4,9 +4,13 @@ import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
+import kr.ac.hongik.apl.Operations.GetHeaderOperation;
 import kr.ac.hongik.apl.Operations.InsertHeaderOperation;
 import kr.ac.hongik.apl.Operations.Operation;
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -179,16 +183,23 @@ public class DataInsertionByBrokerTest {
 					i++;
 				}
 			}
-			//get latest block# from ElasticSearch
+			//get latest block# from ElasticSearch and plus 1
 			int blockNumber = getLatestBlockNumber(Arrays.asList("car_log", "user_log"));
 			blockNumber++;
+			//get previous Header from PBFT
+			Triple<Integer, String, String> prevHeader = getHeader(blockNumber - 1);
+
+
 			times.put("start", System.currentTimeMillis());
 
 			//create all data [block#, entry#, cipher, planMap]
 			HashTree hashTree = new HashTree(dataList.stream().map(x -> (Serializable) x).map(Util::hash).toArray(String[]::new));
-			String root = hashTree.toString();
+			Triple<Integer, String, String> currHeader = new ImmutableTriple<>(blockNumber, hashTree.toString(), Util.hash(prevHeader.toString()));
+			SecretKey key = makeSymmetricKey(currHeader.toString());
+			if (Replica.DEBUG) {
+				System.err.println("currHeader = " + currHeader.toString());
+			}
 
-			SecretKey key = makeSymmetricKey(root);
 			List<byte[]> cipher = new ArrayList<>();
 			for (Map<String, Object> x: dataList) {
 				byte[] encrypt = Util.encrypt(Util.serToString((Serializable) x).getBytes(), key);
@@ -207,7 +218,7 @@ public class DataInsertionByBrokerTest {
 			prop.load(in);
 			Client client = new Client(prop);
 
-			Operation insertHeaderOp = new InsertHeaderOperation(client.getPublicKey(), blockNumber, root);
+			Operation insertHeaderOp = new InsertHeaderOperation(client.getPublicKey(), blockNumber, hashTree.toString());
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertHeaderOp);
 			client.request(insertRequestMsg);
 			int result = (int) client.getReply();
@@ -284,6 +295,19 @@ public class DataInsertionByBrokerTest {
 		}
 		ParsedMax maxValue = response.getAggregations().get("maxValueAgg");    //get max_aggregation from response
 		return (int) maxValue.getValue();
+	}
+
+	private Triple<Integer, String, String> getHeader(int blockNumber) throws IOException {
+		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		Properties prop = new Properties();
+		prop.load(in);
+
+		Client client = new Client(prop);
+
+		Operation getHeaderOp = new GetHeaderOperation(client.getPublicKey(), blockNumber);
+		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getHeaderOp);
+		client.request(insertRequestMsg);
+		return (Triple<Integer, String, String>) client.getReply();
 	}
 
 	private void bulkInsertNonBlockChainData(String indexName, List<Map<String, Object>> dataList

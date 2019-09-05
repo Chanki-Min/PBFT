@@ -4,6 +4,7 @@ import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.BlockVerificationOperation;
 import kr.ac.hongik.apl.Operations.Operation;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -33,8 +34,10 @@ public class BlockVerificationOperationTest {
 		System.err.printf("got reply from PBFT with time %dms\n", (System.currentTimeMillis() - send));
 		System.err.printf("%-15s | %-8s | %-8s | %-8s | %-8s | \n", "time", "block#", "entry#", "index", "status");
 		System.err.printf("%-15s |", result.get(0));
-		result.remove(0);
-		result.stream().forEachOrdered(x -> System.err.printf(" %-8s |", x));
+		result.stream().skip(1).forEachOrdered(x -> System.err.printf(" %-8s |", x));
 		System.err.print("\n");
+
+		Assertions.assertEquals(blockNumber, result.get(1));
+		Assertions.assertEquals("All_Passed", result.get(4));
 	}
 }

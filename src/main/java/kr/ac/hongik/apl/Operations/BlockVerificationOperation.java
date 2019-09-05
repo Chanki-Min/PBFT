@@ -131,8 +131,11 @@ public class BlockVerificationOperation extends Operation {
 		esRestClient.connectToEs();
 
 		int entryNum = 0;
-		String root = getHeader(logger, blockNum).getMiddle();
-		SecretKey key = makeSymmetricKey(root);
+		Triple<Integer, String, String> header = getHeader(logger, blockNum);
+		if (Replica.DEBUG) {
+			System.err.println("VerifyOp::header = " + header.toString());
+		}
+		SecretKey key = makeSymmetricKey(header.toString());
 		List<Map<String, Object>> restoreMapList = new ArrayList<>();
 		Pair<List<Map<String, Object>>, List<byte[]>> data = null;
 
@@ -170,7 +173,7 @@ public class BlockVerificationOperation extends Operation {
 				.toArray(String[]::new))
 				.toString();
 
-		if (!root.equals(rootPrime)) {
+		if (!header.getMiddle().equals(rootPrime)) {
 			throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Root_NOT_SAME_WITH_RootPrime_OR_Missing_Document");
 		}
 	}
@@ -183,9 +186,9 @@ public class BlockVerificationOperation extends Operation {
 		var psmt = logger.getPreparedStatement(query);
 		var rs = psmt.executeQuery();
 		if (rs.next()) {
-			return new ImmutableTriple<>(rs.getInt(1), rs.getString(2), rs.getString(3));
+			return new ImmutableTriple<>(rs.getInt("idx"), rs.getString("root"), rs.getString("prev"));
 		} else {
-			throw new SQLException("Table :" + tableName + " headerNum :" + headerNum + ", Can't Find Error");
+			throw new SQLException("Table :" + tableName + " headerNum :" + headerNum + ", Not Found");
 		}
 	}
 
