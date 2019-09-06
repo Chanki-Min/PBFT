@@ -19,7 +19,12 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 
 	@Override
 	public void run() {
-		replica.setViewChangePhase(true);
+		synchronized (replica.viewChangeLock) {
+			if(replica.getViewNum() >= newViewNum){
+				return;
+			}
+			replica.setViewChangePhase(true);
+		}
 		if (Replica.DEBUG) {
 			System.err.print("Enter ViewChange Phase ");
 		}

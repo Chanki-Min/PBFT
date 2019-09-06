@@ -215,6 +215,7 @@ public class ViewChangeMessage implements Message {
 		if(Replica.DEBUG){
 			System.err.print("\t");
 			Arrays.stream(checkList).forEach(x->System.err.print(x+" "));
+			System.err.println(" ");
 		}
 		return Arrays.stream(checkList).allMatch(x -> x);
 	}

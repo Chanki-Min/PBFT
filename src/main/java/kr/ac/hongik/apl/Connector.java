@@ -172,7 +172,7 @@ abstract class Connector {
 					try {
 						int intReadn = 0;
 						while (intReadn < 4 && intReadn > -1) {
-							intReadn = channel.read(intBuffer);
+							intReadn += channel.read(intBuffer);
 						}
 						if (intReadn == -1) {
 							/* Get end of file */
