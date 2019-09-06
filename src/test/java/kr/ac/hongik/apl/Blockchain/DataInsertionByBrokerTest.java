@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Blockchain;
 
+import com.owlike.genson.Genson;
 import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
@@ -107,6 +108,7 @@ public class DataInsertionByBrokerTest {
 		mappingToData.put("/ES_MappingAndSetting/Mapping_user_log.json", "/ES_userData/Data_user_log.json");
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
 
+		Genson genson = new Genson();
 		EsRestClient esRestClient = new EsRestClient();
 		esRestClient.connectToEs();
 
@@ -193,7 +195,7 @@ public class DataInsertionByBrokerTest {
 			times.put("start", System.currentTimeMillis());
 
 			//create all data [block#, entry#, cipher, planMap]
-			HashTree hashTree = new HashTree(dataList.stream().map(x -> (Serializable) x).map(Util::hash).toArray(String[]::new));
+			HashTree hashTree = new HashTree(dataList.stream().map(x -> genson.serialize(x)).map(Util::hash).toArray(String[]::new));
 			Triple<Integer, String, String> currHeader = new ImmutableTriple<>(blockNumber, hashTree.toString(), Util.hash(prevHeader.toString()));
 			SecretKey key = makeSymmetricKey(currHeader.toString());
 			if (Replica.DEBUG) {

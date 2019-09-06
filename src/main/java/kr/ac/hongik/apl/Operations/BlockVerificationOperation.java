@@ -14,15 +14,10 @@ import org.apache.commons.lang3.tuple.Triple;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
-import java.io.Serializable;
 import java.security.PublicKey;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static kr.ac.hongik.apl.Replica.DEBUG;
 import static kr.ac.hongik.apl.Util.*;
 
 public class BlockVerificationOperation extends Operation {
@@ -39,7 +34,7 @@ public class BlockVerificationOperation extends Operation {
 	/**
 	 * @param obj logger
 	 * @return List(Object) of [ timestamp, blockNumber, entryNumber, indexName, cause ],
-	 * cause : All_Pass, etc...
+	 * cause : All_Pass, etc(error causes)...
 	 */
 	@Override
 	public Object execute(Object obj) {
@@ -47,57 +42,51 @@ public class BlockVerificationOperation extends Operation {
 		String indexName = null;
 		try {
 			indexName = getIndexName(blockNumber, indices);
-			verifyChain(logger, blockNumber, indexName);
-
+			List<String> result = verifyChain(logger, blockNumber, indexName);
+			return result;
 		} catch (IOException | EsRestClient.EsSSLException | NoSuchFieldException | SQLException | EsRestClient.EsException e) {
 			throw new Error(e);
-		} catch (DataVerificationException e) {
-			System.err.println(e);
-			List<Object> log = new ArrayList<Object>();
-			log.add(e.timestamp);
-			log.add(e.blockNumber);
-			log.add(e.entryNumber);
-			log.add(e.indexName);
-			log.add(e.cause);
-			return log;
-		} catch (HeaderVerifyException e) {
-			System.err.println(e);
-			List<Object> log = new ArrayList<Object>();
-			log.add(System.currentTimeMillis());
-			log.add(blockNumber);
-			log.add(0);
-			log.add(indexName);
-			log.add(e.getMessage());
-			return log;
 		}
-		List<Object> log = new ArrayList<Object>();
-		log.add(System.currentTimeMillis());
-		log.add(blockNumber);
-		log.add(0);
-		log.add(indexName);
-		log.add("All_Passed");
-		return log;
 	}
 
-	private String getIndexName(int blockNumber, List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
-		EsRestClient esRestClient = new EsRestClient();
-		esRestClient.connectToEs();
-		String indexName = esRestClient.getIndexNameFromBlockNumber(blockNumber, indices);
-		esRestClient.disConnectToEs();
-		return indexName;
+	private List<String> verifyChain(Logger logger, int blockNumber, String indexName) throws SQLException, IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
+		Genson genson = new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create();
+		List<String> verifyLog = new ArrayList<>();
+		/*
+		Verify Header&Data and get verification logs as OrderedMap
+		 */
+		LinkedHashMap headerError = verifyHeader(logger, blockNumber);
+		List<LinkedHashMap> dataErrors = verifyData(logger, blockNumber, indexName);
+
+		if (headerError != null) {
+			verifyLog.add(genson.serialize(headerError));
+		}
+		if (dataErrors.size() != 0) {
+			for (LinkedHashMap error: dataErrors) {
+				verifyLog.add(genson.serialize(error));
+			}
+		}
+		if (verifyLog.size() == 0) {
+			LinkedHashMap pass = new LinkedHashMap();
+			pass.put("type", "result");
+			pass.put("timestamp", System.currentTimeMillis());
+			pass.put("block_number", blockNumber);
+			pass.put("index", indexName);
+			pass.put("cause", "All_Passed");
+			verifyLog.add(genson.serialize(pass));
+		}
+		return verifyLog;
 	}
 
-	private void verifyChain(Logger logger, int blockNumber, String indexName) throws SQLException, HeaderVerifyException, DataVerificationException, IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
-		verifyHeader(logger, blockNumber);
-		if (Replica.DEBUG) System.err.println("Blk#" + blockNumber + " HEADER PASS");
-		verifyData(logger, blockNumber, indexName);
-		if (Replica.DEBUG) System.err.println("Blk#" + blockNumber + " ELASTIC PASS");
-
-	}
-
-	private void verifyHeader(Logger logger, int i) throws SQLException, HeaderVerifyException {
-		Triple<Integer, String, String> prevHeader = getHeader(logger, i - 1);
-		Triple<Integer, String, String> currHeader = getHeader(logger, i);
+	/**
+	 * @param logger
+	 * @param blockNumber
+	 * @throws SQLException
+	 * @return null if blockNumbe'th header is verified, LinkedHashMap that contains error info if not
+	 */
+	private LinkedHashMap verifyHeader(Logger logger, int blockNumber) throws SQLException {
+		Triple<Integer, String, String> prevHeader = getHeader(logger, blockNumber - 1);
+		Triple<Integer, String, String> currHeader = getHeader(logger, blockNumber);
 		Boolean[] checkList = new Boolean[3];
 
 		/*prevHeader == null인 경우는 currHeader = 0 인 경우이므로, curr가 0번째 Header의 preset을 따르는지를 검증한다
@@ -108,74 +97,82 @@ public class BlockVerificationOperation extends Operation {
 			checkList[1] = currHeader.getMiddle().equals("FIRST_ROOT");
 			checkList[2] = currHeader.getRight().equals("PREV");
 		} else {
-			checkList[0] = prevHeader.getLeft() == (i - 1);
-			checkList[1] = currHeader.getLeft() == i;
+			checkList[0] = prevHeader.getLeft() == (blockNumber - 1);
+			checkList[1] = currHeader.getLeft() == blockNumber;
 			checkList[2] = currHeader.getRight().equals(Util.hash(prevHeader.toString()));
 		}
 
 		if (!Arrays.stream(checkList).allMatch(Boolean::booleanValue)) {
-			StringBuilder exceptionMsg = new StringBuilder();
-			exceptionMsg.append("Error::HeaderVerifyException ")
-					.append("CurrHeaderIdx :").append(i).append("\n")
-					.append("is_prev_block_number_match :").append(checkList[0]).append("\n")
-					.append("is_curr_block_number_match :").append(checkList[1]).append("\n")
-					.append("is_Hash(preHeader)_match :").append(checkList[1]).append("\n")
-					.append("Header Broken");
-			throw new HeaderVerifyException(exceptionMsg.toString());
+			LinkedHashMap map = new LinkedHashMap();
+			map.put("exception_type", "header");
+			map.put("block_number", blockNumber);
+			map.put("is_prev_block_number_match", checkList[0]);
+			map.put("is_curr_block_number_match", checkList[1]);
+			map.put("is_Hash(preHeader)_match", checkList[2]);
+			map.put("cause", "header_broken");
+			return map;
+		} else {
+			return null;
 		}
 	}
 
-	private void verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, DataVerificationException, EsRestClient.EsSSLException {
-		if (blockNum == 0) return;
-		EsRestClient esRestClient = new EsRestClient();
-		esRestClient.connectToEs();
+	/**
+	 * @param logger
+	 * @param blockNum
+	 * @param indexName
+	 * @return new ArrayList() if blockNumbe'th header is verified, List(LinkedHashMap) that contains error info if not
+	 * @throws NoSuchFieldException
+	 * @throws SQLException
+	 * @throws IOException
+	 * @throws EsRestClient.EsException
+	 * @throws EsRestClient.EsSSLException
+	 */
+	private List<LinkedHashMap> verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, EsRestClient.EsSSLException {
+		if (blockNum == 0)
+			return new ArrayList<>();
 
-		int entryNum = 0;
-		Triple<Integer, String, String> header = getHeader(logger, blockNum);
-		if (Replica.DEBUG) {
-			System.err.println("VerifyOp::header = " + header.toString());
-		}
-		SecretKey key = makeSymmetricKey(header.toString());
+		Genson genson = new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create();
 		List<Map<String, Object>> restoreMapList = new ArrayList<>();
-		Pair<List<Map<String, Object>>, List<byte[]>> data = null;
+		List<LinkedHashMap> errors = new ArrayList<>();
 
-		//try to decrypt base64 encoding & decrypt encByte[] by generated key & deserialize decByte[] to Map.class
-		try {
-			data = esRestClient.getBlockDataPair(indexName, blockNum);
-			for (entryNum = 0; entryNum < data.getRight().size(); entryNum++) {
-				byte[] enc = data.getRight().get(entryNum);
-				restoreMapList.add(desToObject(new String(decrypt(enc, key)), Map.class));
-			}
-		} catch (NoSuchFieldException e) {
-			if (DEBUG) System.err.println(e.getMessage());
-			entryNum = Integer.parseInt(e.getMessage());
-			throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_KeySet_Malformed");
-		} catch (IllegalArgumentException e) {
-			entryNum = Integer.parseInt(e.getMessage());
-			throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Base64_Decoding_Fail");
-		} catch (EncryptionException e) {
-			throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Decryption_Fail");
-		} catch (SerializationException s) {
-			throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Deserialization_Fail");
-		}
+		Triple<Integer, String, String> header = getHeader(logger, blockNum);
+		SecretKey key = makeSymmetricKey(header.toString());
+		var blockDataPair = getBlockDataPair(indexName, blockNumber);
 
-		//try to compare originalMap == restoreMap
-		for (entryNum = 0; entryNum < data.getLeft().size(); entryNum++) {
-			if (!equals(data.getLeft().get(entryNum), restoreMapList.get(entryNum))) {
-				throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Plain_NOT_SAME_WITH_RestoredPlain");
-			}
-		}
-
-		//generate root' from restoreMap and compare root == root'
-		String rootPrime = new HashTree(restoreMapList.stream()
-				.map(x -> (Serializable) x)
+		//If ROOT of PBFT equals to ROOT' that generated by plain data, end verification.
+		String rootPrime = new HashTree(blockDataPair.getLeft().stream()
+				.map(x -> genson.serialize(x))
 				.map(Util::hash)
 				.toArray(String[]::new))
 				.toString();
-
-		if (!header.getMiddle().equals(rootPrime)) {
-			throw new DataVerificationException(System.currentTimeMillis(), blockNumber, entryNum, indexName, "Root_NOT_SAME_WITH_RootPrime_OR_Missing_Document");
+		if (header.getMiddle().equals(rootPrime)) {
+			return errors;
+		} else {
+			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, 0, indexName, "Root_From_PBFT_Not_Same_With_Root'"}));
 		}
+
+		//try to decrypt base64 encoding & decrypt encByte[] by generated key & deserialize decByte[] to Map.class
+		int entryNum = 0;
+		try {
+			for (entryNum = 0; entryNum < blockDataPair.getRight().size(); entryNum++) {
+				byte[] enc = blockDataPair.getRight().get(entryNum);
+				restoreMapList.add(desToObject(new String(decrypt(enc, key)), Map.class));
+			}
+		} catch (IllegalArgumentException e) {
+			entryNum = Integer.parseInt(e.getMessage());
+			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Base64_Decoding_Fail"}));
+		} catch (EncryptionException e) {
+			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Decryption_Fail"}));
+		} catch (SerializationException s) {
+			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Deserialization_Fail"}));
+		}
+		//try to compare originalMap == restoreMap
+		for (entryNum = 0; entryNum < blockDataPair.getLeft().size(); entryNum++) {
+			if (!equals(blockDataPair.getLeft().get(entryNum), restoreMapList.get(entryNum))) {
+				errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry_Plain_NOT_SAME_WITH_RestoredPlain"}));
+			}
+		}
+		return errors;
 	}
 
 	private Triple<Integer, String, String> getHeader(Logger logger, int headerNum) throws SQLException {
@@ -192,20 +189,20 @@ public class BlockVerificationOperation extends Operation {
 		}
 	}
 
+	private Pair<List<Map<String, Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber) throws NoSuchFieldException, EsRestClient.EsSSLException, IOException, EsRestClient.EsException {
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+		var result = esRestClient.getBlockDataPair(indexName, blockNumber);
+		esRestClient.disConnectToEs();
+		return  result;
+	}
+
 	private boolean equals(Map<String, Object> ori, Map<String, Object> res) {
 		if (ori.size() != res.size()) {
 			if (Replica.DEBUG) {
 				System.err.printf("isMapSame::size NOT same. ori: %d, res: %d\n", ori.size(), res.size());
 			}
 			return false;
-		}
-		if (Replica.DEBUG) {
-			System.err.println("=====================");
-			System.err.println("isMapSame::ori map");
-			ori.keySet().stream().forEachOrdered(k -> System.err.printf("%s : %s\n", k, ori.get(k)));
-			System.err.println("isMapSame::res map");
-			res.keySet().stream().forEachOrdered(k -> System.err.printf("%s : %s\n", k, res.get(k)));
-			System.err.println("=====================");
 		}
 		/*
 		Es에 저장된 cipher 를 deserialize 하는 과정에서 Wrapped Class간 Equals가 의도한 대로 되지 않는 문제가 있음
@@ -218,26 +215,31 @@ public class BlockVerificationOperation extends Operation {
 		return oriSer.equals(resSer);
 	}
 
-	public static class HeaderVerifyException extends Exception {
-		HeaderVerifyException(String s) {
-			super(s);
+	private LinkedHashMap getDataErrorMap(Object[] entities) throws NoSuchFieldException {
+		String[] dataKeys = new String[] {"type", "timestamp", "block_number", "entry_number", "index", "cause"};
+
+		if (dataKeys.length != entities.length)
+			throw new NoSuchFieldException();
+		LinkedHashMap errorMap = new LinkedHashMap();
+		for (int i = 0; i < dataKeys.length; i++) {
+			errorMap.put(dataKeys[i], entities[i]);
 		}
+		return errorMap;
 	}
 
-	public static class DataVerificationException extends Exception {
-		public long timestamp;
-		public int blockNumber;
-		public int entryNumber;
-		public String indexName;
-		public String cause;
-
-		DataVerificationException(long timestamp, int blockNumber, int entryNumber, String indexName, String cause) {
-			super(cause);
-			this.timestamp = timestamp;
-			this.blockNumber = blockNumber;
-			this.entryNumber = entryNumber;
-			this.indexName = indexName;
-			this.cause = cause;
-		}
+	/**
+	 * @param blockNumber blockNumber to find
+	 * @param indices     List of "block_chained" indices's names
+	 * @throws NoSuchFieldException
+	 * @throws IOException
+	 * @throws EsRestClient.EsSSLException
+	 * @return index name of @param blockNumber
+	 */
+	private String getIndexName(int blockNumber, List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
+		EsRestClient esRestClient = new EsRestClient();
+		esRestClient.connectToEs();
+		String indexName = esRestClient.getIndexNameFromBlockNumber(blockNumber, indices);
+		esRestClient.disConnectToEs();
+		return indexName;
 	}
 }
