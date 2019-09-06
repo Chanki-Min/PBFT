@@ -13,12 +13,14 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
@@ -30,6 +32,7 @@ public class Replica extends Connector {
 	public static final boolean DEBUG = false;
 	public final static int WATERMARK_UNIT = 10;
 	public static int VERIFY_UNIT = 10; //Verify Block at every 100th insertion
+	final static boolean MEASURE = false;
 	private final int myNumber;
 	public Object watermarkLock = new Object();
 	public Object viewChangeLock = new Object();
@@ -43,6 +46,9 @@ public class Replica extends Connector {
 	private ConcurrentHashMap<String, Timer> timerMap = new ConcurrentHashMap<>();
 	private ConcurrentHashMap<String, Timer> receiveTimerMap = new ConcurrentHashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
+
+	private HashMap<Long, Long> receiveRequestTimeMap = new HashMap<>();
+	private HashMap<Long, Long> consensusTimeMap = new HashMap<>();
 
 	public Replica(Properties prop, String serverIp, int serverPort) {
 		super(prop);
@@ -291,6 +297,9 @@ public class Replica extends Connector {
 			if(DEBUG){
 				System.err.println("\tcangoNextState");
 			}
+			if(MEASURE){
+				receiveRequestTimeMap.put(message.getTime(), Instant.now().toEpochMilli());
+			}
 			logger.insertMessage(message);
 			if (this.getPrimary() == this.myNumber) {
 				broadcastToReplica(message);
@@ -475,6 +484,12 @@ public class Replica extends Connector {
 				getMaximumFaulty(), this.myNumber);
 
 		if (isCommitted) {
+			if(MEASURE){
+				Long key = logger.getOperation(cmsg).getTimestamp();
+				consensusTimeMap.put(key, Instant.now().toEpochMilli() - receiveRequestTimeMap.get(key));
+				double duration = (double)(consensusTimeMap.get(key)) / 1000;
+				System.err.printf("Consensus Completed #%d\t%f sec\n", cmsg.getSeqNum(), duration);
+			}
 			if (priorityQueue.stream().noneMatch(x -> x.getSeqNum() == cmsg.getSeqNum()))
 				priorityQueue.add(cmsg);
 			try {
@@ -488,8 +503,13 @@ public class Replica extends Connector {
 
 					if (operation != null) {
 						System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
-						Object ret = operation.execute(this.logger);
 
+						Object ret = operation.execute(this.logger);
+						if(MEASURE) {
+							if (rightNextCommitMsg.getSeqNum()%10 == 0) {
+								printConsensusTime();
+							}
+						}
 						var viewNum = cmsg.getViewNum();
 						var timestamp = operation.getTimestamp();
 						var clientInfo = operation.getClientInfo();
@@ -805,7 +825,17 @@ public class Replica extends Connector {
 		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
 	}
-
+	public void printConsensusTime(){
+		if(MEASURE) {
+			double avg = consensusTimeMap
+					.values()
+					.stream()
+					.mapToLong(Long::longValue)
+					.average()
+					.orElse(0);
+			System.err.println("Average Consensus TIme : " + avg * 1000);
+		}
+	}
 	public class printQueue extends TimerTask {
 		Replica replica;
 

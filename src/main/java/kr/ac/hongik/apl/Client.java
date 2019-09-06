@@ -199,9 +199,14 @@ public class Client extends Connector {
 		}
 	}
 	public void printTurnAroundTime(){
-		double sum = 0;
-		for(Long timestamp : turnAroundTimeMap.values())
-			sum += (double)(timestamp);
-		System.err.println("Average Turn Around TIme : " + sum/(turnAroundTimeMap.size()*1000));
+		if(Replica.MEASURE) {
+			double avg = turnAroundTimeMap
+					.values()
+					.stream()
+					.mapToLong(Long::longValue)
+					.average()
+					.orElse(0);
+			System.err.println("Average Turn Around TIme : " + avg * 1000);
+		}
 	}
 }
