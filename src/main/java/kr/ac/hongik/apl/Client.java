@@ -18,7 +18,8 @@ public class Client extends Connector {
 	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
 	private List<Long> ignoreList = new ArrayList<>();
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
-
+	private Long receivingTimeStamp;
+	private Object replyLock = new Object();
 
 	public Client(Properties prop) {
 		super(prop);    //make socket to every replica
@@ -44,21 +45,24 @@ public class Client extends Connector {
 	}
 
 	public void request(RequestMessage msg) {
-		BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
-		Timer timer = new Timer();
-		if (Replica.DEBUG)
-			timer.schedule(task, TIMEOUT * 2);
-		else
-			timer.schedule(task, TIMEOUT);
-		timerMap.put(msg.getTime(), timer);
+		synchronized (replyLock) {
+			BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
+			Timer timer = new Timer();
+			if (Replica.DEBUG)
+				timer.schedule(task, TIMEOUT * 2);
+			else
+				timer.schedule(task, TIMEOUT);
+			timerMap.put(msg.getTime(), timer);
 
-		int idx = new Random().nextInt(getReplicaMap().size());
-		if (Replica.DEBUG) {
-			System.err.println("send to = " + idx);
+			int idx = new Random().nextInt(getReplicaMap().size());
+			if (Replica.DEBUG) {
+				System.err.println("send to = " + idx);
+			}
+			var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
+
+			send(sock, msg);
+			setReceivingTimeStamp(msg.getTime());
 		}
-		var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
-
-		send(sock, msg);
 	}
 
 	public Object getReply() {
@@ -99,25 +103,29 @@ public class Client extends Connector {
 				checkReplica[replyMessage.getReplicaNum()] = 1;
 				replies.put(uniqueKey, checkReplica);
 				checkReplica = replies.get(uniqueKey);
+				synchronized (replyLock) {
+					if(replyMessage.getTime() != this.getReceivingTimeStamp()){
+						continue;
+					}
+					if (Arrays.stream(checkReplica).filter(x -> x.intValue() == 1).count() > 2 * this.getMaximumFaulty()) {
+						if (!ignoreList.contains(uniqueKey)) {
+							ignoreList.add(uniqueKey);
 
-				if (Arrays.stream(checkReplica).filter(x -> x.intValue() == 1).count() > 2 * this.getMaximumFaulty()) {
-					if (!ignoreList.contains(uniqueKey)) {
-						ignoreList.add(uniqueKey);
-
-						//Release timer
-						if (Replica.DEBUG) {
-							System.err.println("Got reply : " + replyMessage.getTime());
-							System.err.print("Before Timer cancel\n\t");
-							timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
+							//Release timer
+							if (Replica.DEBUG) {
+								System.err.println("Got reply : " + replyMessage.getTime());
+								System.err.print("Before Timer cancel\n\t");
+								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
+							}
+							timerMap.get(replyMessage.getTime()).cancel();
+							timerMap.remove(replyMessage.getTime());
+							if (Replica.DEBUG) {
+								System.err.print("\nAfter Timer cancel\n\t");
+								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
+								System.err.println(" ");
+							}
+							return replyMessage.getResult();
 						}
-						timerMap.get(replyMessage.getTime()).cancel();
-						timerMap.remove(replyMessage.getTime());
-						if (Replica.DEBUG) {
-							System.err.print("\nAfter Timer cancel\n\t");
-							timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
-							System.err.println(" ");
-						}
-						return replyMessage.getResult();
 					}
 				}
 			} else {
@@ -134,37 +142,49 @@ public class Client extends Connector {
 		getReplicaMap().put(header.getReplicaNum(), channel);
 	}
 
+	private void setReceivingTimeStamp(Long timestamp){
+		this.receivingTimeStamp = timestamp;
+	}
 
+	private Long getReceivingTimeStamp(){
+		return receivingTimeStamp;
+	}
 	static class BroadcastTask extends TimerTask {
 
-		final private Connector conn;
+		final private Client client;
 		final private int timerCount;
 		RequestMessage requestMessage;
 		private Map<Long, Timer> timerMap;
 
-		BroadcastTask(RequestMessage requestMessage, Connector conn, Map<Long, Timer> timerMap, int timerCount) {
+		BroadcastTask(RequestMessage requestMessage, Client client, Map<Long, Timer> timerMap, int timerCount) {
 			this.requestMessage = requestMessage;
-			this.conn = conn;
+			this.client = client;
 			this.timerMap = timerMap;
 			this.timerCount = timerCount;
 		}
 
 		@Override
 		public void run() {
-			if (Replica.DEBUG) {
-				System.err.println((timerCount) + " Timer expired! timestamp : " + requestMessage.getTime());
-			}
-			RequestMessage nextRequestMessage = requestMessage;
-			if (timerCount > 1) {
-				nextRequestMessage = RequestMessage.makeRequestMsg(conn.getPrivateKey(), requestMessage.getOperation().update());
-			}
-			BroadcastTask task = new BroadcastTask(nextRequestMessage, this.conn, this.timerMap, this.timerCount + 1);
-			RequestMessage finalNextRequestMessage = nextRequestMessage;
-			getReplicaMap().values().forEach(socket -> conn.send(socket, finalNextRequestMessage));
-			Timer timer = new Timer();
-			timer.schedule(task, (this.timerCount + 1) * TIMEOUT);
+			synchronized (client.replyLock) {
+				if (Replica.DEBUG) {
+					System.err.println((timerCount) + " Timer expired! timestamp : " + requestMessage.getTime());
+				}
+				RequestMessage nextRequestMessage = requestMessage;
+				if (timerCount > 1) {
+					nextRequestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), requestMessage.getOperation().update());
+				}
+				if(nextRequestMessage.getTime() < client.getReceivingTimeStamp()){
+					return;
+				}
+				client.setReceivingTimeStamp(nextRequestMessage.getTime());
+				BroadcastTask task = new BroadcastTask(nextRequestMessage, this.client, this.timerMap, this.timerCount + 1);
+				RequestMessage finalNextRequestMessage = nextRequestMessage;
+				getReplicaMap().values().forEach(socket -> client.send(socket, finalNextRequestMessage));
+				Timer timer = new Timer();
+				timer.schedule(task, (this.timerCount + 1) * TIMEOUT);
 
-			timerMap.put(nextRequestMessage.getTime(), timer);
+				timerMap.put(nextRequestMessage.getTime(), timer);
+			}
 		}
 	}
 }
