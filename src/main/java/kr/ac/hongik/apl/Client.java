@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,6 +21,8 @@ public class Client extends Connector {
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
 	private Long receivingTimeStamp;
 	private Object replyLock = new Object();
+
+	private HashMap<Long, Long> turnAroundTimeMap = new HashMap<>();
 
 	public Client(Properties prop) {
 		super(prop);    //make socket to every replica
@@ -53,7 +56,11 @@ public class Client extends Connector {
 			else
 				timer.schedule(task, TIMEOUT);
 			timerMap.put(msg.getTime(), timer);
-
+			if(Replica.MEASURE){
+				getReplicaMap().values().stream().forEach(x -> send(x, msg));
+				setReceivingTimeStamp(msg.getTime());
+				return;
+			}
 			int idx = new Random().nextInt(getReplicaMap().size());
 			if (Replica.DEBUG) {
 				System.err.println("send to = " + idx);
@@ -124,6 +131,10 @@ public class Client extends Connector {
 								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
 								System.err.println(" ");
 							}
+							if(Replica.MEASURE){
+								turnAroundTimeMap.put(replyMessage.getTime(), Instant.now().toEpochMilli() - replyMessage.getTime());
+								System.err.printf("Turn Around Time : %f ",((double)(turnAroundTimeMap.get(replyMessage.getTime()))/1000));
+							}
 							return replyMessage.getResult();
 						}
 					}
@@ -186,5 +197,11 @@ public class Client extends Connector {
 				timerMap.put(nextRequestMessage.getTime(), timer);
 			}
 		}
+	}
+	public void printTurnAroundTime(){
+		double sum = 0;
+		for(Long timestamp : turnAroundTimeMap.values())
+			sum += (double)(timestamp);
+		System.err.println("Average Turn Around TIme : " + sum/(turnAroundTimeMap.size()*1000));
 	}
 }
