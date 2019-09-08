@@ -53,9 +53,9 @@ public class DataInsertionByBrokerTest {
 		가정한다.
 		 */
 		Map<String, String> mappingToData = new HashMap<>();
-		mappingToData.put("/ES_MappingAndSetting/Mapping_car_specification.json", "/Es_userData/Data_car_specification.json");
+		mappingToData.put("/ES_MappingAndSetting/Mapping_car_specification.json", "/ES_userData/Data_car_specification.json");
 		mappingToData.put("/ES_MappingAndSetting/Mapping_id_to_car.json", "/ES_userData/Data_id_to_car.json");
-		mappingToData.put("/ES_MappingAndSetting/Mapping_user_info.json", "/Es_userData/Data_user_info.json");
+		mappingToData.put("/ES_MappingAndSetting/Mapping_user_info.json", "/ES_userData/Data_user_info.json");
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 		EsRestClient esRestClient = new EsRestClient();
@@ -103,7 +103,7 @@ public class DataInsertionByBrokerTest {
 		이전까지 Broker가 MQ에 쌓인 데이터를 처리하여 resource/Es+userData/~.json에 data를 정리하였다고 가정한다.
 		 */
 		Map<String, String> mappingToData = new HashMap<>();
-		mappingToData.put("/ES_MappingAndSetting/Mapping_car_log.json", "/Es_userData/Data_car_log.json");
+		mappingToData.put("/ES_MappingAndSetting/Mapping_car_log.json", "/ES_userData/Data_car_log.json");
 		mappingToData.put("/ES_MappingAndSetting/Mapping_user_log.json", "/ES_userData/Data_user_log.json");
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
 

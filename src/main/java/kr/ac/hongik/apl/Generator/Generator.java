@@ -1,0 +1,119 @@
+package kr.ac.hongik.apl.Generator;
+
+import com.owlike.genson.Genson;
+import com.owlike.genson.GensonBuilder;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+public class Generator {
+	final long duration = 300000;
+	final int fakeRouteSize = 100;
+	private boolean isDataLoop;
+	private int index;
+
+	private String user_id;
+	private String verification_method;
+	private String car_id;
+	private long mileage;
+	private long timestamp;
+	private double fuel_level;
+	private List<Double[]> route;
+
+	public Generator(String initDataPath, boolean isDataLoop) {
+		try {
+			SimpleDateFormat humanTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			Genson genson = new GensonBuilder().useRuntimeType(false)
+					.useClassMetadata(true)
+					.useDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"))
+					.create();
+			Map initMap = genson.deserialize(this.getClass().getResourceAsStream(initDataPath), Map.class);
+			initMap.computeIfAbsent("route", k -> makeRandomRoute(fakeRouteSize));
+
+			this.isDataLoop = isDataLoop;
+			this.index = 0;
+			this.user_id = (String) initMap.get("user_id");
+			this.verification_method = (String) initMap.get("verification_method");
+			this.car_id = (String) initMap.get("car_id");
+			this.mileage = (Long) initMap.get("mileage");
+			this.route = (initMap.get("route") != null) ? (List<Double[]>) initMap.get("route") : null;
+			this.fuel_level = (Double) initMap.get("fuel_level");
+			this.timestamp = humanTimeFormat.parse((String) initMap.get("timestamp")).getTime() - duration;
+		} catch (ParseException wrap) {
+			throw new RuntimeException(wrap);
+		}
+	}
+
+	public Pair<Map, Map> generate() throws NoSuchFieldException {
+		if (index == route.size()) {
+			if (isDataLoop)
+				this.index = 0;
+			else
+				throw new NoSuchFieldException();
+		}
+		double distance = (index == 0) ? 0 : getDistance(route.get(index - 1), route.get(index));
+		this.fuel_level -= 0.1;
+		this.timestamp += duration;
+		this.mileage += distance;
+		SimpleDateFormat humanTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+		Map car_log = new HashMap();
+		car_log.put("car_id", car_id);
+		car_log.put("timestamp", humanTimeFormat.format(new Date(timestamp)));
+		car_log.put("fuel_level", fuel_level);
+		car_log.put("car_location", route.get(index));
+		car_log.put("mileage", mileage);
+
+		Map user_log = new HashMap();
+		user_log.put("user_id", user_id);
+		user_log.put("login_time", humanTimeFormat.format(new Date(timestamp)));
+		user_log.put("verification_method", verification_method);
+		user_log.put("car_id", car_id);
+
+		this.index++;
+		return new ImmutablePair<>(car_log, user_log);
+	}
+
+	private List<Double[]> makeRandomRoute(int size) {
+		Random random = new Random();
+		List<Double> latitude = random.doubles(size, 37.5, 37.57)
+				.boxed().collect(Collectors.toList());
+		List<Double> longitude = random.doubles(size, 126.8, 127.0)
+				.boxed().collect(Collectors.toList());
+
+		List<Double[]> result = new ArrayList<>();
+		IntStream.range(0, size).forEach(i -> result.add(new Double[] {latitude.get(i), longitude.get(i)}));
+
+		return result;
+	}
+
+	private double getDistance(Double[] p1, Double[] p2) {
+		double lat1 = p1[0];
+		double lon1 = p1[1];
+		double lat2 = p2[0];
+		double lon2 = p2[1];
+
+		double theta = lon1 - lon2;
+		double distance = Math.sin(deg2rad(lat1)) * Math.sin(deg2rad(lat2))
+				+ Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2))
+				* Math.cos(deg2rad(theta));
+		distance = Math.acos(distance);
+		distance = rad2deg(distance);
+		distance = distance * 60 * 1.1515;
+		distance = distance * 1.609344;
+		return (distance);
+	}
+
+	private double rad2deg(double rad) {
+		return (rad * 180.0 / Math.PI);
+	}
+
+	private double deg2rad(double deg) {
+		return (deg * Math.PI / 180.0);
+	}
+}

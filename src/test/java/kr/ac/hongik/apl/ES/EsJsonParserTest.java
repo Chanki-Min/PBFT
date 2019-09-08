@@ -33,7 +33,7 @@ public class EsJsonParserTest {
 	public void parseQueryToMapTest() {
 
 		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/Es_userData/Debug_test_data.json");
+		parser.setFilePath("/ES_userData/Debug_test_data.json");
 		Map info = parser.jsonFileToMap();
 	}
 
@@ -89,7 +89,7 @@ public class EsJsonParserTest {
 		esRestClient.connectToEs();
 		esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-		parser.setFilePath("/Es_userData/Debug_test_data.json");
+		parser.setFilePath("/ES_userData/Debug_test_data.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		List<byte[]> encData = new ArrayList<>();
 
@@ -112,7 +112,7 @@ public class EsJsonParserTest {
 		EsJsonParser parser = new EsJsonParser();
 		String seed = "Hello World!";
 		SecretKey key = Util.makeSymmetricKey(seed);
-		parser.setFilePath("/Es_userData/Debug_test_data.json");
+		parser.setFilePath("/ES_userData/Debug_test_data.json");
 
 		Map originalMap = parser.jsonFileToMap();
 
