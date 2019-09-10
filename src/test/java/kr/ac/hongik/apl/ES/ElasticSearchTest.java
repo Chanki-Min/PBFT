@@ -158,7 +158,7 @@ public class ElasticSearchTest {
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/Es_userData/Debug_test_data.json");
+			parser.setFilePath("/ES_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -217,7 +217,7 @@ public class ElasticSearchTest {
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/Es_userData/Debug_test_data.json");
+			parser.setFilePath("/ES_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -274,7 +274,7 @@ public class ElasticSearchTest {
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/Es_userData/Debug_test_data.json");
+			parser.setFilePath("/ES_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -318,7 +318,7 @@ public class ElasticSearchTest {
 		int blockNumber = 0;
 
 		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/Es_userData/Debug_test_data.json");
+		parser.setFilePath("/ES_userData/Debug_test_data.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		List<byte[]> encData = new ArrayList<>();
 

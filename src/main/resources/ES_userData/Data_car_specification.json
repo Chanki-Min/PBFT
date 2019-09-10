@@ -5,6 +5,12 @@
       "vendor": "HYUNDAE",
       "displacement": 2000,
       "release-year": 2019
+    },
+    {
+      "car_name": "NEXO_FCEV",
+      "vendor": "HYUNDAE",
+      "displacement": 0,
+      "release-year": 2018
     }
   ]
 }
