@@ -1,5 +1,7 @@
 package kr.ac.hongik.apl;
 
+import com.owlike.genson.Genson;
+import com.owlike.genson.GensonBuilder;
 import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
@@ -25,6 +27,7 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.time.Instant;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,8 +37,8 @@ import static java.lang.Thread.sleep;
 import static kr.ac.hongik.apl.Util.makeSymmetricKey;
 
 public class Broker {
-	final static int WAIT = 10000;
-	final static int MAX_QUEUE = 1000;
+	private int waitTime;
+	private int maxQueue;
 	final String[] indicesPath = new String[] {
 			"/ES_MappingAndSetting/Mapping_car_log.json",
 			"/ES_MappingAndSetting/Mapping_user_log.json"
@@ -44,10 +47,14 @@ public class Broker {
 	private List<String> initDataPaths;
 	private boolean isDataLoop;
 	private EsRestClient esRestClient;
+	private List<Long> car_log_insertionTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
+	private List<Long> user_log_insertionTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
 
-	public Broker(List<String> initDataPaths, boolean isDataLoop) {
+	public Broker(List<String> initDataPaths, int waitTime, int maxQueue, boolean isDataLoop) {
 		try {
 			this.initDataPaths = initDataPaths;
+			this.waitTime = waitTime;
+			this.maxQueue = maxQueue;
 			this.isDataLoop = isDataLoop;
 			this.esRestClient = new EsRestClient();
 			esRestClient.connectToEs();
@@ -63,7 +70,7 @@ public class Broker {
 		initDataPaths.add("/GEN_initData/Init_data02.json");
 		initDataPaths.add("/GEN_initData/Init_data03.json");
 
-		Broker broker = new Broker(initDataPaths, args[0].equals("true"));
+		Broker broker = new Broker(initDataPaths, Integer.parseInt(args[0]), Integer.parseInt(args[1]), args[2].equals("true"));
 		broker.start();
 	}
 
@@ -99,11 +106,12 @@ public class Broker {
 					}
 				}
 
-				if (car_log_queue.size() >= MAX_QUEUE) {
-					if (Replica.DEBUG) {
-						System.err.printf("car_log MQ FULL, Inserting data to ES&PBFT\n");
-						System.err.printf("data size : %d\n", car_log_queue.size());
+				if (car_log_queue.size() >= maxQueue) {
+					if (Replica.MEASURE) {
+						car_log_insertionTimes.add(Instant.now().toEpochMilli());
 					}
+					System.err.printf("car_log MQ FULL, Inserting data to ES&PBFT\n");
+					System.err.printf("data size : %d\n", car_log_queue.size());
 
 					String indexName = "car_log";
 					List dataList = car_log_queue.stream().collect(Collectors.toList());
@@ -113,17 +121,25 @@ public class Broker {
 					int blockNumber = getLatestBlockNumber(Arrays.asList("car_log", "user_log")) + 1;
 					HashTree hashTree = storeDataToEs(indexName, blockNumber, dataList);
 					storeHeaderToPBFT(blockNumber, hashTree.toString());
+					System.err.printf("car_log insertion end\n");
 
-					if (Replica.DEBUG) {
-						System.err.printf("car_log insertion end\n");
+					if (Replica.MEASURE) {
+						long start = car_log_insertionTimes.get(car_log_insertionTimes.size() - 1);
+						car_log_insertionTimes.remove(car_log_insertionTimes.size() - 1);
+						car_log_insertionTimes.add(Instant.now().toEpochMilli() - start);
+						System.err.printf("MEASURE::car_log insertion end with Time : %f\n", ((double) car_log_insertionTimes.get(car_log_insertionTimes.size() - 1)) / 1000.0);
 					}
-					sleep(WAIT);
+
+
+					System.err.printf("%s\n", new String(new char[80]).replace("\0", "="));
+					sleep(waitTime);
 				}
-				if (user_log_queue.size() == MAX_QUEUE) {
-					if (Replica.DEBUG) {
-						System.err.printf("user_log MQ FULL, Inserting data to ES&PBFT\n");
-						System.err.printf("data size : %d\n", user_log_queue.size());
+				if (user_log_queue.size() == maxQueue) {
+					if (Replica.MEASURE) {
+						user_log_insertionTimes.add(Instant.now().toEpochMilli());
 					}
+					System.err.printf("user_log MQ FULL, Inserting data to ES&PBFT\n");
+					System.err.printf("data size : %d\n", user_log_queue.size());
 
 					String indexName = "user_log";
 					List dataList = user_log_queue.stream().collect(Collectors.toList());
@@ -133,11 +149,30 @@ public class Broker {
 					int blockNumber = getLatestBlockNumber(Arrays.asList("car_log", "user_log")) + 1;
 					HashTree hashTree = storeDataToEs(indexName, blockNumber, dataList);
 					storeHeaderToPBFT(blockNumber, hashTree.toString());
+					System.err.printf("user_log insertion end\n");
 
-					if (Replica.DEBUG) {
-						System.err.printf("user_log insertion end\n");
+					if (Replica.MEASURE) {
+						long start = user_log_insertionTimes.get(user_log_insertionTimes.size() - 1);
+						user_log_insertionTimes.remove(user_log_insertionTimes.size() - 1);
+						user_log_insertionTimes.add(Instant.now().toEpochMilli() - start);
+						System.err.printf("MEASURE::user_log insertion end with Time : %f\n", ((double) user_log_insertionTimes.get(user_log_insertionTimes.size() - 1)) / 1000.0);
 					}
-					sleep(WAIT);
+					System.err.printf("%s\n", new String(new char[80]).replace("\0", "="));
+					sleep(waitTime);
+				}
+				if (Replica.MEASURE) {
+					if (car_log_insertionTimes.size() == 100) {
+						List<Long> all_logs = new ArrayList();
+						all_logs.addAll(car_log_insertionTimes);
+						all_logs.addAll(user_log_insertionTimes);
+						double car_log_avg = car_log_insertionTimes.stream().mapToDouble(x -> x).average().orElse(Double.NaN) / 1000.0;
+						double user_log_avg = user_log_insertionTimes.stream().mapToDouble(x -> x).average().orElse(Double.NaN) / 1000.0;
+						double all_log_avg = all_logs.stream().mapToDouble(x -> x).average().orElse(Double.NaN) / 1000.0;
+						System.err.printf("MEASURE::car_log average of 100 insertion : %f\n", car_log_avg);
+						System.err.printf("MEASURE::user_log average of 100 insertion : %f\n", user_log_avg);
+						System.err.printf("MEASURE::all_log average of 100 insertion : %f\n", all_log_avg);
+						return;
+					}
 				}
 			}
 		} catch (NoSuchFieldException | EsRestClient.EsSSLException | IOException | Util.EncryptionException | InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException e) {
@@ -146,11 +181,12 @@ public class Broker {
 	}
 
 	private HashTree storeDataToEs(String indexName, int blockNumber, List<Map<String, Object>> dataList) throws IOException, Util.EncryptionException, EsRestClient.EsConcurrencyException, InterruptedException, EsRestClient.EsException {
+		Genson genson = new GensonBuilder().useRuntimeType(true).useClassMetadata(true).create();
 		//get previous Header from PBFT
 		Triple<Integer, String, String> prevHeader = getHeader(blockNumber - 1);
 
 		//create all data [block#, entry#, cipher, planMap]
-		HashTree hashTree = new HashTree(dataList.stream().map(x -> (Serializable) x).map(Util::hash).toArray(String[]::new));
+		HashTree hashTree = new HashTree(dataList.stream().map(x -> genson.serialize(x)).map(Util::hash).toArray(String[]::new));
 		Triple<Integer, String, String> currHeader = new ImmutableTriple<>(blockNumber, hashTree.toString(), Util.hash(prevHeader.toString()));
 		SecretKey key = makeSymmetricKey(currHeader.toString());
 		if (Replica.DEBUG) {

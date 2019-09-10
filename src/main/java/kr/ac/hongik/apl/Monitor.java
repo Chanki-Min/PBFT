@@ -9,15 +9,16 @@ import kr.ac.hongik.apl.Operations.Operation;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Properties;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class Monitor extends Client {
+	private int time;
+	private TimeUnit timeUnit;
+	private List<Long> verificationTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
 	private Runnable verifier = () -> {
 		System.err.println("verifier start");
 		System.err.printf("%s\n", new String(new char[80]).replace("\0", "="));
@@ -31,13 +32,24 @@ public class Monitor extends Client {
 			Operation verifyBlockOp = new BlockVerificationOperation(super.getPublicKey(), blockNumber, indices);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(super.getPrivateKey(), verifyBlockOp);
 
+			if (Replica.MEASURE) {
+				if (verificationTimes.size() == 100) {
+					double verification_avg = verificationTimes.stream().mapToDouble(x -> x).average().orElse(Double.NaN) / 1000.0;
+					System.err.printf("MEASURE::car_log average of 100 insertion : %f\n", verification_avg);
+				}
+				verificationTimes.add(Instant.now().toEpochMilli());
+			}
 			super.request(insertRequestMsg);
 			List<String> result = (List<String>) super.getReply();
+			if (Replica.MEASURE) {
+				long start = verificationTimes.get(verificationTimes.size() - 1);
+				verificationTimes.remove(verificationTimes.size() - 1);
+				verificationTimes.add(Instant.now().toEpochMilli() - start);
+				System.err.printf("MEASURE::car_log insertion end with Time : %f\n", ((double) verificationTimes.get(verificationTimes.size() - 1)) / 1000.0);
+			}
 			printResult(result);
 		}
 	};
-	private int time;
-	private TimeUnit timeUnit;
 
 	public Monitor(Properties prop) {
 		super(prop);

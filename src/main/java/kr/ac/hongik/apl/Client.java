@@ -133,14 +133,14 @@ public class Client extends Connector {
 							}
 							if(Replica.MEASURE){
 								turnAroundTimeMap.put(replyMessage.getTime(), Instant.now().toEpochMilli() - replyMessage.getTime());
-								System.err.printf("Turn Around Time : %f ",((double)(turnAroundTimeMap.get(replyMessage.getTime()))/1000));
+								System.err.printf("Turn Around Time : %f\n", ((double) (turnAroundTimeMap.get(replyMessage.getTime())) / 1000));
 							}
 							return replyMessage.getResult();
 						}
 					}
 				}
 			} else {
-				System.err.println("Unverified message");
+				System.err.println("Unverified message\n");
 			}
 		}
 	}

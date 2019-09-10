@@ -20,7 +20,6 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.DoubleStream;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
@@ -833,7 +832,7 @@ public class Replica extends Connector {
 					.mapToLong(Long::longValue)
 					.average()
 					.orElse(0);
-			System.err.println("Average Consensus TIme : " + avg * 1000);
+			System.err.println("Average Consensus Time : " + avg / 1000);
 		}
 	}
 	public class printQueue extends TimerTask {
