@@ -49,19 +49,19 @@ public class Replica extends Connector {
 	private HashMap<Long, Long> receiveRequestTimeMap = new HashMap<>();
 	private HashMap<Long, Long> consensusTimeMap = new HashMap<>();
 
-	public Replica(Properties prop, String serverIp, int serverPort) {
+	public Replica(Properties prop, String serverPublicIp, int serverPublicPort, int serverVirtualPort) {
 		super(prop);
-		String loggerFileName = String.format("consensus_%s_%d.db", serverIp, serverPort);
+		String loggerFileName = String.format("consensus_%s_%d.db", serverPublicIp, serverPublicPort);
 		this.logger = new Logger(loggerFileName);
 		this.clients = new ArrayList<>();
-		this.myNumber = getMyNumberFromProperty(prop, serverIp, serverPort);
+		this.myNumber = getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort);
 		this.lowWatermark = 0;
 
 		try {
 			listener = ServerSocketChannel.open();
 			listener.socket().setReuseAddress(true);
 			listener.configureBlocking(false);
-			listener.bind(new InetSocketAddress(serverPort));
+			listener.bind(new InetSocketAddress(serverVirtualPort));
 			listener.register(this.selector, SelectionKey.OP_ACCEPT);
 		} catch (IOException e) {
 			System.err.println(e);
@@ -112,13 +112,14 @@ public class Replica extends Connector {
 	}
 	public static void main(String[] args) throws IOException {
 		try {
-			String ip = args[0];
-			int port = Integer.parseInt(args[1]);
+			String publicIp = args[0];
+			int publicPort = Integer.parseInt(args[1]);
+			int virtualPort = Integer.parseInt(args[2]);
 			Properties properties = new Properties();
 			InputStream is = Replica.class.getResourceAsStream("/replica.properties");
 			properties.load(new java.io.BufferedInputStream(is));
 
-			Replica replica = new Replica(properties, ip, port);
+			Replica replica = new Replica(properties, publicIp, publicPort, virtualPort);
 			replica.start();
 		} catch (ArrayIndexOutOfBoundsException e) {
 			System.err.println("Usage: program <ip> <port>");
