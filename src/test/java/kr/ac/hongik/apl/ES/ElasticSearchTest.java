@@ -68,7 +68,7 @@ public class ElasticSearchTest {
 		final SSLContext sslContext = sslBuilder.build();
 
 		RestClientBuilder builder = RestClient.builder(
-				new HttpHost("223.194.70.105", 9200, "https"))
+				new HttpHost("223.194.70.111", 51192, "https"))
 				.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
 					@Override
 					public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpAsyncClientBuilder) {

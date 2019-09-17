@@ -2,20 +2,8 @@
   "masterHostInfo": [
     {
       "name": "es01-master01",
-      "hostName": "223.194.70.105",
-      "port": "9200",
-      "hostScheme": "https"
-    },
-    {
-      "name": "es02-master02",
-      "hostName": "223.194.70.106",
-      "port": "9200",
-      "hostScheme": "https"
-    },
-    {
-      "name": "es03-master03",
-      "hostName": "223.194.70.107",
-      "port": "9200",
+      "hostName": "223.194.70.111",
+      "port": "51192",
       "hostScheme": "https"
     }
   ]
