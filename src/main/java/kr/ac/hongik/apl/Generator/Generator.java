@@ -23,7 +23,7 @@ public class Generator {
 	private long mileage;
 	private long timestamp;
 	private double fuel_level;
-	private List<Double[]> route;
+	private List<List<Double>> route;
 
 	public Generator(String initDataPath, boolean isDataLoop) {
 		try {
@@ -41,7 +41,7 @@ public class Generator {
 			this.verification_method = (String) initMap.get("verification_method");
 			this.car_id = (String) initMap.get("car_id");
 			this.mileage = (Long) initMap.get("mileage");
-			this.route = (initMap.get("route") != null) ? (List<Double[]>) initMap.get("route") : null;
+			this.route = (initMap.get("route") != null) ? (List) initMap.get("route") : null;
 			this.fuel_level = (Double) initMap.get("fuel_level");
 			this.timestamp = humanTimeFormat.parse((String) initMap.get("timestamp")).getTime() - duration;
 		} catch (ParseException wrap) {
@@ -79,24 +79,34 @@ public class Generator {
 		return new ImmutablePair<>(car_log, user_log);
 	}
 
-	private List<Double[]> makeRandomRoute(int size) {
+	/**
+	 * @param size 생성할 리스트의 총 길이
+	 * @return 메서드에 표기된 위/경도 범위에 따른 랜덤 좌표 리스트
+	 */
+	private List<List<Double>> makeRandomRoute(int size) {
 		Random random = new Random();
 		List<Double> latitude = random.doubles(size, 37.5, 37.57)
 				.boxed().collect(Collectors.toList());
 		List<Double> longitude = random.doubles(size, 126.8, 127.0)
 				.boxed().collect(Collectors.toList());
 
-		List<Double[]> result = new ArrayList<>();
-		IntStream.range(0, size).forEach(i -> result.add(new Double[] {latitude.get(i), longitude.get(i)}));
+		List<List<Double>> result = new ArrayList<>();
+		IntStream.range(0, size)
+				.forEach(i -> result.add(Arrays.asList(latitude.get(i), longitude.get(i))));
 
 		return result;
 	}
 
-	private double getDistance(Double[] p1, Double[] p2) {
-		double lat1 = p1[0];
-		double lon1 = p1[1];
-		double lat2 = p2[0];
-		double lon2 = p2[1];
+	/**
+	 * @param p1 출발 지점 좌표
+	 * @param p2 도착 지점 좌표
+	 * @return 좌표 사이의 직선 거리(km)
+	 */
+	private double getDistance(List p1, List p2) {
+		double lat1 = (double) p1.get(0);
+		double lon1 = (double) p1.get(1);
+		double lat2 = (double) p2.get(0);
+		double lon2 = (double) p2.get(1);
 
 		double theta = lon1 - lon2;
 		double distance = Math.sin(deg2rad(lat1)) * Math.sin(deg2rad(lat2))

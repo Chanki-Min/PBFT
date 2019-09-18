@@ -96,13 +96,14 @@ public class Broker {
 			}
 
 			while (true) {
-				for (var gen: generators) {
+				for (int i = 0; i < generators.size(); i++) {
 					try {
-						var pair = gen.generate();
+						var pair = generators.get(i).generate();
 						car_log_queue.offer(pair.getLeft());
 						user_log_queue.offer(pair.getRight());
 					} catch (NoSuchFieldException e) {
-						generators.remove(gen);
+						System.err.printf("remove generator #%d\n", i);
+						generators.remove(i);
 					}
 				}
 
