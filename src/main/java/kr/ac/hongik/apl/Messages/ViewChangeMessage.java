@@ -33,9 +33,9 @@ public class ViewChangeMessage implements Message {
 
 	public static ViewChangeMessage makeViewChangeMsg(int lastCheckpointNum, int newViewNum, Replica replica,
 													  Function<String, PreparedStatement> preparedStatement) {
-		if (Replica.DEBUG) {
-			System.err.println("lastCheckpointNum : " + lastCheckpointNum + " newViewNum : " + newViewNum + " getMaximumFaulty : " + 1);//replica.getMaximumFaulty());
-		}
+		Replica.msgDebugger.info(String.format("Enter ViewChange Phase"));
+		Replica.detailDebugger.debug(String.format("last check point : %d new view : %d", lastCheckpointNum, newViewNum));
+
 		ViewChangeMessage.replica = replica;
 
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum,
@@ -46,9 +46,9 @@ public class ViewChangeMessage implements Message {
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replica.getMyNumber());
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
-		if (Replica.DEBUG) {
-			System.err.println("Checkpoint size : " + checkPointMessages.size() + " Pm size : " + messageList.size());
-		}
+
+		Replica.detailDebugger.trace(String.format("Checkpoint size : %d Pm size : %d", checkPointMessages.size(), messageList.size()));
+
 		return new ViewChangeMessage(data, signature, replica);
 	}
 
@@ -189,7 +189,6 @@ public class ViewChangeMessage implements Message {
 					.get()
 					.getDigest();
 
-			//verify the set C has over 2f+1 checkPointMsgs. that has same digest with (own checkPointMsg) & (lastCheckPointNum)
 			checkList[1] = data.checkPointMessages.stream()
 					.filter(cpMsg -> cpMsg.getDigest().equals(replicaDigest))
 					.filter(cpMsg -> cpMsg.getSeqNum() == data.lastCheckpointNum - 1)
@@ -212,11 +211,9 @@ public class ViewChangeMessage implements Message {
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getViewNum() == pm.preprepareMessage.getViewNum()))
 				.filter(pm -> pm.prepareMessages.stream().allMatch(pre -> pre.getSeqNum() == pm.preprepareMessage.getSeqNum()))
 				.count() == data.messageList.size();
-		if(Replica.DEBUG){
-			System.err.print("\t");
-			Arrays.stream(checkList).forEach(x->System.err.print(x+" "));
-			System.err.println(" ");
-		}
+
+		Replica.detailDebugger.trace(String.format("verify result : %s ", Arrays.toString(checkList)));
+
 		return Arrays.stream(checkList).allMatch(x -> x);
 	}
 

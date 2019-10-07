@@ -25,9 +25,7 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 			}
 			replica.setViewChangePhase(true);
 		}
-		if (Replica.DEBUG) {
-			System.err.print("Enter ViewChange Phase ");
-		}
+		Replica.msgDebugger.info(String.format("Enter ViewChange Phase"));
 		//Cancel and remove newViewNum'th timer
 
 		replica.removeNewViewTimer(newViewNum);
@@ -37,9 +35,7 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		keySet.removeAll(keySet);
 		var getPreparedStatementFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		try {
-			if (Replica.DEBUG) {
-				System.out.println("	Checkpoint num " + replica.getWatermarks()[0] + " newViewNum " + newViewNum);
-			}
+			Replica.detailDebugger.trace(String.format("Checkpoint num : %d NewViewNum : %d", replica.getWatermarks()[0], newViewNum));
 			synchronized (replica.watermarkLock) {
 				ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getWatermarks()[0], newViewNum, replica, getPreparedStatementFn);
 				Replica.getReplicaMap().values().forEach(sock -> replica.send(sock, viewChangeMessage));

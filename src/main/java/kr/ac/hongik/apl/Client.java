@@ -36,9 +36,8 @@ public class Client extends Connector {
 	protected void sendHeaderMessage(SocketChannel channel) {
 		HeaderMessage headerMessage = new HeaderMessage(-1, this.getPublicKey(), "client");
 		send(channel, headerMessage);
-		if (Replica.DEBUG) {
-			System.err.println("send headerMessage, key: " + headerMessage.getPublicKey().toString().substring(46, 66));
-		}
+
+		Replica.msgDebugger.debug(String.format("Send Header msg, key : %s", headerMessage.getPublicKey().toString().substring(46,66)));
 	}
 
 	//Empty method.
@@ -51,10 +50,7 @@ public class Client extends Connector {
 		synchronized (replyLock) {
 			BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 			Timer timer = new Timer();
-			if (Replica.DEBUG)
-				timer.schedule(task, TIMEOUT * 2);
-			else
-				timer.schedule(task, TIMEOUT);
+			timer.schedule(task, TIMEOUT);
 			timerMap.put(msg.getTime(), timer);
 			if(Replica.MEASURE){
 				getReplicaMap().values().stream().forEach(x -> send(x, msg));
@@ -62,9 +58,9 @@ public class Client extends Connector {
 				return;
 			}
 			int idx = new Random().nextInt(getReplicaMap().size());
-			if (Replica.DEBUG) {
-				System.err.println("send to = " + idx);
-			}
+
+			Replica.msgDebugger.debug(String.format("Send Request Msg to %d", idx));
+
 			var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
 
 			send(sock, msg);
@@ -119,18 +115,12 @@ public class Client extends Connector {
 							ignoreList.add(uniqueKey);
 
 							//Release timer
-							if (Replica.DEBUG) {
-								System.err.println("Got reply : " + replyMessage.getTime());
-								System.err.print("Before Timer cancel\n\t");
-								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
-							}
+
+							Replica.msgDebugger.debug(String.format("Got Reply Msg : %d", replyMessage.getTime()));
+
 							timerMap.get(replyMessage.getTime()).cancel();
 							timerMap.remove(replyMessage.getTime());
-							if (Replica.DEBUG) {
-								System.err.print("\nAfter Timer cancel\n\t");
-								timerMap.keySet().stream().forEach(x -> System.err.print(x + " "));
-								System.err.println(" ");
-							}
+
 							if(Replica.MEASURE){
 								turnAroundTimeMap.put(replyMessage.getTime(), Instant.now().toEpochMilli() - replyMessage.getTime());
 								System.err.printf("Turn Around Time : %f\n", ((double) (turnAroundTimeMap.get(replyMessage.getTime())) / 1000));
@@ -140,7 +130,7 @@ public class Client extends Connector {
 					}
 				}
 			} else {
-				System.err.println("Unverified message\n");
+				Replica.msgDebugger.error("Unverified Message");
 			}
 		}
 	}
@@ -177,9 +167,9 @@ public class Client extends Connector {
 		@Override
 		public void run() {
 			synchronized (client.replyLock) {
-				if (Replica.DEBUG) {
-					System.err.println((timerCount) + " Timer expired! timestamp : " + requestMessage.getTime());
-				}
+
+				Replica.msgDebugger.debug(String.format("Timer expired! timestamp : ", requestMessage.getTime()));
+
 				RequestMessage nextRequestMessage = requestMessage;
 				if (timerCount > 1) {
 					nextRequestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), requestMessage.getOperation().update());

@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 
 import java.io.Serializable;
@@ -88,6 +89,8 @@ public class CommitMessage implements Message {
             return false;
         }
         checklist[2] = !isAlreadyExecuted(prepareStatement, this.getSeqNum());
+
+        Replica.detailDebugger.trace(String.format("verify result : %s ", Arrays.toString(checklist)));
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }

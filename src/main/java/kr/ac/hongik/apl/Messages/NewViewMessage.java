@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 
 import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
-import static kr.ac.hongik.apl.Replica.DEBUG;
 
 public class NewViewMessage implements Message {
 	private final Data data;
@@ -36,13 +35,9 @@ public class NewViewMessage implements Message {
 		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
-		if (DEBUG) {
-			System.err.print("	making new view message operationList size : ");
-			if (operationList == null)
-				System.err.println("null");
-			else
-				System.err.println(operationList.size());
-		}
+
+		Replica.detailDebugger.trace(String.format("operationList size : %d",operationList.size()));
+
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
 
@@ -88,9 +83,9 @@ public class NewViewMessage implements Message {
 				.map(pm -> pm.getPreprepareMessage())
 				.distinct()
 				.collect(Collectors.toList());
-		if (DEBUG) {
-			System.err.println("recevied_pre_prepares size : " + received_pre_prepares.size());
-		}
+
+		Replica.detailDebugger.trace(String.format("received Pre-prepare msg size : %d", received_pre_prepares.size()));
+
 		Function<PrepareMessage, RequestMessage> getOp = p -> received_pre_prepares.stream()
 				.filter(pp -> pp.equals(p))
 				.findAny()
@@ -166,10 +161,9 @@ public class NewViewMessage implements Message {
 					.filter(pp -> pp.getDigest() == null)
 					.noneMatch(pp -> agreed_prepares.stream().anyMatch(p -> p.equals(pp)));
 		}
-		if (DEBUG) {
-			Arrays.stream(checklist).forEach(x -> System.err.print(" " + x));
-			System.err.println(" ");
-		}
+
+		Replica.detailDebugger.trace(String.format("verify result : %s ", Arrays.toString(checklist)));
+
 		return Arrays.stream(checklist).allMatch(Boolean::booleanValue);
 	}
 
