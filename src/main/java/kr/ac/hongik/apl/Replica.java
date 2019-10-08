@@ -2,7 +2,6 @@ package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.*;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.StringMapMessage;
 import org.echocat.jsu.JdbcUtils;
 
 import java.io.IOException;
@@ -52,6 +51,7 @@ public class Replica extends Connector {
 
 	public static final org.apache.logging.log4j.Logger msgDebugger = LogManager.getLogger("msgDebugger");
 	public static final org.apache.logging.log4j.Logger detailDebugger = LogManager.getLogger("detail");
+	public static final org.apache.logging.log4j.Logger measureDebugger = LogManager.getLogger("measure");
 
 	public Replica(Properties prop, String serverPublicIp, int serverPublicPort, int serverVirtualPort) {
 		super(prop);
@@ -480,7 +480,8 @@ public class Replica extends Connector {
 				Long key = logger.getOperation(cmsg).getTimestamp();
 				consensusTimeMap.put(key, Instant.now().toEpochMilli() - receiveRequestTimeMap.get(key));
 				double duration = (double)(consensusTimeMap.get(key)) / 1000;
-				System.err.printf("Consensus Completed #%d\t%f sec\n", cmsg.getSeqNum(), duration);
+
+				measureDebugger.info(String.format("Consensus Completed #%d\t%f sec\n", cmsg.getSeqNum(), duration));
 			}
 			if (priorityQueue.stream().noneMatch(x -> x.getSeqNum() == cmsg.getSeqNum()))
 				priorityQueue.add(cmsg);
@@ -825,7 +826,7 @@ public class Replica extends Connector {
 					.mapToLong(Long::longValue)
 					.average()
 					.orElse(0);
-			System.err.println("Average Consensus Time : " + avg / 1000);
+			measureDebugger.info(String.format("Average Consensus Time : ", avg/1000));
 		}
 	}
 	public class printQueue extends TimerTask {

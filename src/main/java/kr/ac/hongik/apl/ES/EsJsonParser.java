@@ -97,10 +97,6 @@ public class EsJsonParser {
 		if (map.containsKey("columns") && map.containsKey("rows")) {
 			List<HashMap> columns = (List) (map.get("columns"));
 			List<ArrayList> rows = (List) map.get("rows");
-			if (Replica.DEBUG) {
-				System.err.println("columns size: " + columns.size());
-				System.err.println("rows size: " + rows.size());
-			}
 
 			LinkedHashMap resultMap = new LinkedHashMap();
 			int count = 0;
@@ -111,12 +107,8 @@ public class EsJsonParser {
 				}
 				resultMap.put(i, tmpMap);
 				count++;
-				if (Replica.DEBUG) {
-					System.err.println("Add tmp. block_no: " + tmpMap.get("block_number") + " entry_no: " + tmpMap.get("entry_number"));
-				}
-			}
-			if (Replica.DEBUG) {
-				System.err.println("count: " + count);
+
+				Replica.msgDebugger.debug(String.format("Add tmp. block_no: %d entry_no: %d", tmpMap.get("block_number"), tmpMap.get("entry_number")));
 			}
 			return resultMap;
 		} else {

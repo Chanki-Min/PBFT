@@ -199,9 +199,8 @@ public class BlockVerificationOperation extends Operation {
 
 	private boolean equals(Map<String, Object> ori, Map<String, Object> res) {
 		if (ori.size() != res.size()) {
-			if (Replica.DEBUG) {
-				System.err.printf("isMapSame::size NOT same. ori: %d, res: %d\n", ori.size(), res.size());
-			}
+			Replica.msgDebugger.debug(String.format("isMapSame::size NOT same. ori: %d, res: %d", ori.size(), res.size()));
+
 			return false;
 		}
 		/*

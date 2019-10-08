@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl.Operations;
 
 import kr.ac.hongik.apl.Logger;
-import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
@@ -25,18 +24,11 @@ public class InsertHeaderOperation extends Operation {
 	 * @return indexNum that PBFT actually insert to db
 	 */
 	@Override
-	public Object execute(Object obj) {
+	public Object execute(Object obj) throws SQLException {
 		int indexNum = -1;
-		try {
 			Logger logger = (Logger) obj;
 			createTableIfNotExists(logger);
 			indexNum = storeHeaderAndReturnIdx(blockNumber, root, logger);
-		} catch (SQLException e) {
-			if (Replica.DEBUG) {
-				e.printStackTrace();
-			}
-			throw new Error(e);
-		}
 		return indexNum;
 	}
 

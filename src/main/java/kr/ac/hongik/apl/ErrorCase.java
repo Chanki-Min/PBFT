@@ -7,6 +7,7 @@ import kr.ac.hongik.apl.Operations.Operation;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SocketChannel;
+import java.sql.SQLException;
 import java.util.Properties;
 
 import static java.lang.Thread.sleep;
@@ -15,7 +16,7 @@ import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 
 public class ErrorCase {
-	public static void doFaulty(Replica replica, int errno, int primaryErrSeqNum, PreprepareMessage preprepareMessage) {
+	public static void doFaulty(Replica replica, int errno, int primaryErrSeqNum, PreprepareMessage preprepareMessage) throws SQLException {
 		int seqNum = preprepareMessage.getSeqNum();
 		if ((seqNum % 10 == primaryErrSeqNum && 0 == replica.getViewNum() % Connector.getReplicaMap().size()) ||
 				(seqNum % 10 == primaryErrSeqNum - 1 && 1 == replica.getViewNum() % Connector.getReplicaMap().size()) ||
@@ -69,7 +70,7 @@ public class ErrorCase {
 		Connector.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
 	}
 
-	public static void primarySendAllReplyMsg(Replica replica, int seqNum, PreprepareMessage preprepareMessage) {
+	public static void primarySendAllReplyMsg(Replica replica, int seqNum, PreprepareMessage preprepareMessage) throws SQLException {
 		PrepareMessage prepareMessage = makePrepareMsg(replica.getPrivateKey(), replica.getViewNum(), seqNum, preprepareMessage.getDigest(), replica.getMyNumber());
 		CommitMessage commitMessage = CommitMessage.makeCommitMsg(replica.getPrivateKey(), replica.getViewNum(), seqNum, prepareMessage.getDigest(), replica.getMyNumber());
 		var operation = preprepareMessage.getOperation();
@@ -89,5 +90,6 @@ public class ErrorCase {
 		for (int i = 0; i < 4; i++)
 			replica.send(destination, replyMessage);
 		return;
+
 	}
 }

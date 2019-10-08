@@ -2,6 +2,7 @@ package kr.ac.hongik.apl.Operations;
 
 import java.io.Serializable;
 import java.security.PublicKey;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -21,7 +22,7 @@ public abstract class Operation implements Serializable {
         return this;
     }
 
-    public abstract Object execute(Object obj);
+    public abstract Object execute(Object obj) throws SQLException;
 
 	public PublicKey getClientInfo() {
         return this.clientInfo;

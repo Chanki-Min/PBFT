@@ -198,9 +198,8 @@ public class DataInsertionByBrokerTest {
 			HashTree hashTree = new HashTree(dataList.stream().map(x -> genson.serialize(x)).map(Util::hash).toArray(String[]::new));
 			Triple<Integer, String, String> currHeader = new ImmutableTriple<>(blockNumber, hashTree.toString(), Util.hash(prevHeader.toString()));
 			SecretKey key = makeSymmetricKey(currHeader.toString());
-			if (Replica.DEBUG) {
-				System.err.println("currHeader = " + currHeader.toString());
-			}
+
+			Replica.msgDebugger.debug(String.format("currHeader = %s", currHeader.toString()));
 
 			List<byte[]> cipher = new ArrayList<>();
 			for (Map<String, Object> x: dataList) {

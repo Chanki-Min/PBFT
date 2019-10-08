@@ -27,9 +27,9 @@ public class SqlSearchOperationTest {
 
 	@Test
 	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
-		int fetchSize = 5;
+		int fetchSize = 1000;
 		String HttpProtocol = "GET";
-		String query = "SELECT * from block_chain";
+		String query = "SELECT * from car_log";
 
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
@@ -46,6 +46,7 @@ public class SqlSearchOperationTest {
 		System.err.println("converting pbftResultBody to LinkedHashMap....");
 		EsJsonParser esJsonParser = new EsJsonParser();
 		LinkedHashMap resultMap = esJsonParser.sqlResponseStringToLinkedMap(pbftResultBody);
+		int i=0;
 	}
 
 	@Test
