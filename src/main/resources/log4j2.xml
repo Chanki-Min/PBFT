@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+    <Appenders>
+        <Console name="console" target="SYSTEM_OUT">
+            <PatternLayout pattern="[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] - %m%n"/>
+        </Console>
+        <Console name="detail" target="SYSTEM_OUT">
+            <PatternLayout pattern="    [%-5level] [%t] - %m%n"/>
+        </Console>
+        <File name="debugFile" fileName="debug.log" append="true">
+            <PatternLayout pattern="[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] - %m%n"/>
+        </File>
+    </Appenders>
+    <Loggers>
+        <Root level="info" additivity="false">
+            <AppenderRef ref="console"/>
+            <AppenderRef ref="debugFile"/>
+        </Root>
+        <Logger name="detail" level="info" additivity="false">
+            <AppenderRef ref="detail"/>
+            <AppenderRef ref="debugFile"/>
+        </Logger>
+        <Logger name="measure" level="info" additivity="false">
+            <AppenderRef ref="console"/>
+            <AppenderRef ref="debugFile"/>
+        </Logger>
+    </Loggers>
+</Configuration>
+
