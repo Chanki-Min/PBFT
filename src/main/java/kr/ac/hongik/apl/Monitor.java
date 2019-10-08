@@ -20,12 +20,11 @@ public class Monitor extends Client {
 	private TimeUnit timeUnit;
 	private List<Long> verificationTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
 	private Runnable verifier = () -> {
-		System.err.println("verifier start");
-		System.err.printf("%s\n", new String(new char[80]).replace("\0", "="));
+		Replica.msgDebugger.info(String.format("%s", new String(new char[80]).replace("\0", "=")));
 		List<String> indices = Arrays.asList("car_log", "user_log");
 		int maxBlockNumber = getLatestBlockNumber();
 		if (maxBlockNumber == -1) {
-			System.err.println("Block not exist. Abort verification");
+			Replica.msgDebugger.info(String.format("Block not exist. Abort verification"));
 			return;
 		}
 		for (int blockNumber = 0; blockNumber < maxBlockNumber; blockNumber++) {
@@ -35,7 +34,7 @@ public class Monitor extends Client {
 			if (Replica.MEASURE) {
 				if (verificationTimes.size() == 100) {
 					double verification_avg = verificationTimes.stream().mapToDouble(x -> x).average().orElse(Double.NaN) / 1000.0;
-					System.err.printf("MEASURE::car_log average of 100 insertion : %f\n", verification_avg);
+					Replica.measureDebugger.info(String.format("MEASURE::car_log average of 100 insertion : %f", verification_avg));
 				}
 				verificationTimes.add(Instant.now().toEpochMilli());
 			}
@@ -45,9 +44,10 @@ public class Monitor extends Client {
 				long start = verificationTimes.get(verificationTimes.size() - 1);
 				verificationTimes.remove(verificationTimes.size() - 1);
 				verificationTimes.add(Instant.now().toEpochMilli() - start);
-				System.err.printf("MEASURE::car_log insertion end with Time : %f\n", ((double) verificationTimes.get(verificationTimes.size() - 1)) / 1000.0);
+				Replica.measureDebugger.info(String.format("MEASURE::car_log insertion end with Time : %f", ((double) verificationTimes.get(verificationTimes.size() - 1)) / 1000.0));
 			}
 			printResult(result);
+			Replica.msgDebugger.info(String.format("%s", new String(new char[80]).replace("\0", "=")));
 		}
 	};
 
@@ -82,8 +82,7 @@ public class Monitor extends Client {
 	}
 
 	private void start() {
-		System.err.printf("monitoring start. verify period : %d%s\n", time, timeUnit.toString());
-		System.err.println("add verification schedule to process\n");
+		Replica.msgDebugger.info(String.format("monitering start. verify period : %d%s", time, timeUnit.toString()));
 
 		ScheduledExecutorService verifierSchedule = Executors.newSingleThreadScheduledExecutor();
 		verifierSchedule.scheduleWithFixedDelay(verifier, time, time, timeUnit);
@@ -104,8 +103,7 @@ public class Monitor extends Client {
 		Genson genson = new GensonBuilder().useRuntimeType(true).useClassMetadata(true).create();
 		for (String log: result) {
 			LinkedHashMap map = genson.deserialize(log, LinkedHashMap.class);
-			map.keySet().stream().forEach(k -> System.err.printf("%-10s : %s\n", k, map.get(k)));
-			System.err.printf("%s\n", new String(new char[80]).replace("\0", "="));
+			map.keySet().stream().forEach(k -> Replica.msgDebugger.info(String.format("%-10s : %s", k, map.get(k))));
 		}
 	}
 }

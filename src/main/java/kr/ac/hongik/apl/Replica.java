@@ -68,7 +68,7 @@ public class Replica extends Connector {
 			listener.bind(new InetSocketAddress(serverVirtualPort));
 			listener.register(this.selector, SelectionKey.OP_ACCEPT);
 		} catch (IOException e) {
-			System.err.println(e);
+			msgDebugger.error(e);
 		}
 		super.connect();
 	}
@@ -126,7 +126,7 @@ public class Replica extends Connector {
 			Replica replica = new Replica(properties, publicIp, publicPort, virtualPort);
 			replica.start();
 		} catch (ArrayIndexOutOfBoundsException e) {
-			System.err.println("Usage: program <ip> <port>");
+			msgDebugger.error(String.format("Usage: program <ip> <port>"));
 		}
 	}
 
@@ -460,7 +460,7 @@ public class Replica extends Connector {
 				this.clients.add(channel);
 				break;
 			default:
-				System.err.printf("Invalid header message: %s\n", message);
+				msgDebugger.error(String.format("Invalid header message : %s", message));
 		}
 	}
 
@@ -495,8 +495,7 @@ public class Replica extends Connector {
 					Optional.ofNullable(timer).ifPresent(Timer::cancel);
 
 					if (operation != null) {
-						System.err.printf("Execute #%d\n", rightNextCommitMsg.getSeqNum());
-
+						msgDebugger.info(String.format("Executed #%d", rightNextCommitMsg.getSeqNum()));
 						Object ret = operation.execute(this.logger);
 						if(MEASURE) {
 							if (rightNextCommitMsg.getSeqNum()%10 == 0) {
@@ -827,17 +826,6 @@ public class Replica extends Connector {
 					.average()
 					.orElse(0);
 			measureDebugger.info(String.format("Average Consensus Time : ", avg/1000));
-		}
-	}
-	public class printQueue extends TimerTask {
-		Replica replica;
-
-		public printQueue(Replica replica) {
-			this.replica = replica;
-		}
-
-		public void run() {
-			replica.receiveBuffer.stream().forEach(x -> System.err.println(x.getClass().getName()));
 		}
 	}
 }

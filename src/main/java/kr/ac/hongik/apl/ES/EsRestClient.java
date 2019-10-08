@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.ES;
 
 
+import kr.ac.hongik.apl.Replica;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
@@ -120,7 +121,7 @@ public class EsRestClient {
 		DeleteIndexRequest request = new DeleteIndexRequest(indexName);
 		AcknowledgedResponse response = restHighLevelClient.indices().delete(request, RequestOptions.DEFAULT);
 		if (response.isAcknowledged()) {
-			System.out.println(indexName + " DELETED from Cluster");
+			Replica.msgDebugger.info(String.format("%s DELETED from Cluster", indexName));
 		} else {
 			throw new EsException("Cannot DELETE " + indexName);
 		}
@@ -144,7 +145,7 @@ public class EsRestClient {
 		try {
 			CreateIndexResponse response = restHighLevelClient.indices().create(request, RequestOptions.DEFAULT);
 			if (response.isAcknowledged()) {
-				System.out.println(indexName + " CREATED to Cluster");
+				Replica.msgDebugger.info(String.format("%s Created to Cluster", indexName));
 			} else {
 				throw new EsException("Cannot CREATE " + indexName);
 			}
@@ -199,19 +200,19 @@ public class EsRestClient {
 		BulkProcessor.Listener listener = new BulkProcessor.Listener() {
 			@Override
 			public void beforeBulk(long executionId, BulkRequest request) {
-				//System.err.println("bulk insertion START, LEN :"+request.numberOfActions()+" SIZE :"+request.estimatedSizeInBytes());
+				Replica.msgDebugger.debug(String.format( "bulk insertion START, LEN : %s SIZE : %s", request.numberOfActions(), request.estimatedSizeInBytes()));
 			}
 
 			@Override
 			public void afterBulk(long executionId, BulkRequest request,
 								  BulkResponse response) {
-				//System.err.println("bulk insertion OK, LEN :"+request.numberOfActions()+" SIZE :"+request.estimatedSizeInBytes()+" exeID :"+executionId);
+				Replica.msgDebugger.debug(String.format( "bulk insertion Success, LEN : %s SIZE : %s exeID : %s", request.numberOfActions(), request.estimatedSizeInBytes(), executionId));
 			}
 
 			@Override
 			public void afterBulk(long executionId, BulkRequest request,
 								  Throwable failure) {
-				System.err.println("bulk insertion FAIL, cause :" + failure);
+				Replica.msgDebugger.error(String.format("bulk insertion FAIL, cause : %s", failure));
 			}
 		};
 		BulkProcessor.Builder processorBuilder = BulkProcessor.builder(
@@ -326,7 +327,7 @@ public class EsRestClient {
 			if (Arrays.stream(checkList).allMatch(x -> x)) {
 				return;
 			} else {
-				System.err.println("esMasterInfo.json has unexpected format");
+				Replica.msgDebugger.error(String.format("esMasterInfo.json has unexpected format"));
 				throw new NoSuchFieldException();
 			}
 		} catch (Exception e) {

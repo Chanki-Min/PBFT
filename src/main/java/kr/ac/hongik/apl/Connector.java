@@ -123,7 +123,6 @@ abstract class Connector {
 			return;
 
 		} catch (IOException e) {
-			//System.err.println(e);
 			reconnect(channel);
 		}
 	}
@@ -198,7 +197,7 @@ abstract class Connector {
 						reconnect(channel);
 					}
 				} else {
-					System.err.printf("Not acceptable and also not readable: %s\n", key);
+					Replica.msgDebugger.error(String.format("Not acceptable and also not readable: %s", key));
 				}
 
 			}

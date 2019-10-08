@@ -3,6 +3,7 @@ package kr.ac.hongik.apl.Operations;
 import com.owlike.genson.Genson;
 import com.owlike.genson.GensonBuilder;
 import kr.ac.hongik.apl.ES.EsRestClient;
+import kr.ac.hongik.apl.Replica;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
@@ -69,7 +70,7 @@ public class SQLSearchOperation extends Operation {
 			return responseBody;
 		} catch (ResponseException e) {
 			e.printStackTrace();
-			System.err.println("SQLSearchOperation::ResponseException::Continuing PBFT Service...");
+			Replica.msgDebugger.error(String.format("SQLSearchOperation::ResponseException::Continuing PBFT Service..."));
 			return e.getMessage();
 		} catch (NoSuchFieldException | IOException | EsRestClient.EsSSLException e) {
 			throw new Error(e);

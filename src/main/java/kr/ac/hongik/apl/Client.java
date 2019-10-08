@@ -123,7 +123,7 @@ public class Client extends Connector {
 
 							if(Replica.MEASURE){
 								turnAroundTimeMap.put(replyMessage.getTime(), Instant.now().toEpochMilli() - replyMessage.getTime());
-								System.err.printf("Turn Around Time : %f\n", ((double) (turnAroundTimeMap.get(replyMessage.getTime())) / 1000));
+								Replica.measureDebugger.info(String.format("Turn Around Time : %f", ((double) (turnAroundTimeMap.get(replyMessage.getTime())) / 1000)));
 							}
 							return replyMessage.getResult();
 						}
@@ -196,7 +196,7 @@ public class Client extends Connector {
 					.mapToLong(Long::longValue)
 					.average()
 					.orElse(0);
-			System.err.println("Average Turn Around TIme : " + avg * 1000);
+			Replica.measureDebugger.info(String.format("Average Turn Around Time : %f", avg*1000));
 		}
 	}
 }

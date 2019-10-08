@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.Operations;
 
 import kr.ac.hongik.apl.Logger;
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
@@ -55,7 +56,7 @@ public class InsertHeaderOperation extends Operation {
 		String query = "INSERT INTO " + tableName + " VALUES ( ?, ?, ? )";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			Triple<Integer, String, String> previousBlock = getLatestBlock(logger);
-			System.err.println("previousBlock#: " + previousBlock.getLeft());
+			Replica.msgDebugger.debug(String.format("previousBlock : %d", previousBlock.getLeft()));
 			String prevHash = Util.hash(previousBlock.toString());
 
 			psmt.setInt(1, previousBlock.getLeft() + 1);

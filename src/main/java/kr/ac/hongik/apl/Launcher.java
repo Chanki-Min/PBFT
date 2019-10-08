@@ -29,10 +29,10 @@ public class Launcher {
 					.getLocation()
 					.getPath()
 			).getName();
-			System.err.println(e);
-			System.err.printf("Usage: java -jar %s server|client [<publicIp> <publicPort> <virtualPort>]\n", name);
-			System.err.printf("Usage: java -jar %s monitor [<time as seconds, default = 1Hour>]\n", name);
-			System.err.printf("Usage: java -jar %s broker [<insert duration> <max queue size> <is data loop true|false>]\n", name);
+			Replica.msgDebugger.error(e);
+			Replica.msgDebugger.error("Usage: java -jar %s server|client [<publicIp> <publicPort> <virtualPort>]", name);
+			Replica.msgDebugger.error("Usage: java -jar %s monitor [<time as seconds, default = 1Hour>]", name);
+			Replica.msgDebugger.error("Usage: java -jar %s broker [<insert duration> <max queue size> <is data loop true|false>]", name);
 		}
 	}
 }
