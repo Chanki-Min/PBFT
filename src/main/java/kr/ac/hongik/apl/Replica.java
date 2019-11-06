@@ -30,9 +30,9 @@ import static kr.ac.hongik.apl.Messages.UnstableCheckPoint.makeUnstableCheckPoin
 
 public class Replica extends Connector {
 	public static final boolean DEBUG = false;
-	public final static int WATERMARK_UNIT = 10;
+	public final static int WATERMARK_UNIT = 1000;
 	public static int VERIFY_UNIT = 10; //Verify Block at every 100th insertion
-	final static boolean MEASURE = false;
+	final static boolean MEASURE = true;
 	private final int myNumber;
 	public Object watermarkLock = new Object();
 	public Object viewChangeLock = new Object();

@@ -20,7 +20,7 @@ public class Demo {
 		Generator generator = new Generator(initPath, true);
 
 		Client client = new Client(prop);
-		while (true) {
+		for(int i = 0; i < 10; ++i){
 			String json = new Genson().serialize(generator.generate());
 			Operation op = new GreetingOperation(client.getPublicKey(), json);
 			RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
@@ -29,6 +29,7 @@ public class Demo {
 
 			//System.out.println(ret.toString());
 		}
+		client.printTurnAroundTime();
 
 	}
 }

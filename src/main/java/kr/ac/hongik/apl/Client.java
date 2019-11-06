@@ -13,6 +13,7 @@ import java.security.PublicKey;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Random;
 
 public class Client extends Connector {
 	private HashMap<Long, Integer[]> replies = new HashMap<>();
@@ -21,6 +22,7 @@ public class Client extends Connector {
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
 	private Long receivingTimeStamp;
 	private Object replyLock = new Object();
+	private Random rand = new Random();
 
 	private HashMap<Long, Long> turnAroundTimeMap = new HashMap<>();
 
@@ -68,7 +70,7 @@ public class Client extends Connector {
 		}
 	}
 
-	public Object getReply() {
+	public Object getReply()  {
 		ReplyMessage replyMessage;
 
 
@@ -121,9 +123,17 @@ public class Client extends Connector {
 							timerMap.get(replyMessage.getTime()).cancel();
 							timerMap.remove(replyMessage.getTime());
 
+							var sleepTime = (long) (rand.nextGaussian() * 0.2 + 3.2) * 1000;
+
+							try {
+								Thread.sleep(sleepTime);
+							} catch (InterruptedException e) {
+								throw new RuntimeException(e);
+							}
 							if(Replica.MEASURE){
 								turnAroundTimeMap.put(replyMessage.getTime(), Instant.now().toEpochMilli() - replyMessage.getTime());
-								Replica.measureDebugger.info(String.format("Turn Around Time : %f", ((double) (turnAroundTimeMap.get(replyMessage.getTime())) / 1000)));
+								Replica.measureDebugger.info(String.format("Time : %.3fs",
+										turnAroundTimeMap.get(replyMessage.getTime()) / 1000.));
 							}
 							return replyMessage.getResult();
 						}
@@ -196,7 +206,7 @@ public class Client extends Connector {
 					.mapToLong(Long::longValue)
 					.average()
 					.orElse(0);
-			Replica.measureDebugger.info(String.format("Average Turn Around Time : %f", avg*1000));
+			Replica.measureDebugger.info(String.format("Average Time : %.3fs", avg / 1000. ));
 		}
 	}
 }

@@ -22,7 +22,7 @@ public class Launcher {
 					break;
 				case "demo":
 					Demo.main(Arrays.stream(args).skip(1).toArray(String[]::new));
-
+					break;
 				default:
 					throw new IllegalArgumentException();
 			}
