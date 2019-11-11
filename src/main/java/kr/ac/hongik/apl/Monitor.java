@@ -2,6 +2,7 @@ package kr.ac.hongik.apl;
 
 import com.owlike.genson.Genson;
 import com.owlike.genson.GensonBuilder;
+import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.BlockVerificationOperation;
 import kr.ac.hongik.apl.Operations.GetLatestBlockNumberOperation;
@@ -19,16 +20,18 @@ public class Monitor extends Client {
 	private int time;
 	private TimeUnit timeUnit;
 	private List<Long> verificationTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
+	private Map<String, Object> esRestClientConfigs;
+
 	private Runnable verifier = () -> {
 		Replica.msgDebugger.info(String.format("%s", new String(new char[80]).replace("\0", "=")));
-		List<String> indices = Arrays.asList("car_log", "user_log");
+		List<String> indices = List.of("car_log", "user_log");
 		int maxBlockNumber = getLatestBlockNumber();
 		if (maxBlockNumber == -1) {
 			Replica.msgDebugger.info(String.format("Block not exist. Abort verification"));
 			return;
 		}
 		for (int blockNumber = 0; blockNumber < maxBlockNumber; blockNumber++) {
-			Operation verifyBlockOp = new BlockVerificationOperation(super.getPublicKey(), blockNumber, indices);
+			Operation verifyBlockOp = new BlockVerificationOperation(super.getPublicKey(),esRestClientConfigs ,blockNumber, indices);
 			RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(super.getPrivateKey(), verifyBlockOp);
 
 			if (Replica.MEASURE) {
@@ -82,8 +85,29 @@ public class Monitor extends Client {
 	}
 
 	private void start() {
-		Replica.msgDebugger.info(String.format("monitering start. verify period : %d%s", time, timeUnit.toString()));
+		Scanner scanner = new Scanner(System.in);
+		Genson genson = new Genson();
+		InputStream in = Monitor.class.getResourceAsStream("/ES_Connection/esRestClient_connection_info.json");
+		esRestClientConfigs = genson.deserialize(in, Map.class);
 
+		Replica.msgDebugger.info(String.format("insert Elasticsearch username : "));
+		esRestClientConfigs.put("userName", scanner.next());
+		Replica.msgDebugger.info(String.format("insert Elasticsearch password : "));
+		esRestClientConfigs.put("passWord", scanner.next());
+		Replica.msgDebugger.info(String.format("insert Elasticsearch certification password : "));
+		esRestClientConfigs.put("certPassWord", scanner.next());
+
+		try {
+			EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
+			esRestClient.connectToEs();
+			esRestClient.getClusterInfo();
+			esRestClient.disConnectToEs();
+		} catch (Exception e) {
+			Replica.msgDebugger.error(e.getMessage());
+			System.exit(1);
+		}
+
+		Replica.msgDebugger.info(String.format("monitoring start. verify period : %d%s", time, timeUnit.toString()));
 		ScheduledExecutorService verifierSchedule = Executors.newSingleThreadScheduledExecutor();
 		verifierSchedule.scheduleWithFixedDelay(verifier, time, time, timeUnit);
 	}

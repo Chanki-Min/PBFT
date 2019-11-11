@@ -21,26 +21,20 @@ public class SQLSearchOperation extends Operation {
 	private String SqlQuery;
 	private int fetchSize;
 	private boolean enableAutoPaging;
+	private Map<String, Object> esRestClientConfigs;
 	private EsRestClient esRestClient;
 
 	/**
 	 * @param clientInfo   client's PublicKey
-	 * @param HttpProtocol HttpProtocol of following query (GET, PUT, POST)
-	 * @param SqlQuery     Query String that following ElasticSearch's SQL query format
-	 */
-	public SQLSearchOperation(PublicKey clientInfo, String HttpProtocol, String SqlQuery) {
-		this(clientInfo, HttpProtocol, SqlQuery, 100, true);
-	}
-
-	/**
-	 * @param clientInfo   client's PublicKey
+	 * @param esRestClientConfigs esRestClient's configs (please look EsRestClient javadoc)
 	 * @param HttpProtocol HttpProtocol of following query (GET, PUT, POST)
 	 * @param SqlQuery     Query String that following ElasticSearch's SQL query format
 	 * @param fetchSize    determine maximum size of one page
 	 * @param enableAutoPaging if true, enable auto paging
 	 */
-	public SQLSearchOperation(PublicKey clientInfo, String HttpProtocol, String SqlQuery, int fetchSize, boolean enableAutoPaging) {
+	public SQLSearchOperation(PublicKey clientInfo, Map<String, Object> esRestClientConfigs ,String HttpProtocol, String SqlQuery, int fetchSize, boolean enableAutoPaging) {
 		super(clientInfo);
+		this.esRestClientConfigs = esRestClientConfigs;
 		this.HttpProtocol = HttpProtocol;
 		this.SqlQuery = getSqlQuery("query", SqlQuery, fetchSize);
 		this.fetchSize = fetchSize;
@@ -54,7 +48,7 @@ public class SQLSearchOperation extends Operation {
 	@Override
 	public String execute(Object obj) {
 		try {
-			esRestClient = new EsRestClient();
+			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 			String responseBody = EntityUtils.toString(getResponse(SqlQuery).getEntity());
 			if (enableAutoPaging) {
@@ -112,6 +106,7 @@ public class SQLSearchOperation extends Operation {
 		return genson.serialize(toMap);
 	}
 
+	//TODO : genson이나 jackson으로 map serialize해서 사용하자
 	private String getSqlQuery(String key, String query, int fetchSize) {
 		StringBuilder builder = new StringBuilder();
 		return builder.append("{ \"").append(key).append("\" : \"").append(query).append("\"")

@@ -56,33 +56,39 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class EsRestClient {
-	private final boolean DEBUG = false;
-	private String masterJsonPath = "/ES_Connection/esMasterInfo.json";
-	private String masterJsonKey = "masterHostInfo";
+	private Map<String, Object> configs;
 	private List<String> hostNames = new ArrayList<>();
 	private List<Integer> ports = new ArrayList<>();
 	private List<String> hostSchemes = new ArrayList<>();
 	private RestHighLevelClient restHighLevelClient = null;
 
-	public EsRestClient() {
+	/**
+	 * @param config EsRestClient의 설정값을 담은 맵, 요구되는 필드는 다음과 같다. <br/>
+	 * String userName : elasticsearch username을 작성<br/>
+	 * String passWord : elasticsearch password를 작성<br/>
+	 * String certPath : EsRestClient가 사용할 elasticsearch의 certification.p12파일의 경로<br/>
+	 * String certPassWord : .p12 인증서 비밀번호 <br/>
+	 * List<\Map> masterHostInfo : Map들의 리스트로 맵의 구조는 다음과 같다<br/>
+	 *               String name : elasticsearch node name<br/>
+	 *               String hostName : node's hostname<br/>
+	 *               String port : node's port<br/>
+	 *               String hostScheme : connection Scheme (http, https...)<br/>
+	 */
+	public EsRestClient(Map<String, Object> config) {
+		configs = config;
 	}
 
 	public void connectToEs() throws NoSuchFieldException, EsSSLException {
-		getMasterNodeInfo();
+		getMasterNodeInfo(configs);
 		try {
-			EsJsonParser parser = new EsJsonParser();
-			parser.setFilePath("/ES_Connection/esRestClient_connenction_info.json");
-			Map<String, String> connInfo = parser.jsonFileToMap();
+			final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
 
-			final CredentialsProvider credentialsProvider =
-					new BasicCredentialsProvider();
-			//TODO: superuser가 아닌 계정을 사용하게 변경, password 암호화
 			credentialsProvider.setCredentials(AuthScope.ANY,
-					new UsernamePasswordCredentials(connInfo.get("userName"), connInfo.get("passWord")));
+					new UsernamePasswordCredentials((String) configs.get("userName"), (String) configs.get("passWord")));
 
 			KeyStore trustStore = KeyStore.getInstance("jks");
-			InputStream is = EsRestClient.class.getResourceAsStream(connInfo.get("certPath"));
-			trustStore.load(is, connInfo.get("certPassWord").toCharArray());
+			InputStream is = EsRestClient.class.getResourceAsStream((String) configs.get("certPath"));
+			trustStore.load(is, ((String) configs.get("certPassWord")).toCharArray());
 
 			SSLContextBuilder sslBuilder = SSLContexts.custom()
 					.loadTrustMaterial(trustStore, null);
@@ -103,8 +109,33 @@ public class EsRestClient {
 					});
 			restHighLevelClient = new RestHighLevelClient(builder);
 		} catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
-			e.printStackTrace();
 			throw new EsSSLException(e.getMessage());
+		}
+	}
+
+	/**
+	 * read masterHostInfo field from configs and return parsed http format data
+	 *
+	 * @throws NoSuchFieldException
+	 */
+	private void getMasterNodeInfo(Map<String, Object> configs) throws NoSuchFieldException {
+		List<Map> masterMap = (List<Map>) configs.get("masterHostInfo");
+		Boolean[] checkList = new Boolean[3];
+
+		for (var masterInfo: masterMap) {
+			this.hostNames.add(masterInfo.get("hostName").toString());
+			this.ports.add(Integer.parseInt(masterInfo.get("port").toString()));
+			this.hostSchemes.add(masterInfo.get("hostScheme").toString());
+		}
+		checkList[0] = hostNames.stream().distinct().count() == masterMap.size();
+		checkList[1] = ports.size() == masterMap.size();
+		checkList[2] = hostSchemes.size() == masterMap.size();
+
+		if (Arrays.stream(checkList).allMatch(x -> x)) {
+			return;
+		} else {
+			Replica.msgDebugger.error(String.format("configs property has unexpected format"));
+			throw new NoSuchFieldException();
 		}
 	}
 
@@ -303,39 +334,6 @@ public class EsRestClient {
 		return Pair.of(plain_data_list, encrypt_data_list);
 	}
 
-	/**
-	 * read "resources/esMasterInfo.json" and parse to httpHost format
-	 *
-	 * @throws NoSuchFieldException
-	 */
-	private void getMasterNodeInfo() throws NoSuchFieldException {
-		try {
-			EsJsonParser esJsonParser = new EsJsonParser();
-			esJsonParser.setFilePath(masterJsonPath);
-			List<Map> masterMap = esJsonParser.listedJsonFileToList(masterJsonKey);
-			Boolean[] checkList = new Boolean[3];
-
-			for (var masterInfo: masterMap) {
-				this.hostNames.add(masterInfo.get("hostName").toString());
-				this.ports.add(Integer.parseInt(masterInfo.get("port").toString()));
-				this.hostSchemes.add(masterInfo.get("hostScheme").toString());
-			}
-			checkList[0] = hostNames.stream().distinct().count() == masterMap.size();
-			checkList[1] = ports.size() == masterMap.size();
-			checkList[2] = hostSchemes.size() == masterMap.size();
-
-			if (Arrays.stream(checkList).allMatch(x -> x)) {
-				return;
-			} else {
-				Replica.msgDebugger.error(String.format("esMasterInfo.json has unexpected format"));
-				throw new NoSuchFieldException();
-			}
-		} catch (Exception e) {
-			StringBuilder builder = new StringBuilder();
-			throw new NoSuchFieldException();
-		}
-	}
-
 	public Set getFieldKeySet(String indexName) throws IOException {
 		GetMappingsRequest request = new GetMappingsRequest();
 		request.indices(indexName);
@@ -363,15 +361,12 @@ public class EsRestClient {
 	/**
 	 * @param indices list of search target indices
 	 * @return latest block_number of indices
-	 * @throws NoSuchFieldException
 	 * @throws IOException
-	 * @throws EsRestClient.EsSSLException
 	 */
-	public String getIndexNameFromBlockNumber(int blockNumber, List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
-		EsRestClient esRestClient = new EsRestClient();
-		esRestClient.connectToEs();
+	public String getIndexNameFromBlockNumber(int blockNumber, List<String> indices) throws IOException {
 
-		SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[indices.size()]));
+
+		SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0]));
 		SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
 
 		sourceBuilder.query(QueryBuilders.termQuery("block_number", blockNumber));
@@ -379,7 +374,7 @@ public class EsRestClient {
 		sourceBuilder.fetchSource(false);
 
 		searchRequest.source(sourceBuilder);
-		SearchResponse response = esRestClient.getClient().search(searchRequest, RequestOptions.DEFAULT);
+		SearchResponse response = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
 
 		if (response.getHits().getTotalHits().value == 0) {
 			return null;

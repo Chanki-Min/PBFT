@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 
 public class ConcurrentBulkInsertThread extends Thread {
+	private EsRestClient esRestClient;
+	private Map<String, Object> esRestClientConfigs;
 	private final String indexName;
 	private final int block_number;
 	private final List<Map<String, Object>> plain_data;
@@ -18,10 +20,9 @@ public class ConcurrentBulkInsertThread extends Thread {
 	private final int sleepTime;
 	private final int versionNumber;
 	private List<byte[]> restoredData = null;
-	private EsRestClient esRestClient;
 
-
-	public ConcurrentBulkInsertThread(String indexName, int block_number, List<Map<String, Object>> plain_data, List<byte[]> encrypt_data, int sleepTime, int versionNumber, int threadID) {
+	public ConcurrentBulkInsertThread(Map esRestClientConfigs, String indexName, int block_number, List<Map<String, Object>> plain_data, List<byte[]> encrypt_data, int sleepTime, int versionNumber, int threadID) {
+		this.esRestClientConfigs = esRestClientConfigs;
 		this.indexName = indexName;
 		this.block_number = block_number;
 		this.plain_data = plain_data;
@@ -35,8 +36,8 @@ public class ConcurrentBulkInsertThread extends Thread {
 	public void run() {
 		System.err.println("Thread stated, ThreadNum #" + threadID);
 		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
 		try {
+			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 
 			if (!isIndexExists(indexName)) {
@@ -49,8 +50,6 @@ public class ConcurrentBulkInsertThread extends Thread {
 					parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 					settingBuilder = parser.jsonFileToXContentBuilder(false);
 
-					EsRestClient esRestClient = new EsRestClient();
-					esRestClient.connectToEs();
 					esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 				} catch (EsRestClient.EsConcurrencyException e) {
 					System.err.println("Thread #" + threadID + " " + e.getClass().toString() + " " + e.getMessage());

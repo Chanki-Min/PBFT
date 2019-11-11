@@ -1,3 +1,4 @@
+/*
 package kr.ac.hongik.apl.Operation;
 
 import kr.ac.hongik.apl.Client;
@@ -141,3 +142,5 @@ public class SearchOperationTest {
 		List<String> ser = finalResult.stream().map(x -> Strings.toString(x)).collect(Collectors.toList());
 	}
 }
+
+ */

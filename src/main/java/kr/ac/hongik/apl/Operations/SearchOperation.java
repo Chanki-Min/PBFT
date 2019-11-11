@@ -1,3 +1,4 @@
+/*
 package kr.ac.hongik.apl.Operations;
 
 import com.owlike.genson.Genson;
@@ -28,7 +29,7 @@ public class SearchOperation extends Operation {
 	private Map queryMap;
 	private String[] indices;
 
-	public SearchOperation(PublicKey clientInfo, Map queryMap, String[] indices) throws IOException {
+	public SearchOperation(PublicKey clientInfo, Map queryMap, String[] indices) {
 		super(clientInfo);
 		this.queryMap = queryMap;
 		this.indices = indices;
@@ -92,3 +93,6 @@ public class SearchOperation extends Operation {
 
 	}
 }
+
+
+ */

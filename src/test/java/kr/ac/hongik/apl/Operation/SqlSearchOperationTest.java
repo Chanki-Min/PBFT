@@ -14,29 +14,45 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 public class SqlSearchOperationTest {
+	private Map<String, Object> esRestClientConfigs;
+
+	@BeforeEach
+	public void makeConfig() {
+		esRestClientConfigs = new HashMap<>();
+		esRestClientConfigs.put("userName", "apl");
+		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
+		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
+
+		Map<String, Object> masterMap = new HashMap<>();
+		masterMap.put( "name", "es01-master01");
+		masterMap.put( "hostName", "223.194.70.111");
+		masterMap.put( "port", "51192");
+		masterMap.put( "hostScheme", "https");
+
+		esRestClientConfigs.put("masterHostInfo", List.of(masterMap));
+	}
 
 	@Test
 	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
 		int fetchSize = 1000;
 		String HttpProtocol = "GET";
-		String query = "SELECT * from car_log";
+		String query = "SELECT * from test_block_chain";
 
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 		Client client = new Client(prop);
 
-		Operation sqlOp = new SQLSearchOperation(client.getPublicKey(), HttpProtocol, query, fetchSize, false);
+		Operation sqlOp = new SQLSearchOperation(client.getPublicKey(), esRestClientConfigs,HttpProtocol, query, fetchSize, false);
 		RequestMessage message = RequestMessage.makeRequestMsg(client.getPrivateKey(), sqlOp);
 
 		client.request(message);
@@ -53,9 +69,9 @@ public class SqlSearchOperationTest {
 	public void SqlQueryByLowClientTest() throws NoSuchFieldException, IOException {
 		try {
 			String query = "SELECT block_number, entry_number, start_time from block_chain where block_number = 1 AND entry_number = 0";
-			query = "SELECT block_number, entry_number from block_chain ORDER BY block_number ASC, entry_number ASC";
+			query = "SELECT * from test_block_chain";
 			query = sqlQueryGenerator("query", query);
-			EsRestClient esRestClient = new EsRestClient();
+			EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 
 			Response response = getResponse(query);
@@ -78,7 +94,7 @@ public class SqlSearchOperationTest {
 	}
 
 	private Response getResponse(String query) throws IOException, ResponseException, NoSuchFieldException, EsRestClient.EsSSLException {
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
 			esRestClient.connectToEs();
 			Request request = new Request("GET", "_sql/");

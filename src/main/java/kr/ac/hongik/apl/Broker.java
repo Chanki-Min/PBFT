@@ -52,11 +52,26 @@ public class Broker {
 
 	public Broker(List<String> initDataPaths, int waitTime, int maxQueue, boolean isDataLoop) {
 		try {
+			Map<String, Object> esRestClientConfigs = new HashMap<>();
+			esRestClientConfigs.put("userName", "apl");
+			esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
+			esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+			esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
+
+			Map<String, Object> masterMap = new HashMap<>();
+			masterMap.put( "name", "es01-master01");
+			masterMap.put( "hostName", "223.194.70.111");
+			masterMap.put( "port", "51192");
+			masterMap.put( "hostScheme", "https");
+
+			esRestClientConfigs.put("masterHostInfo", List.of(masterMap));
+
+
 			this.initDataPaths = initDataPaths;
 			this.waitTime = waitTime;
 			this.maxQueue = maxQueue;
 			this.isDataLoop = isDataLoop;
-			this.esRestClient = new EsRestClient();
+			this.esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 		} catch (EsRestClient.EsSSLException | NoSuchFieldException e) {
 			throw new Error(e);
@@ -80,9 +95,6 @@ public class Broker {
 		List<Generator> generators = new ArrayList<>();
 		initDataPaths.stream().forEachOrdered(path -> generators.add(new Generator(path, isDataLoop)));
 		try {
-			EsRestClient esRestClient = new EsRestClient();
-			esRestClient.connectToEs();
-
 			for (var mappingPath: indicesPath) {
 				String indexName = getIndexNameFromFilePath(mappingPath);
 				if (!esRestClient.isIndexExists(indexName)) {
@@ -226,9 +238,6 @@ public class Broker {
 	 * @throws EsRestClient.EsSSLException
 	 */
 	private int getLatestBlockNumber(List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
-		EsRestClient esRestClient = new EsRestClient();
-		esRestClient.connectToEs();
-
 		SearchRequest searchMaxRequest = new SearchRequest(indices.toArray(new String[indices.size()]));
 		SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
 

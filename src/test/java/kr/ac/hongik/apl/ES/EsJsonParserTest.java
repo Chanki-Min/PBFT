@@ -6,27 +6,34 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static java.lang.Thread.sleep;
 
 public class EsJsonParserTest {
-	@Test
-	public void MasterInfoJsonParsingTest() {
-		List<String> keyList = new ArrayList<>();
-		keyList.add("masterHostInfo");
+	private Map<String, Object> esRestClientConfigs;
 
-		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/ES_Connection/esMasterInfo.json");
-		List<Map> masters = parser.listedJsonFileToList("masterHostInfo");
+	@BeforeEach
+	public void makeConfig() {
+		esRestClientConfigs = new HashMap<>();
+		esRestClientConfigs.put("userName", "apl");
+		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
+		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
+
+		Map<String, Object> masterMap = new HashMap<>();
+		masterMap.put( "name", "es01-master01");
+		masterMap.put( "hostName", "223.194.70.111");
+		masterMap.put( "port", "51192");
+		masterMap.put( "hostScheme", "https");
+
+		esRestClientConfigs.put("masterHostInfo", List.of(masterMap));
 	}
 
 	@Test
@@ -65,7 +72,7 @@ public class EsJsonParserTest {
 		parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 		settingBuilder = parser.jsonFileToXContentBuilder(false);
 
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 		esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 		Assertions.assertTrue(esRestClient.isIndexExists(indexName));
@@ -85,7 +92,7 @@ public class EsJsonParserTest {
 		parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 		settingBuilder = parser.jsonFileToXContentBuilder(false);
 
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 		esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
@@ -107,7 +114,7 @@ public class EsJsonParserTest {
 
 	@Test
 	public void plainAndCipherCapacityTest() throws Util.EncryptionException, NoSuchFieldException, EsRestClient.EsSSLException {
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 		EsJsonParser parser = new EsJsonParser();
 		String seed = "Hello World!";
