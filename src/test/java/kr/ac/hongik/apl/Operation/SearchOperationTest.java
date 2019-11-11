@@ -1,143 +1,90 @@
 package kr.ac.hongik.apl.Operation;
 
+
 import kr.ac.hongik.apl.Client;
-import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Operations.SearchOperation;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.junit.jupiter.api.Assertions;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 public class SearchOperationTest {
+	private Map<String, Object> esRestClientConfigs;
+
+	@BeforeEach
+	public void makeConfig() {
+		esRestClientConfigs = new HashMap<>();
+		esRestClientConfigs.put("userName", "apl");
+		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
+		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
+
+		Map<String, Object> masterMap = new HashMap<>();
+		masterMap.put( "name", "es01-master01");
+		masterMap.put( "hostName", "223.194.70.111");
+		masterMap.put( "port", "51192");
+		masterMap.put( "hostScheme", "https");
+
+		esRestClientConfigs.put("masterHostInfo", List.of(masterMap));
+	}
 
 	@Test
-	public void searchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
-		String queryPath = "/ES_searchQuery/Query.json";
-		String[] indices = {"block_chain"};
+	public void searchOperationTest() throws IOException {
+		String HttpProtocol = "GET";
+		String endpoint = "_cat/nodes";
+		Map<String, String> paramMap = new HashMap<>();
+		paramMap.put("v", "true");
+		paramMap.put("format", "json");
+		String body = "";
 
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
+
 		Client client = new Client(prop);
 
-		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath(queryPath);
+		Operation op = new SearchOperation(client.getPublicKey(), esRestClientConfigs,
+				HttpProtocol, endpoint, paramMap, body);
 
-		Map queryMap = parser.jsonFileToMap();
-		Operation searchOp = new SearchOperation(client.getPublicKey(), queryMap, indices);
-		RequestMessage message = RequestMessage.makeRequestMsg(client.getPrivateKey(), searchOp);
-
-		long startTime = System.currentTimeMillis();
-		client.request(message);
-		List<String> resultString = (List<String>) client.getReply();
-
-		System.err.println("search end, resultSize :" + resultString.size() + " took :" + (System.currentTimeMillis() - startTime) + "ms");
-
-		System.err.println("searchOperationTest : PBFT searchOp end, search to ES directly...");
-
-		List<SearchHits> finalResult = new ArrayList();
-		EsRestClient esRestClient = new EsRestClient();
-		esRestClient.connectToEs();
-
-		QueryBuilder queryBuilder = QueryBuilders.wrapperQuery(Strings.toString(XContentFactory.jsonBuilder().map(queryMap)));
-
-		SearchRequest searchRequest = new SearchRequest().indices(indices);
-		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(queryBuilder);
-		builder.size(10000);
-		searchRequest.source(builder);
-		startTime = System.currentTimeMillis();
-
-		final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
-		searchRequest.scroll(scroll);
-		SearchResponse response = esRestClient.getClient().search(searchRequest, RequestOptions.DEFAULT);
-		String scrollID = response.getScrollId();
-		SearchHits hits = response.getHits();
-
-		finalResult.add(hits);
-
-		while (hits.getHits() != null && hits.getHits().length > 0) {
-			SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollID);
-			scrollRequest.scroll(scroll);
-			response = esRestClient.getClient().scroll(scrollRequest, RequestOptions.DEFAULT);
-
-			scrollID = response.getScrollId();
-			hits = response.getHits();
-			finalResult.add(hits);
-		}
-		esRestClient.disConnectToEs();
-		List<String> ser = finalResult.stream().map(x -> Strings.toString(x)).collect(Collectors.toList());
-		ser.remove(ser.size() - 1);
-
-		System.err.println("Direct search end with size : " + finalResult.size() + " TIME :" + (System.currentTimeMillis() - startTime));
-
-		System.err.println("result of PBFT search & Direct search SAME? : " + resultString.equals(ser));
-		Assertions.assertTrue(resultString.equals(ser));
+		RequestMessage searchMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+		client.request(searchMsg);
+		Map reply = (Map) client.getReply();
 	}
 
 	@Test
-	public void searchByParsedMapTest() throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
-		String queryPath = "/ES_searchQuery/Query.json";
-		String indexName = "block_chain";
-		List<SearchHits> finalResult = new ArrayList();
-		EsRestClient esRestClient = new EsRestClient();
+	public void reflection() throws NoSuchFieldException, EsRestClient.EsSSLException, IOException, IllegalAccessException {
+		String HttpProtocol = "GET";
+		String endpoint = "_cat/nodes";
+		Map<String, String> paramMap = new HashMap<>();
+		paramMap.put("v", "true");
+		paramMap.put("format", "json");
+		String body = "";
+
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 
-		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath(queryPath);
-		Map queryMap = parser.jsonFileToMap();
+		Request request = new Request(HttpProtocol, endpoint);
+		paramMap.entrySet().stream().
+				forEach(e -> request.addParameter(e.getKey(), e.getValue()));
+		request.setEntity(new NStringEntity(body, org.apache.http.entity.ContentType.APPLICATION_JSON));
+		Response response = esRestClient.getClient().getLowLevelClient().performRequest(request);
 
-		QueryBuilder queryBuilder = QueryBuilders.wrapperQuery(Strings.toString(XContentFactory.jsonBuilder().map(queryMap)));
-
-		SearchRequest searchRequest = new SearchRequest().indices(indexName);
-		SearchSourceBuilder builder = new SearchSourceBuilder();
-		builder.query(queryBuilder);
-		builder.size(10000);
-		searchRequest.source(builder);
-		long startTime = System.currentTimeMillis();
-
-		final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
-		searchRequest.scroll(scroll);
-		SearchResponse response = esRestClient.getClient().search(searchRequest, RequestOptions.DEFAULT);
-		String scrollID = response.getScrollId();
-		SearchHits hits = response.getHits();
-
-		finalResult.add(hits);
-
-		while (hits.getHits() != null && hits.getHits().length > 0) {
-			SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollID);
-			scrollRequest.scroll(scroll);
-			response = esRestClient.getClient().scroll(scrollRequest, RequestOptions.DEFAULT);
-
-			scrollID = response.getScrollId();
-			hits = response.getHits();
-			finalResult.add(hits);
-		}
-		System.err.println("size : " + finalResult.size());
-		System.err.println("passed TIME :" + (System.currentTimeMillis() - startTime));
-		esRestClient.disConnectToEs();
-
-		List<String> ser = finalResult.stream().map(x -> Strings.toString(x)).collect(Collectors.toList());
+		Field field = response.getClass().getDeclaredField("response");
+		field.setAccessible(true);
+		BasicHttpResponse httpResponse = (BasicHttpResponse) field.get(response);
 	}
 }
+

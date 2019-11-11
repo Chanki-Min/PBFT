@@ -1,94 +1,102 @@
 package kr.ac.hongik.apl.Operations;
 
-import com.owlike.genson.Genson;
+
 import kr.ac.hongik.apl.ES.EsRestClient;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import kr.ac.hongik.apl.Logger;
+import kr.ac.hongik.apl.Replica;
+import org.apache.http.HttpResponse;
+import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.List;
+import java.sql.SQLException;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SearchOperation extends Operation {
-	private Map queryMap;
-	private String[] indices;
+	private Map<String, Object> esRestClientConfigs;
+	private String HttpProtocol;
+	private String endpoint;
+	private Map<String, String> parameterMap;
+	private String body;
 
-	public SearchOperation(PublicKey clientInfo, Map queryMap, String[] indices) throws IOException {
+	private EsRestClient esRestClient;
+
+	public SearchOperation(PublicKey clientInfo, Map<String, Object> esConfig, String HttpProtocol,
+						   String endpoint, Map parameterMap, String body) {
 		super(clientInfo);
-		this.queryMap = queryMap;
-		this.indices = indices;
+		this.esRestClientConfigs = esConfig;
+		this.HttpProtocol = HttpProtocol;
+		this.endpoint = endpoint;
+		this.parameterMap = parameterMap;
+		this.body = body;
 	}
 
-	public SearchOperation(PublicKey clientInfo, XContentBuilder queryXContent, String[] indices) {
-		super(clientInfo);
-		Genson genson = new Genson();
-		this.queryMap = genson.deserialize(Strings.toString(queryXContent), Map.class);
-		this.indices = indices;
-	}
-
+	/**
+	 * @param obj logger
+	 * @return	http entity of elasticsearch response
+	 * @throws SQLException
+	 */
 	@Override
-	public List<String> execute(Object obj) {
+	public Object execute(Object obj) throws SQLException {
 		try {
-			QueryBuilder query = QueryBuilders.wrapperQuery(Strings.toString(XContentFactory.jsonBuilder().map(queryMap)));
-			final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L)); //expire scrolling after 1Minute
-			List<SearchHits> finalResult = new ArrayList<>();
-			SearchRequest request = null;
-			if (indices == null) {
-				request = new SearchRequest();
-			} else {
-				request = new SearchRequest().indices(indices);
+			Pattern searchPatten = Pattern.compile(".*_search.*|.*_sql.*");
+			Matcher matcher = searchPatten.matcher(endpoint);
+			if(!matcher.matches()) {
+				throw new IllegalArgumentException(String.format("endpoint [%s] does not have _search or _sql parameter.", endpoint));
 			}
-			SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-			searchSourceBuilder.size(10000);
-			searchSourceBuilder.query(query);
-			request.source(searchSourceBuilder);
-			request.scroll(scroll);
 
-			EsRestClient esRestClient = new EsRestClient();
+			Logger logger = (Logger) obj;
+			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 
-			SearchResponse response = esRestClient.getClient().search(request, RequestOptions.DEFAULT);
-			String scrollId = response.getScrollId();
-			SearchHits hits = response.getHits();
-			finalResult.add(hits);
+			Request request = new Request(HttpProtocol, endpoint);
+			parameterMap.entrySet().stream().
+					forEach(e -> request.addParameter(e.getKey(), e.getValue()));
+			request.setEntity(new NStringEntity(body, org.apache.http.entity.ContentType.APPLICATION_JSON));
+			Response response = esRestClient.getClient().getLowLevelClient().performRequest(request);
 
-			while (hits != null && hits.getHits().length > 0) {
-				SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
-				scrollRequest.scroll(scroll);
-				response = esRestClient.getClient().scroll(scrollRequest, RequestOptions.DEFAULT);
+			Field field = response.getClass().getDeclaredField("response");
+			field.setAccessible(true);
+			HttpResponse httpResponse = (HttpResponse) field.get(response);
 
-				scrollId = response.getScrollId();
-				hits = response.getHits();
-				finalResult.add(hits);
-			}
-			finalResult.remove(finalResult.size() - 1); //마지막에 스크롤된 빈 원소는 삭제함
-			ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-			clearScrollRequest.addScrollId(scrollId);
-			esRestClient.getClient().clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
-			esRestClient.disConnectToEs();
-
-			return finalResult.stream()
-					.map(x -> Strings.toString(x, false, false))
-					.collect(Collectors.toList());
-		} catch (NoSuchFieldException | IOException | EsRestClient.EsSSLException e) {
-			e.printStackTrace();
-			throw new Error(e);
+			return getHttpMap(httpResponse, null);
+		} catch (EsRestClient.EsSSLException | NoSuchFieldException | IOException | IllegalArgumentException | IllegalAccessException e) {
+			Replica.msgDebugger.error(e.getMessage());
+			LinkedHashMap<String, String> httpMap = new LinkedHashMap<>();
+			return getHttpMap(null, e);
 		}
+	}
 
+	private LinkedHashMap<String, String> getHttpMap(HttpResponse httpResponse, Exception e) {
+		try {
+			LinkedHashMap<String, String> httpMap = new LinkedHashMap<>();
+			if (httpResponse != null && e == null) {
+				httpMap.put("protocolVersion", httpResponse.getStatusLine().getProtocolVersion().toString());
+				httpMap.put("statusCode", Integer.toString(httpResponse.getStatusLine().getStatusCode()));
+				httpMap.put("reasonPhrase", httpResponse.getStatusLine().getReasonPhrase());
+				httpMap.put("entity", EntityUtils.toString(httpResponse.getEntity()));
+				httpMap.put("locale", httpResponse.getLocale().toString());
+				httpMap.put("error", null);
+			} else if (httpResponse == null && e != null) {
+				httpMap.put("protocolVersion", null);
+				httpMap.put("statusCode", null);
+				httpMap.put("reasonPhrase", null);
+				httpMap.put("entity", null);
+				httpMap.put("locale", null);
+				httpMap.put("error", e.getMessage());
+				return httpMap;
+			}
+			return httpMap;
+		} catch (IOException ex) {
+			Replica.msgDebugger.error(ex.getMessage());
+			throw new Error(ex);
+		}
 	}
 }

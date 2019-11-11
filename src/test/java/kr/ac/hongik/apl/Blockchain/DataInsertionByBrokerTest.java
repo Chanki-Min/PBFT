@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
@@ -45,6 +46,26 @@ import java.util.regex.Pattern;
 import static kr.ac.hongik.apl.Util.makeSymmetricKey;
 
 public class DataInsertionByBrokerTest {
+	private Map<String, Object> esRestClientConfigs;
+
+	@BeforeEach
+	public void makeConfig() {
+		esRestClientConfigs = new HashMap<>();
+		esRestClientConfigs.put("userName", "apl");
+		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
+		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
+
+		Map<String, Object> masterMap = new HashMap<>();
+		masterMap.put( "name", "es01-master01");
+		masterMap.put( "hostName", "223.194.70.111");
+		masterMap.put( "port", "51192");
+		masterMap.put( "hostScheme", "https");
+
+		esRestClientConfigs.put("masterHostInfo", new ArrayList<Map>().add(masterMap));
+	}
+
+
 	@Test
 	public void nonBlockChainDataInsertionTest() throws NoSuchFieldException, EsRestClient.EsSSLException, IOException, EsRestClient.EsConcurrencyException, EsRestClient.EsException, InterruptedException {
 		boolean deleteIndicesAfterFinish = false;
@@ -59,7 +80,7 @@ public class DataInsertionByBrokerTest {
 		mappingToData.put("/ES_MappingAndSetting/Mapping_user_info.json", "/ES_userData/Data_user_info.json");
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
 
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 
 		//create indices
@@ -109,7 +130,7 @@ public class DataInsertionByBrokerTest {
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 		Genson genson = new Genson();
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 
 		//create indices
@@ -278,7 +299,7 @@ public class DataInsertionByBrokerTest {
 	 * @throws EsRestClient.EsSSLException
 	 */
 	private int getLatestBlockNumber(List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 
 		SearchRequest searchMaxRequest = new SearchRequest(indices.toArray(new String[indices.size()]));
@@ -313,7 +334,7 @@ public class DataInsertionByBrokerTest {
 
 	private void bulkInsertNonBlockChainData(String indexName, List<Map<String, Object>> dataList
 			, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize) throws NoSuchFieldException, EsRestClient.EsSSLException, IOException, EsRestClient.EsException, InterruptedException {
-		EsRestClient esRestClient = new EsRestClient();
+		EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 		esRestClient.connectToEs();
 
 		if (!esRestClient.isIndexExists(indexName))

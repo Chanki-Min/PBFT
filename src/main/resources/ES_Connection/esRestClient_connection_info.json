@@ -1,4 +1,5 @@
 {
+  "certPath": "/ES_Connection/esRestClient-cert.p12",
   "masterHostInfo": [
     {
       "name": "es01-master01",
@@ -8,4 +9,3 @@
     }
   ]
 }
-

@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
@@ -49,6 +50,35 @@ import static java.lang.Thread.sleep;
 
 public class ElasticSearchTest {
 	private static EsRestClient esRestClient;
+	private Map<String, Object> esRestClientConfigs;
+
+	@BeforeEach
+	public void makeConfig() {
+		esRestClientConfigs = new HashMap<>();
+		esRestClientConfigs.put("userName", "apl");
+		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
+		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
+
+		Map<String, Object> masterMap = new HashMap<>();
+		masterMap.put( "name", "es01-master01");
+		masterMap.put( "hostName", "223.194.70.111");
+		masterMap.put( "port", "51192");
+		masterMap.put( "hostScheme", "https");
+
+		esRestClientConfigs.put("masterHostInfo", List.of(masterMap));
+	}
+
+	@Test
+	void atest() throws NoSuchFieldException, EsRestClient.EsSSLException, IOException {
+		esRestClient = new EsRestClient(esRestClientConfigs);
+		esRestClient.connectToEs();
+
+		String s = esRestClient.getIndexNameFromBlockNumber(0, Arrays.asList("car_log", "user_log"));
+		esRestClient.disConnectToEs();
+
+	}
+
 
 	@Test
 	void httpsConnectionTest() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, KeyManagementException {
@@ -83,7 +113,7 @@ public class ElasticSearchTest {
 
 	@Test
 	void esConnectionTest() throws IOException {
-		esRestClient = new EsRestClient();
+		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
 			esRestClient.connectToEs();
 		} catch (NoSuchFieldException | EsRestClient.EsSSLException e) {
@@ -110,7 +140,7 @@ public class ElasticSearchTest {
 	@Test
 	void indexCreate_DeleteTest() {
 		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
+		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
@@ -121,7 +151,7 @@ public class ElasticSearchTest {
 			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
 			settingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			EsRestClient esRestClient = new EsRestClient();
+			EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 			esRestClient.createIndex("test_block_chain", mappingBuilder, settingBuilder);
 
@@ -138,14 +168,14 @@ public class ElasticSearchTest {
 
 	@Test
 	void SingleInsertTest() throws IOException {
-		String indexName = "test_block_chain9";
+		String indexName = "test_block_chain";
 		int blockNumber = 0;
 		int entrySize = 100;
 		int sleepTime = 1000;
 		int versionNumber = 1;
 		boolean deleteIndexAfterFinish = false;
 		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
+		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
@@ -204,7 +234,7 @@ public class ElasticSearchTest {
 		int versionNumber = 1;
 		boolean deleteIndexAfterFinish = true;
 		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
+		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
@@ -258,7 +288,7 @@ public class ElasticSearchTest {
 		int sleepTime = 5000;
 		boolean deleteIndexAfterFinish = false;
 		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient();
+		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
@@ -329,7 +359,7 @@ public class ElasticSearchTest {
 
 		try {
 			for (int i = 0; i < maxThreadNum; i++) {
-				Thread thread = new Thread(new ConcurrentBulkInsertThread(indexName, blockNumber, sampleUserData, encData, sleepTime, 1, i));
+				Thread thread = new Thread(new ConcurrentBulkInsertThread(esRestClientConfigs, indexName, blockNumber, sampleUserData, encData, sleepTime, 1, i));
 				threadList.add(thread);
 			}
 			for (var t: threadList) {
