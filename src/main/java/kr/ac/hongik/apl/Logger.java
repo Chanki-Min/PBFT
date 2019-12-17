@@ -71,7 +71,7 @@ public class Logger {
 				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica, digest))",
 				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT,data TEXT, PRIMARY KEY(seqNum, " +
 						"stateDigest, replica))",
-				"CREATE TABLE UnstableCheckPoints (lastStableCheckpoint INT, checkpointNum INT, digest TEXT, PRIMARY KEY(lastStableCheckpoint, checkpointNum, digest))",
+				"CREATE TABLE UnstableCheckPoints (lastStableCheckpoint INT, seqNum INT, digest TEXT, PRIMARY KEY(lastStableCheckpoint, checkpointNum, digest))",
 				"CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",
@@ -104,7 +104,7 @@ public class Logger {
 	public String getStateDigest(int seqNum, int maxFaulty, int viewNum) throws SQLException {
 		StringBuilder builder = new StringBuilder();
 
-		String baseQuery = "SELECT lastStableCheckpoint, checkpointNum, digest FROM UnstableCheckPoints";
+		String baseQuery = "SELECT lastStableCheckpoint, seqNum, digest FROM UnstableCheckPoints";
 		PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 		ResultSet ret = pstmt.executeQuery();
 		while(ret.next()){
@@ -214,7 +214,7 @@ public class Logger {
 		pstmt.execute();
 	}
 	private void cleanUpUnstableCheckpoint(int seqNum) throws SQLException {
-		String query = "DELETE FROM UnstableCheckPoints WHERE checkpointNum <= ?";
+		String query = "DELETE FROM UnstableCheckPoints WHERE seqNum <= ?";
 		PreparedStatement pstmt = conn.prepareStatement(query);
 		pstmt.setInt(1, seqNum);
 		pstmt.execute();
@@ -354,7 +354,7 @@ public class Logger {
 			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
 
 			preparedStatement.setInt(1, unstableCheckPoint.getLastStableCheckPointNum());
-			preparedStatement.setInt(2, unstableCheckPoint.getCheckPointNum());
+			preparedStatement.setInt(2, unstableCheckPoint.getSeqNum());
 			preparedStatement.setString(3, unstableCheckPoint.getDiget());
 
 			preparedStatement.execute();
