@@ -71,7 +71,7 @@ public class Logger {
 				"CREATE TABLE Commits (viewNum INT, seqNum INT, digest TEXT, replica INT, PRIMARY KEY(seqNum, replica, digest))",
 				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT,data TEXT, PRIMARY KEY(seqNum, " +
 						"stateDigest, replica))",
-				"CREATE TABLE UnstableCheckPoints (lastStableCheckpoint INT, seqNum INT, digest TEXT, PRIMARY KEY(lastStableCheckpoint, checkpointNum, digest))",
+				"CREATE TABLE UnstableCheckPoints (lastStableCheckpoint INT, seqNum INT, digest TEXT, PRIMARY KEY(lastStableCheckpoint, seqNum, digest))",
 				"CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",

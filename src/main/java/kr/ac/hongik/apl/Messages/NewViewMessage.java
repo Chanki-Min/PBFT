@@ -36,7 +36,11 @@ public class NewViewMessage implements Message {
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
 
-		Replica.detailDebugger.trace(String.format("operationList size : %d",operationList.size()));
+		if(operationList != null) {
+			Replica.detailDebugger.trace(String.format("operationList size : %d", operationList.size()));
+		}else {
+			Replica.detailDebugger.trace(String.format("operationList size : %d", 0));
+		}
 
 		Data data = new Data(newViewNum, viewChangeMessages, operationList);
 		byte[] signature = Util.sign(replica.getPrivateKey(), data);
