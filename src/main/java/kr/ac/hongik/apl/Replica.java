@@ -813,6 +813,7 @@ public class Replica extends Connector {
 	}
 
 	public void removeViewChangeTimer() {
+		//TODO : equals("view")를 교체해야 함
 		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> !x.equals("view")).collect(Collectors.toList());
 		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
