@@ -43,7 +43,8 @@ public class Replica extends Connector {
 	private PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getPriorityFromMsg));
 	private Logger logger;
 	private int lowWatermark;
-	private ConcurrentHashMap<String, Timer> timerMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<String, Timer> viewChangeTimerMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<Integer, Timer> newViewTimerMap = new ConcurrentHashMap<>();
 	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 
 	private HashMap<Long, Long> receiveRequestTimeMap = new HashMap<>();
@@ -314,7 +315,7 @@ public class Replica extends Connector {
 				 * An operation can be a key because every operation has a random UUID;
 				 */
 				String key = Util.hash(message.getOperation());
-				timerMap.put(key, timer);
+				viewChangeTimerMap.put(key, timer);
 			}
 		}
 	}
@@ -497,7 +498,7 @@ public class Replica extends Connector {
 					var operation = logger.getOperation(rightNextCommitMsg);
 					// Release backup's view-change timer
 					String key = makeKeyForTimer(rightNextCommitMsg);
-					Timer timer = timerMap.remove(key);
+					Timer timer = viewChangeTimerMap.remove(key);
 					Optional.ofNullable(timer).ifPresent(Timer::cancel);
 
 					if (operation != null) {
@@ -618,11 +619,22 @@ public class Replica extends Connector {
 		if (!message.isVerified(publicKey, this.getMaximumFaulty(), WATERMARK_UNIT)) {
 			return;
 		}
-		logger.insertMessage(message);
-		if (this.getViewNum() >= message.getNewViewNum()) {
-			return;
-		}
 		try {
+			String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ?";
+			try (var pstmt = logger.getPreparedStatement(isAlreadyInsertedQuery)) {
+				pstmt.setInt(1, message.getNewViewNum());
+				pstmt.setInt(2, message.getReplicaNum());
+				ResultSet rs = pstmt.executeQuery();
+				rs.next();
+				if (rs.getInt(1) != 0) {
+					return;
+				}
+			}
+			logger.insertMessage(message);
+			if (this.getViewNum() >= message.getNewViewNum()) {
+				return;
+			}
+
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {
 				/* 정확히 2f + 1개일 때만 broadcast */
 
@@ -630,18 +642,19 @@ public class Replica extends Connector {
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, message.getNewViewNum());
 				logger.insertMessage(newViewMessage);
 				getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
-				handleNewViewMessage(newViewMessage);
+				//handleNewViewMessage(newViewMessage);
 			} else if (hasTwoFPlusOneMessages(message)) {
-				/* 2f + 1개 이상의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
-				ViewChangeTimerTask task = new ViewChangeTimerTask(getWatermarks()[0], message.getNewViewNum() + 1, this);
+				/* 2f + 1개의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
+				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], message.getNewViewNum() + 1, this);
 				Timer timer = new Timer();
-				timer.schedule(task, TIMEOUT * (message.getNewViewNum() + 1 - this.getViewNum()));
+				timer.schedule(viewChangeTimerTask, TIMEOUT * (message.getNewViewNum() + 1  - this.getViewNum()));
 
-				timerMap.put(generateTimerKey(message.getNewViewNum() + 1), timer);
+				newViewTimerMap.put(message.getNewViewNum() + 1, timer);
+				msgDebugger.debug(String.format("Put NewViewTimer in timerMap, timerMap size : %d", viewChangeTimerMap.size()));
 			} else {
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
-				String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ?";
+
 				try (var pstmt = logger.getPreparedStatement(isAlreadyInsertedQuery)) {
 					pstmt.setInt(1, message.getNewViewNum());
 					pstmt.setInt(2, getMyNumber());
@@ -770,7 +783,7 @@ public class Replica extends Connector {
 
 	private void handleNewViewMessage(NewViewMessage message) {
 
-		msgDebugger.debug(String.format("Got Newview msg from %d", message.getNewViewNum()));
+		msgDebugger.debug(String.format("Got Newview msg from %d, time : %d", message.getNewViewNum(), System.currentTimeMillis()));
 		if(message.getNewViewNum()%getReplicaMap().size() == getMyNumber()) {
 			msgDebugger.info(String.format("I'm New Primary"));
 		}
@@ -781,7 +794,7 @@ public class Replica extends Connector {
 		this.logger.insertMessage(message);
 
 		removeViewChangeTimer();
-		removeNewViewTimer(message.getNewViewNum() + 1);
+		removeNewViewTimer(message.getNewViewNum());
 		synchronized (viewChangeLock) {
 			setViewChangePhase(false);
 			setViewNum(message.getNewViewNum());
@@ -806,23 +819,26 @@ public class Replica extends Connector {
 					.stream()
 					.forEach(pp -> handlePreprepareMessage(pp));
 		}
+		msgDebugger.info(String.format("Newview Fixed, TimerMap Size : %d",this.viewChangeTimerMap.size()));
 	}
 
-	public Map<String, Timer> getTimerMap() {
-		return timerMap;
+	public Map<String, Timer> getViewChangeTimerMap() {
+		return viewChangeTimerMap;
 	}
 
 	public void removeNewViewTimer(int newViewNum) {
-		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> x.equals(generateTimerKey(newViewNum))).collect(Collectors.toList());
-		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
-		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
+		List<Integer> deletableKeys = newViewTimerMap.keySet().stream().filter(x -> x <= newViewNum+1).collect(Collectors.toList());
+		deletableKeys.forEach(x -> newViewTimerMap.get(x).cancel());
+		deletableKeys.forEach(x -> newViewTimerMap.remove(x));
 	}
 
+	/*
+	모든 viewChangeTimer를 cancel하고 map에서 삭제합니다.
+	 */
 	public void removeViewChangeTimer() {
-		//TODO : equals("view")를 교체해야 함
-		List<String> deletableKeys = getTimerMap().keySet().stream().filter(x -> !x.equals("view")).collect(Collectors.toList());
-		deletableKeys.stream().forEach(x -> getTimerMap().get(x).cancel());
-		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
+		viewChangeTimerMap.entrySet().stream().
+				peek(e -> e.getValue().cancel()).
+				forEach(e-> viewChangeTimerMap.remove(e.getKey()));
 	}
 	public void printConsensusTime(){
 		if(MEASURE) { double avg = consensusTimeMap
