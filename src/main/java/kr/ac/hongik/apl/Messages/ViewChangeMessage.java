@@ -6,7 +6,6 @@ import org.echocat.jsu.JdbcUtils;
 
 import java.io.Serializable;
 import java.security.PublicKey;
-import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -33,7 +32,6 @@ public class ViewChangeMessage implements Message {
 
 	public static ViewChangeMessage makeViewChangeMsg(int lastCheckpointNum, int newViewNum, Replica replica,
 													  Function<String, PreparedStatement> preparedStatement) {
-		Replica.msgDebugger.info(String.format("Enter ViewChange Phase"));
 		Replica.detailDebugger.debug(String.format("last check point : %d new view : %d", lastCheckpointNum, newViewNum));
 
 		ViewChangeMessage.replica = replica;
@@ -179,9 +177,7 @@ public class ViewChangeMessage implements Message {
 		Boolean[] checkList = new Boolean[5];
 
 		checkList[0] = verify(publicKey);
-		/*
-			TODO : low != 0 일 때도 checkpoint message가 없을 수 있다. (GC 전에 newview 받은 경우)
-		 */
+
 		//when lastCheckPointNum == 0, check whether CheckPointMsgs's size is 0. to cover case when viewChange occurs before first GC
 		if (this.getLastCheckpointNum() != 0) {
 			String replicaDigest = data.checkPointMessages.stream()
