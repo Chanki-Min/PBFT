@@ -18,8 +18,8 @@ public class UnstableCheckPoint implements Message {
 		this.signature = signature;
 	};
 
-	public static UnstableCheckPoint makeUnstableCheckPoint(PrivateKey privateKey, int lastCheckpointNum, int checkPointNum, String digest){
-		Data data = new Data(lastCheckpointNum, digest, checkPointNum);
+	public static UnstableCheckPoint makeUnstableCheckPoint(PrivateKey privateKey, int lastCheckpointNum, int seqNum, String digest){
+		Data data = new Data(lastCheckpointNum, digest, seqNum);
 		byte[] signature = sign(privateKey, data);
 		return new UnstableCheckPoint(data, signature);
 	};
@@ -31,7 +31,7 @@ public class UnstableCheckPoint implements Message {
 	public boolean isVerified(PublicKey publicKey){
 		Boolean checklist[] = new Boolean[2];
 		checklist[0] = this.verify(publicKey);
-		checklist[1] = (this.getCheckPointNum() >= this.getLastStableCheckPointNum());
+		checklist[1] = (this.getSeqNum() >= this.getLastStableCheckPointNum());
 		return Arrays.stream(checklist).allMatch(Boolean::booleanValue);
 	}
 
@@ -41,18 +41,18 @@ public class UnstableCheckPoint implements Message {
 	public int getLastStableCheckPointNum(){
 		return data.lastStableCheckpointNum;
 	}
-	public int getCheckPointNum(){
-		return data.checkPointNum;
+	public int getSeqNum(){
+		return data.seqNum;
 	}
 	private static class Data implements Serializable {
 		private final int lastStableCheckpointNum;
-		private final int checkPointNum;
+		private final int seqNum;
 		private final String digest;
 
-		private Data(int lastCheckpointNum, String digest, int checkPointNum) {
+		private Data(int lastCheckpointNum, String digest, int seqNum) {
 			this.lastStableCheckpointNum = lastCheckpointNum;
 			this.digest = digest;
-			this.checkPointNum = checkPointNum;
+			this.seqNum = seqNum;
 		}
 	}
 }
