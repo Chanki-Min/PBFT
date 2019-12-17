@@ -93,7 +93,13 @@ public class Replica extends Connector {
 		}
 		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
-
+	/*
+		getPriorityFromMsg
+		receive 함수에서 getSeqNumFromMsg 로 poll 우선순위를 정하는 부분에서 에러 발생하여 우선순위를 뽑아내는 함수 추가
+		4개 서버 중 2대가 view 1에서 view 1, seq 1인 상태에서 request msg를 execute하고 남은 2대가 viewchange 후에 view2에서 view 2 seq 1인 commit msg를 먼저
+		뽑고 execute하려면 데드락 발생
+		그래서 priority에 viewnum을 반영하여 뽑아올 수 있도록 설정
+	*/
 	private static int getPriorityFromMsg(Message message) {
 		if (message instanceof HeaderMessage) {
 			return -4;
@@ -818,8 +824,7 @@ public class Replica extends Connector {
 		deletableKeys.stream().forEach(x -> getTimerMap().remove(x));
 	}
 	public void printConsensusTime(){
-		if(MEASURE) {
-			double avg = consensusTimeMap
+		if(MEASURE) { double avg = consensusTimeMap
 					.values()
 					.stream()
 					.mapToLong(Long::longValue)
