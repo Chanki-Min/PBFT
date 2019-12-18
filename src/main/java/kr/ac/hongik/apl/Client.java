@@ -15,8 +15,11 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Client extends Connector {
-	private HashMap<Long, Integer[]> replies = new HashMap<>();
+	//TODO : replies는 key로 request Timestamp, element로 현재까지 받은 replys 배열인데 이것이 무한대로 커지면 안되므로 gc단계 등에서 지워줄 필요가 있다.
+	//private HashMap<Long, Integer[]> replies = new HashMap<>();
+	private HashMap<Long, HashSet<Integer>> replies = new HashMap<>();
 	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
+	//TODO : ignoreList는 합의가 완료된 request의 timestamp를 저장하는 리스트로, 계속 증가하는 문제가 있음
 	private List<Long> ignoreList = new ArrayList<>();
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
 	private Long receivingTimeStamp;
@@ -88,7 +91,7 @@ public class Client extends Connector {
 			PublicKey publicKey = this.publicKeyMap.get(getReplicaMap().get(replyMessage.getReplicaNum()));
 			if (replyMessage.verifySignature(publicKey)) {
 				Long uniqueKey = replyMessage.getTime();
-				Integer[] checkReplica;
+				HashSet<Integer> checkReplica;
 
 				/*
 				 * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
@@ -98,19 +101,17 @@ public class Client extends Connector {
 				if (replies.containsKey(uniqueKey)) {
 					checkReplica = replies.get(uniqueKey);
 				} else {
-					checkReplica = new Integer[getReplicaMap().size()];
-					for(int i=0; i<getReplicaMap().size();i++)
-						checkReplica[i] = 0;
+					checkReplica = new HashSet<>();
 				}
 
-				checkReplica[replyMessage.getReplicaNum()] = 1;
+				checkReplica.add(replyMessage.getReplicaNum());
 				replies.put(uniqueKey, checkReplica);
 				checkReplica = replies.get(uniqueKey);
 				synchronized (replyLock) {
 					if(replyMessage.getTime() != this.getReceivingTimeStamp()){
 						continue;
 					}
-					if (Arrays.stream(checkReplica).filter(x -> x.intValue() == 1).count() > 2 * this.getMaximumFaulty()) {
+					if (checkReplica.size() > 2 * this.getMaximumFaulty()) {
 						if (!ignoreList.contains(uniqueKey)) {
 							ignoreList.add(uniqueKey);
 

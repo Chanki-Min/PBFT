@@ -455,6 +455,9 @@ public class Replica extends Connector {
 	}
 
 	private void handleHeaderMessage(HeaderMessage message) {
+
+		msgDebugger.debug(String.format("Got Header msg replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
+
 		SocketChannel channel = message.getChannel();
 		this.publicKeyMap.put(channel, message.getPublicKey());
 		if (!publicKeyMap.containsValue(message.getPublicKey())) throw new AssertionError();

@@ -91,6 +91,7 @@ abstract class Connector {
 				socketChannel = makeConnection(replicaAddresses.get(i));
 				getReplicaMap().put(i, socketChannel);
 				socketChannel = null;
+				Replica.msgDebugger.debug(String.format("HeaderMessage sent to %d", i));
 			} catch (IOException e) {
 				closeWithoutException(socketChannel);
 				continue;
