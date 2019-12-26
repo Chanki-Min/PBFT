@@ -7,7 +7,6 @@ import kr.ac.hongik.apl.Messages.ReplyMessage;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 
 import java.io.IOException;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
 import java.time.Instant;
@@ -16,15 +15,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Client extends Connector {
 	//TODO : replies는 key로 request Timestamp, element로 현재까지 받은 replys 배열인데 이것이 무한대로 커지면 안되므로 gc단계 등에서 지워줄 필요가 있다.
-	//private HashMap<Long, Integer[]> replies = new HashMap<>();
 	private HashMap<Long, HashSet<Integer>> replies = new HashMap<>();
-	private HashMap<Long, List<Object>> distributedReplies = new HashMap<>();
 	//TODO : ignoreList는 합의가 완료된 request의 timestamp를 저장하는 리스트로, 계속 증가하는 문제가 있음
 	private List<Long> ignoreList = new ArrayList<>();
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
 	private Long receivingTimeStamp;
-	private Object replyLock = new Object();
-
+	private final Object replyLock = new Object();
 	private HashMap<Long, Long> turnAroundTimeMap = new HashMap<>();
 
 	public Client(Properties prop) {
@@ -43,12 +39,12 @@ public class Client extends Connector {
 		Replica.msgDebugger.debug(String.format("Send Header msg, key : %s", headerMessage.getPublicKey().toString().substring(46,66)));
 	}
 
-	//Empty method.
-	@Override
-	protected void acceptOp(SelectionKey key) {
-		throw new UnsupportedOperationException("Client class does not need this method.");
-	}
-
+	/**
+	 * requestMessage를 임의의 replica에게 보내고 만약 요청이 오지 않을 경우를 대비하여 broadcastTimer를 설정한다.
+	 * 타이머 만료시 모든 replica들에게 requestMsg를 broadcast하여 viewChange Phase를 유도한다
+	 *
+	 * @param msg 요청할 requestMessage
+	 */
 	public void request(RequestMessage msg) {
 		synchronized (replyLock) {
 			BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
@@ -71,6 +67,11 @@ public class Client extends Connector {
 		}
 	}
 
+	/**
+	 * Replica 들에게 요청한 request에 대한 reply를 받아온다
+	 *
+	 * @return 합의된 reply data
+	 */
 	public Object getReply() {
 		ReplyMessage replyMessage;
 
@@ -137,11 +138,11 @@ public class Client extends Connector {
 	}
 
 	private void handleHeaderMessage(HeaderMessage message) {
-		HeaderMessage header = message;
-		if (!header.getType().equals("replica")) throw new AssertionError();
-		SocketChannel channel = header.getChannel();
-		this.publicKeyMap.put(channel, header.getPublicKey());
-		getReplicaMap().put(header.getReplicaNum(), channel);
+		if (!message.getType().equals("replica")) throw new AssertionError();
+
+		SocketChannel channel = message.getChannel();
+		this.publicKeyMap.put(channel, message.getPublicKey());
+		getReplicaMap().put(message.getReplicaNum(), channel);
 	}
 
 	private void setReceivingTimeStamp(Long timestamp){
@@ -151,6 +152,7 @@ public class Client extends Connector {
 	private Long getReceivingTimeStamp(){
 		return receivingTimeStamp;
 	}
+
 	static class BroadcastTask extends TimerTask {
 
 		final private Client client;
@@ -187,17 +189,6 @@ public class Client extends Connector {
 
 				timerMap.put(nextRequestMessage.getTime(), timer);
 			}
-		}
-	}
-	public void printTurnAroundTime(){
-		if(Replica.MEASURE) {
-			double avg = turnAroundTimeMap
-					.values()
-					.stream()
-					.mapToLong(Long::longValue)
-					.average()
-					.orElse(0);
-			Replica.measureDebugger.info(String.format("Average Turn Around Time : %f", avg*1000));
 		}
 	}
 }

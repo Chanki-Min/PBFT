@@ -42,8 +42,7 @@ public class Logger {
 	private String getFilePath() {
 		var folder = getResourceFolder();
 		String encodedPath = "jdbc:sqlite:" + folder + fileName;
-		String url = URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
-		return url;
+		return URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
 	}
 
 	/**

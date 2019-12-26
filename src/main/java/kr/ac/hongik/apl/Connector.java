@@ -22,7 +22,9 @@ import static kr.ac.hongik.apl.Util.*;
 
 
 /**
- * Caution: It doesn't handle server's listening socket
+ * 패킷을 받아서 Message 객체로 Deserialize, send, connect 등의 작업을 수행하는 추상 클래스
+ *
+ * 주의 : 이를 상속한 클래스가 오픈한 소캣을 바인딩 해줘야 정상적으로 동작할 수 있음
  */
 abstract class Connector {
 	public final static long TIMEOUT = 15000;    //Unit: milliseconds
@@ -36,6 +38,11 @@ abstract class Connector {
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 
 
+	/**
+	 * 객체의 생성자, public-private key를 생성하고 JAVA NIO의 selector를 open, replica의 정보를 Map에 로드한다
+	 *
+	 * @param prop
+	 */
 	public Connector(Properties prop) {
 		KeyPair keyPair = generateKeyPair();
 		this.privateKey = keyPair.getPrivate();
@@ -46,10 +53,6 @@ abstract class Connector {
 			e.printStackTrace();
 		}
 		replicaAddresses = Util.parseProperties(prop);
-	}
-
-	static public Map<Integer, SocketChannel> getReplicaMap() {
-		return replicas;
 	}
 
 	private void closeWithoutException(SocketChannel socketChannel) {
@@ -127,13 +130,6 @@ abstract class Connector {
 			reconnect(channel);
 		}
 	}
-
-	/**
-	 * This abstract method must be implemented in Replica class to handle Accept situation.
-	 *
-	 * @param key
-	 */
-	protected abstract void acceptOp(SelectionKey key);
 
 	/**
 	 * If the selector contains any listening socket, acceptOp method must be implemented!
@@ -230,7 +226,10 @@ abstract class Connector {
 		 * 재전송을 안하는 이유:
 		 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
 		 */
-		//clients?
+	}
+
+	static public Map<Integer, SocketChannel> getReplicaMap() {
+		return replicas;
 	}
 
 	public PublicKey getPublicKey() {

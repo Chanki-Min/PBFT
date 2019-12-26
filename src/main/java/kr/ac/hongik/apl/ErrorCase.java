@@ -15,6 +15,9 @@ import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 
+/**
+ * ViewChange 단계 테스팅을 위하여 모든 장애 경우를 테스트하는 클래스
+ */
 public class ErrorCase {
 	public static void doFaulty(Replica replica, int errno, int primaryErrSeqNum, PreprepareMessage preprepareMessage) throws SQLException {
 		int seqNum = preprepareMessage.getSeqNum();
