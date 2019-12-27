@@ -282,18 +282,18 @@ public class EsRestClient {
 	/**
 	 * @param indexName
 	 * @param blockNumber
-	 * @return Pair (plain_data_list,encrypted_data) in #blockNumber th block EXCEPT headDocument
+	 * @return Pair (plain_data_list, base64 encoded Stirng) in #blockNumber th block EXCEPT headDocument
 	 * @throws IOException
 	 * @throws EsException
 	 */
-	public Pair<List<Map<String, Object>>, List<byte[]>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException, NoSuchFieldException {
+	public Pair<List<Map<String, Object>>, List<String>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException, NoSuchFieldException {
 		if (!isIndexExists(indexName)) {
 			throw new EsException(indexName + " does not exists");
 		}
 		if (!isBlockExists(indexName, blockNumber)) {
 			throw new EsException(blockNumber + " does not exists in " + indexName);
 		}
-		Base64.Decoder decoder = Base64.getDecoder();
+
 		SearchRequest request = new SearchRequest(indexName);
 		SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 		BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
@@ -312,22 +312,11 @@ public class EsRestClient {
 		SearchHit[] searchHits = response.getHits().getHits();
 
 		List<Map<String, Object>> plain_data_list = new ArrayList<>();
-		List<byte[]> encrypt_data_list = new ArrayList<>();
-		Set fileKeySet = getFieldKeySet(indexName);
+		List<String> encrypt_data_list = new ArrayList<>();
 
-		for (int i = 0; i < searchHits.length; i++) {
-			SearchHit searchHit = searchHits[i];
+		for (SearchHit searchHit: searchHits) {
 			var sourceMap = searchHit.getSourceAsMap();
-			//가져온 sourceMap 의 KeySet != index KeySet 이면 Data 변조로 확인하고 삭제
-			if (!sourceMap.keySet().equals(fileKeySet)) {
-				throw new NoSuchFieldException(String.valueOf(searchHit.getId().split("_")[3]));
-			}
-			//Base64 decoding 실패 시 Illegal Exception 에 문제된 entryNumber 를 담아 Throw
-			try {
-				encrypt_data_list.add(decoder.decode((String) sourceMap.get("encrypt_data")));
-			} catch (IllegalArgumentException e) {
-				throw new IllegalArgumentException(String.valueOf(searchHit.getId().split("_")[3]));
-			}
+			encrypt_data_list.add((String) sourceMap.get("encrypt_data"));
 			sourceMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
 			plain_data_list.add(sourceMap);
 		}

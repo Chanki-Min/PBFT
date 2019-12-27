@@ -307,7 +307,7 @@ public class ElasticSearchTest {
 			sleep(sleepTime);
 
 			currTime = System.currentTimeMillis();
-			Pair<List<Map<String, Object>>, List<byte[]>> resultPair = esRestClient.getBlockDataPair(indexName, blockNumber);
+			Pair<List<Map<String, Object>>, List<String>> resultPair = esRestClient.getBlockDataPair(indexName, blockNumber);
 			System.err.println("entrySize :" + entrySize + " getAllDataTime :" + (System.currentTimeMillis() - currTime));
 			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
 			esRestClient.disConnectToEs();
@@ -413,13 +413,13 @@ public class ElasticSearchTest {
 		return (int) response.getCount();
 	}
 
-	private boolean isDataEquals(List<byte[]> arr1, List<byte[]> arr2) {
+	private boolean isDataEquals(List<byte[]> arr1, List<String> arr2) {
 		if (arr1.size() != arr2.size())
 			return false;
 		Boolean[] checkList = new Boolean[arr1.size()];
 
 		for (int i = 0; i < arr1.size(); i++) {
-			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i));
+			checkList[i] = Arrays.equals(arr1.get(i), arr2.get(i).getBytes());
 		}
 		return Arrays.stream(checkList).allMatch(Boolean::booleanValue);
 	}
