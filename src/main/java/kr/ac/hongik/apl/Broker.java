@@ -1,7 +1,8 @@
 package kr.ac.hongik.apl;
 
-import com.owlike.genson.Genson;
-import com.owlike.genson.GensonBuilder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
@@ -47,6 +48,7 @@ public class Broker {
 	private List<String> initDataPaths;
 	private boolean isDataLoop;
 	private EsRestClient esRestClient;
+	private ObjectMapper objectMapper;
 	private List<Long> car_log_insertionTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
 	private List<Long> user_log_insertionTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
 
@@ -73,6 +75,11 @@ public class Broker {
 			this.isDataLoop = isDataLoop;
 			this.esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
+
+			objectMapper = new ObjectMapper()
+					.enable(JsonParser.Feature.ALLOW_COMMENTS)
+					.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+
 		} catch (EsRestClient.EsSSLException | NoSuchFieldException e) {
 			throw new Error(e);
 		}
@@ -192,12 +199,17 @@ public class Broker {
 	}
 
 	private HashTree storeDataToEs(String indexName, int blockNumber, List<Map<String, Object>> dataList) throws IOException, Util.EncryptionException, EsRestClient.EsConcurrencyException, InterruptedException, EsRestClient.EsException {
-		Genson genson = new GensonBuilder().useRuntimeType(true).useClassMetadata(true).create();
 		//get previous Header from PBFT
 		Triple<Integer, String, String> prevHeader = getHeader(blockNumber - 1);
 
 		//create all data [block#, entry#, cipher, planMap]
-		HashTree hashTree = new HashTree(dataList.stream().map(x -> genson.serialize(x)).map(Util::hash).toArray(String[]::new));
+		List<String> list = new ArrayList<>();
+		for (Map<String, Object> stringObjectMap: dataList) {
+			String s = objectMapper.writeValueAsString(stringObjectMap);
+			String hash = Util.hash(s);
+			list.add(hash);
+		}
+		HashTree hashTree = new HashTree(list.toArray(new String[0]));
 		Triple<Integer, String, String> currHeader = new ImmutableTriple<>(blockNumber, hashTree.toString(), Util.hash(prevHeader.toString()));
 		SecretKey key = makeSymmetricKey(currHeader.toString());
 
@@ -205,7 +217,7 @@ public class Broker {
 
 		List<byte[]> cipher = new ArrayList<>();
 		for (Map<String, Object> x: dataList) {
-			byte[] encrypt = Util.encrypt(Util.serToString((Serializable) x).getBytes(), key);
+			byte[] encrypt = Util.encrypt(Util.serToBase64String((Serializable) x).getBytes(), key);
 			cipher.add(encrypt);
 		}
 		//insert [block#, entry#, cipher, planMap] to ElasticSearch

@@ -13,23 +13,18 @@ public class ConcurrentBulkInsertThread extends Thread {
 	private EsRestClient esRestClient;
 	private Map<String, Object> esRestClientConfigs;
 	private final String indexName;
-	private final int block_number;
 	private final List<Map<String, Object>> plain_data;
 	private final List<byte[]> encrypt_data;
 	private final int threadID;
-	private final int sleepTime;
 	private final int versionNumber;
-	private List<byte[]> restoredData = null;
 	private final String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
 	private final String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 	public ConcurrentBulkInsertThread(Map esRestClientConfigs, String indexName, int block_number, List<Map<String, Object>> plain_data, List<byte[]> encrypt_data, int sleepTime, int versionNumber, int threadID) {
 		this.esRestClientConfigs = esRestClientConfigs;
 		this.indexName = indexName;
-		this.block_number = block_number;
 		this.plain_data = plain_data;
 		this.encrypt_data = encrypt_data;
-		this.sleepTime = sleepTime;
 		this.versionNumber = versionNumber;
 		this.threadID = threadID;
 	}

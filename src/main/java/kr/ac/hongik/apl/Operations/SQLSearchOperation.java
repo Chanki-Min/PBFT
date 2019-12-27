@@ -1,7 +1,10 @@
 package kr.ac.hongik.apl.Operations;
 
-import com.owlike.genson.Genson;
-import com.owlike.genson.GensonBuilder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Replica;
 import org.apache.http.entity.ContentType;
@@ -20,9 +23,10 @@ public class SQLSearchOperation extends Operation {
 	private String HttpProtocol;
 	private String SqlQuery;
 	private int fetchSize;
-	private boolean enableAutoPaging;
-	private Map<String, Object> esRestClientConfigs;
-	private EsRestClient esRestClient;
+	private boolean enableAutoPaging ;
+	private Map<String, Object> esRestClientConfigs = null;
+	private EsRestClient esRestClient = null;
+	private ObjectMapper objectMapper = null;
 
 	/**
 	 * @param clientInfo   client's PublicKey
@@ -35,10 +39,11 @@ public class SQLSearchOperation extends Operation {
 	public SQLSearchOperation(PublicKey clientInfo, Map<String, Object> esRestClientConfigs ,String HttpProtocol, String SqlQuery, int fetchSize, boolean enableAutoPaging) {
 		super(clientInfo);
 		this.esRestClientConfigs = esRestClientConfigs;
+		this.SqlQuery = SqlQuery;
 		this.HttpProtocol = HttpProtocol;
-		this.SqlQuery = getSqlQuery("query", SqlQuery, fetchSize);
 		this.fetchSize = fetchSize;
 		this.enableAutoPaging = enableAutoPaging;
+
 	}
 
 	/**
@@ -48,6 +53,10 @@ public class SQLSearchOperation extends Operation {
 	@Override
 	public String execute(Object obj) {
 		try {
+			this.objectMapper = new ObjectMapper()
+					.enable(JsonParser.Feature.ALLOW_COMMENTS)
+					.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+			this.SqlQuery = getSqlQuery("query", SqlQuery, fetchSize);
 			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 			String responseBody = EntityUtils.toString(getResponse(SqlQuery).getEntity());
@@ -78,9 +87,8 @@ public class SQLSearchOperation extends Operation {
 		return esRestClient.getClient().getLowLevelClient().performRequest(request);
 	}
 
-	private String getCursorId(String body) {
-		Genson genson = new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create();
-		Map map = genson.deserialize(body, Map.class);
+	private String getCursorId(String body) throws JsonProcessingException {
+		Map map = objectMapper.readValue(body, Map.class);
 		if (map.containsKey("cursor")) {
 			return (String) map.get("cursor");
 		} else {
@@ -89,9 +97,8 @@ public class SQLSearchOperation extends Operation {
 	}
 
 	private String concatBody(String to, String from) throws IOException {
-		Genson genson = new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create();
-		Map toMap = genson.deserialize(to, Map.class);
-		Map fromMap = genson.deserialize(from, Map.class);
+		Map toMap = objectMapper.readValue(to, Map.class);
+		Map fromMap = objectMapper.readValue(from, Map.class);
 
 		if (toMap.containsKey("rows") && fromMap.containsKey("rows")) {
 			((List) toMap.get("rows")).addAll((List) fromMap.get("rows"));
@@ -103,14 +110,17 @@ public class SQLSearchOperation extends Operation {
 		} else {
 			toMap.remove("cursor");
 		}
-		return genson.serialize(toMap);
+		return objectMapper.writeValueAsString(toMap);
 	}
 
 	//TODO : genson이나 jackson으로 map serialize해서 사용하자
 	private String getSqlQuery(String key, String query, int fetchSize) {
-		StringBuilder builder = new StringBuilder();
-		return builder.append("{ \"").append(key).append("\" : \"").append(query).append("\"")
-				.append(", \"fetch_size\" : ").append(fetchSize).append("}")
-				.toString();
+
+		ObjectNode objectNode = objectMapper.createObjectNode();
+
+		objectNode.put(key, query);
+		objectNode.put("fetch_size", fetchSize);
+
+		return objectNode.toString();
 	}
 }

@@ -43,12 +43,20 @@
 
     </build>
     <dependencies>
+    <!--
         <dependency>
-            <!-- json으로 객체 저장 -->
             <groupId>com.owlike</groupId>
             <artifactId>genson</artifactId>
             <version>1.6</version>
         </dependency>
+    -->
+        <dependency>
+            <!-- json 직렬화/역직렬화 라이브러리 -->
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.10.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.echocat.java-stream-utils</groupId>
             <artifactId>java-stream-utils</artifactId>
@@ -83,17 +91,15 @@
             <artifactId>shamir</artifactId>
             <version>0.7.0</version>
         </dependency>
-        <dependency>
-            <groupId>com.owlike</groupId>
-            <artifactId>genson</artifactId>
-            <version>1.5</version>
-        </dependency>
+
+        <!-- Elasticsearch REST high level client -->
         <dependency>
             <groupId>org.elasticsearch.client</groupId>
             <artifactId>elasticsearch-rest-high-level-client</artifactId>
             <version>7.2.0</version>
             <scope>compile</scope>
         </dependency>
+        <!-- Log4j -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>

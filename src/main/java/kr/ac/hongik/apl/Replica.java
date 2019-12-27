@@ -95,6 +95,7 @@ public class Replica extends Connector {
 		} catch (ArrayIndexOutOfBoundsException e) {
 			msgDebugger.error(String.format("Usage: program <ip> <forwarded-public port> <opening port>"));
 		} catch (Exception e) {
+			e.printStackTrace();
 			msgDebugger.error(e.getMessage());
 		}
 	}
@@ -484,7 +485,7 @@ public class Replica extends Connector {
 							logger.executeGarbageCollection(message.getSeqNum());
 							lowWatermark += WATERMARK_UNIT;
 
-							detailDebugger.trace("GARBAGE COLLECTION DONE -> new low watermark : %d", lowWatermark);
+							detailDebugger.trace(String.format("GARBAGE COLLECTION DONE -> new low watermark : %d", lowWatermark));
 
 						}
 					}
@@ -646,7 +647,7 @@ public class Replica extends Connector {
 
 	private ReplyMessage findReplyMessageOrNull(RequestMessage requestMessage) {
 		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.requestMessage = ?")) {
-			pstmt.setString(1, Util.serToString(requestMessage));
+			pstmt.setString(1, Util.serToBase64String(requestMessage));
 			var ret = pstmt.executeQuery();
 			if (ret.next()) {
 				int seqNum = ret.getInt(1);

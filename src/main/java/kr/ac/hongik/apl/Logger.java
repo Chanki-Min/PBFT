@@ -10,7 +10,7 @@ import java.sql.*;
 import java.util.UUID;
 
 import static kr.ac.hongik.apl.Util.desToObject;
-import static kr.ac.hongik.apl.Util.serToString;
+import static kr.ac.hongik.apl.Util.serToBase64String;
 
 public class Logger {
 	static final int CONSTRAINT_ERROR = 19;
@@ -278,10 +278,10 @@ public class Logger {
 		try {
 			PreparedStatement pstmt = conn.prepareStatement(baseQuery);
 
-			String data = serToString(message.getClientInfo());
+			String data = Util.serToBase64String(message.getClientInfo());
 			pstmt.setString(1, data);
 			pstmt.setLong(2, message.getTime());
-			String data1 = serToString(message.getOperation());
+			String data1 = Util.serToBase64String(message.getOperation());
 			pstmt.setString(3, data1);
 
 			pstmt.execute();
@@ -299,9 +299,9 @@ public class Logger {
 			pstmt.setInt(1, message.getViewNum());
 			pstmt.setInt(2, message.getSeqNum());
 			pstmt.setString(3, message.getDigest());
-			String data = serToString(message.getRequestMessage());
+			String data = Util.serToBase64String(message.getRequestMessage());
 			pstmt.setString(4, data);
-			pstmt.setString(5, serToString(message));
+			pstmt.setString(5, Util.serToBase64String(message));
 
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -320,7 +320,7 @@ public class Logger {
 			preparedStatement.setInt(2, message.getSeqNum());
 			preparedStatement.setString(3, message.getDigest());
 			preparedStatement.setInt(4, message.getReplicaNum());
-			preparedStatement.setString(5, serToString(message));
+			preparedStatement.setString(5, Util.serToBase64String(message));
 
 			preparedStatement.execute();
 		} catch (SQLException e) {
@@ -371,7 +371,7 @@ public class Logger {
 			preparedStatement.setInt(1, message.getSeqNum());
 			preparedStatement.setString(2, message.getDigest());
 			preparedStatement.setInt(3, message.getReplicaNum());
-			preparedStatement.setString(4, serToString(message));
+			preparedStatement.setString(4, Util.serToBase64String(message));
 
 			preparedStatement.execute();
 
@@ -388,9 +388,9 @@ public class Logger {
 			pstmt.setInt(1, message.getNewViewNum());
 			pstmt.setInt(2, message.getLastCheckpointNum());
 			pstmt.setInt(3, message.getReplicaNum());
-			pstmt.setString(4, serToString(message.getCheckPointMessages()));
-			pstmt.setString(5, serToString(message.getMessageList()));
-			pstmt.setString(6, serToString(message));
+			pstmt.setString(4, serToBase64String(message.getCheckPointMessages()));
+			pstmt.setString(5, serToBase64String(message.getMessageList()));
+			pstmt.setString(6, Util.serToBase64String(message));
 
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -404,7 +404,7 @@ public class Logger {
 		String query = "INSERT INTO NewViewMessages VALUES (?, ?)";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setInt(1, message.getNewViewNum());
-			pstmt.setString(2, serToString(message));
+			pstmt.setString(2, Util.serToBase64String(message));
 
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -422,7 +422,7 @@ public class Logger {
 		String query = "INSERT INTO Executed VALUES (?, ?)";
 		try (var pstmt = getPreparedStatement(query)) {
 			pstmt.setInt(1, seqNum);
-			String data = serToString(message);
+			String data = Util.serToBase64String(message);
 			pstmt.setString(2, data);
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -451,10 +451,10 @@ public class Logger {
 		String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
 		PreparedStatement pstatement = conn.prepareStatement(baseQuery);
 
-		String data = serToString(message.getClientInfo());
+		String data = Util.serToBase64String(message.getClientInfo());
 		pstatement.setString(1, data);
 		pstatement.setLong(2, message.getTime());
-		String data1 = serToString(message.getOperation());
+		String data1 = Util.serToBase64String(message.getOperation());
 		pstatement.setString(3, data1);
 
 		ResultSet ret = pstatement.executeQuery();

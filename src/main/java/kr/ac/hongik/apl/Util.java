@@ -1,7 +1,10 @@
 package kr.ac.hongik.apl;
 
 import com.codahale.shamir.Scheme;
-import com.owlike.genson.GensonBuilder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.lang3.SerializationUtils;
 
 import javax.crypto.*;
@@ -147,15 +150,24 @@ public class Util {
 		}
 	}
 
-	public static String serToString(Serializable object) {
+	public static String serToBase64String(Serializable object) {
 		return Base64.getEncoder().encodeToString(serialize(object));
 	}
 
-	public static <T> T desToObject(String str, Class<T> type) {
+	public static <T> T desToObject(String base64Str, Class<T> type) {
 		if (type == List.class) {
-			return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().deserialize(str, type);
+			ObjectMapper objectMapper = new ObjectMapper()
+					.enable(JsonParser.Feature.ALLOW_COMMENTS)
+					.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+			try {
+				return objectMapper.readValue(base64Str, type);
+			} catch (JsonProcessingException e) {
+				Replica.msgDebugger.error(e.getMessage());
+				throw new Error(e);
+			}
+			//return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().deserialize(base64Str, type);
 		} else {
-			Serializable obj = deserialize(Base64.getDecoder().decode(str));
+			Serializable obj = deserialize(Base64.getDecoder().decode(base64Str));
 			return type.cast(obj);
 		}
 	}
@@ -164,8 +176,17 @@ public class Util {
 		return SerializationUtils.deserialize(bytes);
 	}
 
-	public static String serToString(List<?> object) {
-		return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().serialize(object);
+	public static String serToBase64String(List<?> object) {
+		try {
+			return new ObjectMapper()
+					.enable(JsonParser.Feature.ALLOW_COMMENTS)
+					.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+					.writeValueAsString(object);
+		} catch (JsonProcessingException e) {
+			Replica.msgDebugger.error(e.getMessage());
+			throw new Error(e);
+		}
+		//return new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create().serialize(object);
 	}
 
 	public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
@@ -215,10 +236,8 @@ public class Util {
 	 * EncryptionException raises when encryption or decryption is failed.
 	 */
 	public static class EncryptionException extends Exception {
-
 		public EncryptionException(Throwable reason) {
 			super(reason);
 		}
 	}
-
 }

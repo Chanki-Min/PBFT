@@ -72,17 +72,6 @@ public class ElasticSearchTest {
 	}
 
 	@Test
-	void atest() throws NoSuchFieldException, EsRestClient.EsSSLException, IOException {
-		esRestClient = new EsRestClient(esRestClientConfigs);
-		esRestClient.connectToEs();
-
-		String s = esRestClient.getIndexNameFromBlockNumber(0, Arrays.asList("car_log", "user_log"));
-		esRestClient.disConnectToEs();
-
-	}
-
-
-	@Test
 	void httpsConnectionTest() throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, KeyManagementException {
 		final CredentialsProvider credentialsProvider =
 				new BasicCredentialsProvider();
@@ -172,8 +161,6 @@ public class ElasticSearchTest {
 		String dataFilePath = "/ES_userData/Debug_test_data.json";
 		int blockNumber = 0;
 		int entrySize = 100;
-		int sleepTime = 1000;
-		int versionNumber = 1;
 		boolean deleteIndexAfterFinish = false;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient(esRestClientConfigs);
@@ -197,7 +184,7 @@ public class ElasticSearchTest {
 				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
+				encData.add(Util.encrypt(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes(), key));
 			}
 			for (int i = 0; i < entrySize; i++) {
 				IndexRequest request = new IndexRequest(indexName);
@@ -225,7 +212,7 @@ public class ElasticSearchTest {
 
 	@Test
 	public void bulkProcessorTest() throws IOException {
-		String indexName = "test_block_chain101";
+		String indexName = "test_block_chain";
 		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
 		String dataFilePath = "/ES_userData/Debug_test_data.json";
@@ -233,7 +220,7 @@ public class ElasticSearchTest {
 		int entrySize = 1000;
 		int sleepTime = 1000;
 		int versionNumber = 1;
-		boolean deleteIndexAfterFinish = true;
+		boolean deleteIndexAfterFinish = false;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
@@ -256,7 +243,7 @@ public class ElasticSearchTest {
 				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
+				encData.add(Util.encrypt(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes(), key));
 			}
 
 			long time = System.currentTimeMillis();
@@ -308,7 +295,7 @@ public class ElasticSearchTest {
 				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
+				encData.add(Util.encrypt(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes(), key));
 			}
 			System.err.println("Test data ready");
 
@@ -350,7 +337,7 @@ public class ElasticSearchTest {
 
 		for (int i = 0; i < entrySize; i++) {
 			sampleUserData.add(parser.jsonFileToMap(dataFilePath));
-			encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
+			encData.add(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes());
 		}
 
 		try {

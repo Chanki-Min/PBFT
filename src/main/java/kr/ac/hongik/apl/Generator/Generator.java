@@ -1,10 +1,14 @@
 package kr.ac.hongik.apl.Generator;
 
-import com.owlike.genson.Genson;
-import com.owlike.genson.GensonBuilder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -28,23 +32,26 @@ public class Generator {
 	public Generator(String initDataPath, boolean isDataLoop) {
 		try {
 			SimpleDateFormat humanTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-			Genson genson = new GensonBuilder().useRuntimeType(false)
-					.useClassMetadata(true)
-					.useDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"))
-					.create();
-			Map initMap = genson.deserialize(this.getClass().getResourceAsStream(initDataPath), Map.class);
+			ObjectMapper objectMapper = new ObjectMapper()
+					.enable(JsonParser.Feature.ALLOW_COMMENTS)
+					.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+					.setDateFormat(humanTimeFormat);
+
+			Map initMap = objectMapper.readValue(this.getClass().getResourceAsStream(initDataPath), Map.class);
 			initMap.computeIfAbsent("route", k -> makeRandomRoute(fakeRouteSize));
+
+			JsonNode tree = objectMapper.valueToTree(initMap);
 
 			this.isDataLoop = isDataLoop;
 			this.index = 0;
-			this.user_id = (String) initMap.get("user_id");
-			this.verification_method = (String) initMap.get("verification_method");
-			this.car_id = (String) initMap.get("car_id");
-			this.mileage = (Long) initMap.get("mileage");
-			this.route = (initMap.get("route") != null) ? (List) initMap.get("route") : null;
-			this.fuel_level = (Double) initMap.get("fuel_level");
+			this.user_id = tree.get("user_id").asText();
+			this.verification_method = tree.get("verification_method").asText();
+			this.car_id = tree.get("car_id").asText();
+			this.mileage = tree.get("mileage").asLong();
+			this.route = objectMapper.readValue(tree.get("route").toString(), new TypeReference<List<List<Double>>>() {});
+			this.fuel_level =  tree.get("fuel_level").asDouble();
 			this.timestamp = humanTimeFormat.parse((String) initMap.get("timestamp")).getTime() - duration;
-		} catch (ParseException wrap) {
+		} catch (ParseException | IOException wrap) {
 			throw new RuntimeException(wrap);
 		}
 	}

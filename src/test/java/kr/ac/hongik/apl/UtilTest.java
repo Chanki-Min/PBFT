@@ -1,6 +1,8 @@
 package kr.ac.hongik.apl;
 
 import com.codahale.shamir.Scheme;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.ac.hongik.apl.Messages.CommitMessage;
 import kr.ac.hongik.apl.Messages.Message;
 import kr.ac.hongik.apl.Messages.PrepareMessage;
@@ -10,6 +12,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -45,7 +49,7 @@ class UtilTest {
 
 		Message expected = PrepareMessage.makePrepareMsg(privateKey, 0, 0, "hi", 0);
 
-		byte[] ser = Util.serToString(expected).getBytes();
+		byte[] ser = Util.serToBase64String(expected).getBytes();
 		//assertEquals(expected, Util.desToObject(new String(ser), PrepareMessage.class));
 
 		expected = CommitMessage.makeCommitMsg(privateKey, 1, 1, "hello", 1);
@@ -53,7 +57,7 @@ class UtilTest {
 		//assertEquals(expected, Util.deserialize(ser));
 
 		Triple<byte[], byte[], byte[]> expected1 = new ImmutableTriple<>("hi".getBytes(), "hello".getBytes(), "yoyo".getBytes());
-		byte[] ser1 = Util.serToString(expected1).getBytes();
+		byte[] ser1 = Util.serToBase64String(expected1).getBytes();
 		Triple<byte[], byte[], byte[]> deser1 = Util.desToObject(new String(ser1), Triple.class);
 
 		boolean isTripleEquals = Arrays.equals(expected1.getLeft(), deser1.getLeft()) &&
@@ -123,5 +127,16 @@ class UtilTest {
 		Assertions.assertThrows(Util.EncryptionException.class, () -> Util.decrypt(encryped, wrongKey));
 
 
+	}
+
+	@Test
+	public void jacksonLibraryTest() throws IOException {
+		ObjectMapper objectMapper = new ObjectMapper();
+		objectMapper.enable(JsonParser.Feature.ALLOW_COMMENTS);
+
+		InputStream is = this.getClass().getResourceAsStream("/ES_MappingAndSetting/Setting.json");
+
+		var tree = objectMapper.readTree(is);
+		return;
 	}
 }

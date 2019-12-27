@@ -63,7 +63,7 @@ public class EsJsonParserTest {
 
 		Map originalMap = parser.jsonFileToMap("/ES_userData/Debug_test_data.json");
 
-		String serializedMap = Util.serToString((Serializable) originalMap);
+		String serializedMap = Util.serToBase64String((Serializable) originalMap);
 		byte[] enc = Util.encrypt(serializedMap.getBytes(), key);
 
 		String base64EncodedEnc = Base64.getEncoder().encodeToString(enc);

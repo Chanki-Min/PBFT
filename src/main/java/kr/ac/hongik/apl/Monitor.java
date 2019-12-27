@@ -1,7 +1,9 @@
 package kr.ac.hongik.apl;
 
-import com.owlike.genson.Genson;
-import com.owlike.genson.GensonBuilder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.BlockVerificationOperation;
@@ -21,6 +23,9 @@ public class Monitor extends Client {
 	private TimeUnit timeUnit;
 	private List<Long> verificationTimes = (Replica.MEASURE) ? new ArrayList<>() : null;
 	private Map<String, Object> esRestClientConfigs;
+	ObjectMapper objectMapper = new ObjectMapper()
+			.enable(JsonParser.Feature.ALLOW_COMMENTS)
+			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
 	private Runnable verifier = () -> {
 		Replica.msgDebugger.info(String.format("%s", new String(new char[80]).replace("\0", "=")));
@@ -84,17 +89,17 @@ public class Monitor extends Client {
 		monitor.start();
 	}
 
-	private void start() {
+	private void start() throws IOException {
 		Scanner scanner = new Scanner(System.in);
-		Genson genson = new Genson();
-		InputStream in = Monitor.class.getResourceAsStream("/ES_Connection/esRestClient_connection_info.json");
-		esRestClientConfigs = genson.deserialize(in, Map.class);
 
-		Replica.msgDebugger.info(String.format("insert Elasticsearch username : "));
+		InputStream in = Monitor.class.getResourceAsStream("/ES_Connection/esRestClient_connection_info.json");
+		esRestClientConfigs = objectMapper.readValue(in, Map.class);
+
+		Replica.msgDebugger.info("insert Elasticsearch username : ");
 		esRestClientConfigs.put("userName", scanner.next());
-		Replica.msgDebugger.info(String.format("insert Elasticsearch password : "));
+		Replica.msgDebugger.info("insert Elasticsearch password : ");
 		esRestClientConfigs.put("passWord", scanner.next());
-		Replica.msgDebugger.info(String.format("insert Elasticsearch certification password : "));
+		Replica.msgDebugger.info("insert Elasticsearch certification password : ");
 		esRestClientConfigs.put("certPassWord", scanner.next());
 
 		try {
@@ -124,10 +129,14 @@ public class Monitor extends Client {
 	}
 
 	private void printResult(List<String> result) {
-		Genson genson = new GensonBuilder().useRuntimeType(true).useClassMetadata(true).create();
-		for (String log: result) {
-			LinkedHashMap map = genson.deserialize(log, LinkedHashMap.class);
-			map.keySet().stream().forEach(k -> Replica.msgDebugger.info(String.format("%-10s : %s", k, map.get(k))));
+		try {
+			for (String log: result) {
+				LinkedHashMap map = objectMapper.readValue(log, LinkedHashMap.class);
+				map.keySet().stream().forEach(k -> Replica.msgDebugger.info(String.format("%-10s : %s", k, map.get(k))));
+			}
+		} catch (JsonProcessingException e) {
+			Replica.msgDebugger.error(e.getMessage());
+			throw new Error(e);
 		}
 	}
 }

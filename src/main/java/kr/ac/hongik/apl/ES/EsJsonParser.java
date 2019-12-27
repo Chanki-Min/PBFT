@@ -1,6 +1,8 @@
 package kr.ac.hongik.apl.ES;
 
-import com.owlike.genson.Genson;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.Replica;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -10,7 +12,9 @@ import java.net.URL;
 import java.util.*;
 
 public class EsJsonParser {
-	Genson genson = new Genson();
+	ObjectMapper objectMapper = new ObjectMapper()
+			.enable(JsonParser.Feature.ALLOW_COMMENTS)
+			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
 	public EsJsonParser() {
 	}
@@ -18,7 +22,7 @@ public class EsJsonParser {
 	public Map jsonFileToMap(String filePath) {
 		try {
 			InputStream in = EsJsonParser.class.getResourceAsStream(filePath);
-			Map<String, Object> map = genson.deserialize(in, Map.class);
+			Map<String, Object> map = objectMapper.readValue(in, Map.class);
 			for (var ent: map.entrySet()) {
 				if (ent.getValue() instanceof String && ((String) ent.getValue()).startsWith("BINARY_PATH::")) {
 					Base64.Encoder encoder = Base64.getEncoder();
@@ -53,7 +57,7 @@ public class EsJsonParser {
 		else
 			builder = XContentFactory.jsonBuilder();
 
-		builder.map(genson.deserialize(in, Map.class));
+		builder.map(objectMapper.readValue(in, Map.class));
 		return builder;
 	}
 
@@ -63,7 +67,7 @@ public class EsJsonParser {
 			builder = XContentFactory.jsonBuilder().prettyPrint();
 		else
 			builder = XContentFactory.jsonBuilder();
-		builder.map(genson.deserialize(json, Map.class));
+		builder.map(objectMapper.readValue(json, Map.class));
 		return builder;
 	}
 
@@ -73,7 +77,7 @@ public class EsJsonParser {
 	 * @throws IOException
 	 */
 	public LinkedHashMap<Integer, LinkedHashMap> sqlResponseStringToLinkedMap(String sqlResponse) throws IOException {
-		Map map = genson.deserialize(sqlResponse, Map.class);
+		Map map = objectMapper.readValue(sqlResponse, Map.class);
 		if (map.containsKey("columns") && map.containsKey("rows")) {
 			List<HashMap> columns = (List) (map.get("columns"));
 			List<ArrayList> rows = (List) map.get("rows");

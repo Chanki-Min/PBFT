@@ -1,7 +1,9 @@
 package kr.ac.hongik.apl.Operation;
 
-import com.owlike.genson.Genson;
-import com.owlike.genson.GensonBuilder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
@@ -23,6 +25,9 @@ import java.util.*;
 
 public class SqlSearchOperationTest {
 	private Map<String, Object> esRestClientConfigs;
+	private ObjectMapper objectMapper = new ObjectMapper()
+			.enable(JsonParser.Feature.ALLOW_COMMENTS)
+			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
 	@BeforeEach
 	public void makeConfig() {
@@ -42,7 +47,7 @@ public class SqlSearchOperationTest {
 	}
 
 	@Test
-	public void SQLSearchOperationTest() throws IOException, NoSuchFieldException, EsRestClient.EsSSLException {
+	public void SQLSearchOperationTest() throws IOException {
 		int fetchSize = 1000;
 		String HttpProtocol = "GET";
 		String query = "SELECT * from test_block_chain";
@@ -106,9 +111,8 @@ public class SqlSearchOperationTest {
 		}
 	}
 
-	private String getCursorId(String body) {
-		Genson genson = new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create();
-		Map map = genson.deserialize(body, Map.class);
+	private String getCursorId(String body) throws JsonProcessingException {
+		Map map = objectMapper.readValue(body, Map.class);
 		if (map.containsKey("cursor")) {
 			return (String) map.get("cursor");
 		} else {
@@ -117,9 +121,8 @@ public class SqlSearchOperationTest {
 	}
 
 	private String concatBody(String to, String from) throws IOException {
-		Genson genson = new GensonBuilder().useClassMetadata(true).useRuntimeType(true).create();
-		Map toMap = genson.deserialize(to, Map.class);
-		Map fromMap = genson.deserialize(from, Map.class);
+		Map toMap = objectMapper.readValue(to, Map.class);
+		Map fromMap = objectMapper.readValue(from, Map.class);
 
 		if (toMap.containsKey("rows") && fromMap.containsKey("rows")) {
 			((List) toMap.get("rows")).addAll((List) fromMap.get("rows"));
@@ -131,7 +134,7 @@ public class SqlSearchOperationTest {
 		} else {
 			toMap.remove("cursor");
 		}
-		return genson.serialize(toMap);
+		return objectMapper.writeValueAsString(toMap);
 	}
 
 	private String sqlQueryGenerator(String key, String query) {

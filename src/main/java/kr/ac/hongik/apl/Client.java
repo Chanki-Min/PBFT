@@ -56,6 +56,7 @@ public class Client extends Connector {
 				setReceivingTimeStamp(msg.getTime());
 				return;
 			}
+			//TODO : 죽은 replica node를 무시하도록 코드 수정이 필요함
 			int idx = new Random().nextInt(getReplicaMap().size());
 
 			Replica.msgDebugger.debug(String.format("Send Request Msg to %d", idx));
