@@ -20,6 +20,8 @@ public class ConcurrentBulkInsertThread extends Thread {
 	private final int sleepTime;
 	private final int versionNumber;
 	private List<byte[]> restoredData = null;
+	private final String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
+	private final String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 	public ConcurrentBulkInsertThread(Map esRestClientConfigs, String indexName, int block_number, List<Map<String, Object>> plain_data, List<byte[]> encrypt_data, int sleepTime, int versionNumber, int threadID) {
 		this.esRestClientConfigs = esRestClientConfigs;
@@ -44,11 +46,9 @@ public class ConcurrentBulkInsertThread extends Thread {
 				try {
 					XContentBuilder mappingBuilder;
 					XContentBuilder settingBuilder;
-					parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
-					mappingBuilder = parser.jsonFileToXContentBuilder(false);
+					mappingBuilder = parser.jsonFileToXContentBuilder(mappingPath,false);
 
-					parser.setFilePath("/ES_MappingAndSetting/Setting.json");
-					settingBuilder = parser.jsonFileToXContentBuilder(false);
+					settingBuilder = parser.jsonFileToXContentBuilder(settingPath,false);
 
 					esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 				} catch (EsRestClient.EsConcurrencyException e) {

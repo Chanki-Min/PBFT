@@ -99,10 +99,8 @@ public class Broker {
 				String indexName = getIndexNameFromFilePath(mappingPath);
 				if (!esRestClient.isIndexExists(indexName)) {
 					EsJsonParser esJsonParser = new EsJsonParser();
-					esJsonParser.setFilePath(mappingPath);
-					XContentBuilder mappingBuilder = esJsonParser.jsonFileToXContentBuilder(false);
-					esJsonParser.setFilePath(settingPath);
-					XContentBuilder settingBuilder = esJsonParser.jsonFileToXContentBuilder(false);
+					XContentBuilder mappingBuilder = esJsonParser.jsonFileToXContentBuilder(mappingPath,false);
+					XContentBuilder settingBuilder = esJsonParser.jsonFileToXContentBuilder(settingPath,false);
 					esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 				}
 			}

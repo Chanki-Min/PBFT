@@ -10,26 +10,13 @@ import java.net.URL;
 import java.util.*;
 
 public class EsJsonParser {
-	String filePath;
+	Genson genson = new Genson();
 
 	public EsJsonParser() {
 	}
 
-	public void setFilePath(String filePath) {
-		this.filePath = filePath;
-	}
-
-	public List<Map> listedJsonFileToList(String key) {
-		Genson genson = new Genson();
-		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
-
-		Map<String, Object> json = genson.deserialize(in, Map.class);
-		return (List<Map>) json.get(key);
-	}
-
-	public Map jsonFileToMap() {
+	public Map jsonFileToMap(String filePath) {
 		try {
-			Genson genson = new Genson();
 			InputStream in = EsJsonParser.class.getResourceAsStream(filePath);
 			Map<String, Object> map = genson.deserialize(in, Map.class);
 			for (var ent: map.entrySet()) {
@@ -58,8 +45,7 @@ public class EsJsonParser {
 		}
 	}
 
-	public XContentBuilder jsonFileToXContentBuilder(boolean isPrettyPrint) throws IOException {
-		Genson genson = new Genson();
+	public XContentBuilder jsonFileToXContentBuilder(String filePath, boolean isPrettyPrint) throws IOException {
 		InputStream in = EsRestClient.class.getResourceAsStream(filePath);
 		XContentBuilder builder;
 		if (isPrettyPrint)
@@ -71,13 +57,7 @@ public class EsJsonParser {
 		return builder;
 	}
 
-	public Map jsonStringToMap(String json) {
-		Genson genson = new Genson();
-		return genson.deserialize(json, Map.class);
-	}
-
 	public XContentBuilder jsonStringToXContentBuilder(String json, boolean isPrettyPrint) throws IOException {
-		Genson genson = new Genson();
 		XContentBuilder builder;
 		if (isPrettyPrint)
 			builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -93,7 +73,7 @@ public class EsJsonParser {
 	 * @throws IOException
 	 */
 	public LinkedHashMap<Integer, LinkedHashMap> sqlResponseStringToLinkedMap(String sqlResponse) throws IOException {
-		Map map = jsonStringToMap(sqlResponse);
+		Map map = genson.deserialize(sqlResponse, Map.class);
 		if (map.containsKey("columns") && map.containsKey("rows")) {
 			List<HashMap> columns = (List) (map.get("columns"));
 			List<ArrayList> rows = (List) map.get("rows");
@@ -108,7 +88,7 @@ public class EsJsonParser {
 				resultMap.put(i, tmpMap);
 				count++;
 
-				Replica.msgDebugger.debug(String.format("Add tmp. block_no: %d entry_no: %d", tmpMap.get("block_number"), tmpMap.get("entry_number")));
+				Replica.msgDebugger.debug(String.format("Add tmp. block_no: %s entry_no: %s", tmpMap.get("block_number"), tmpMap.get("entry_number")));
 			}
 			return resultMap;
 		} else {

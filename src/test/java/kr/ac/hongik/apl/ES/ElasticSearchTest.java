@@ -51,6 +51,8 @@ import static java.lang.Thread.sleep;
 public class ElasticSearchTest {
 	private static EsRestClient esRestClient;
 	private Map<String, Object> esRestClientConfigs;
+	private final String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
+	private final String settingPath = "/ES_MappingAndSetting/Setting.json";
 
 	@BeforeEach
 	public void makeConfig() {
@@ -145,11 +147,9 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
-			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
-			settingBuilder = parser.jsonFileToXContentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(mappingPath,false);
+			settingBuilder = parser.jsonFileToXContentBuilder(settingPath,false);
 
 			EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
@@ -169,6 +169,7 @@ public class ElasticSearchTest {
 	@Test
 	void SingleInsertTest() throws IOException {
 		String indexName = "test_block_chain";
+		String dataFilePath = "/ES_userData/Debug_test_data.json";
 		int blockNumber = 0;
 		int entrySize = 100;
 		int sleepTime = 1000;
@@ -180,15 +181,12 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
-			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
-			settingBuilder = parser.jsonFileToXContentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(mappingPath,false);
+			settingBuilder = parser.jsonFileToXContentBuilder(settingPath,false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/ES_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -196,7 +194,7 @@ public class ElasticSearchTest {
 			SecretKey key = Util.makeSymmetricKey(seed);
 
 			for (int i = 0; i < entrySize; i++) {
-				var map = parser.jsonFileToMap();
+				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -228,6 +226,9 @@ public class ElasticSearchTest {
 	@Test
 	public void bulkProcessorTest() throws IOException {
 		String indexName = "test_block_chain101";
+		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
+		String settingPath = "/ES_MappingAndSetting/Setting.json";
+		String dataFilePath = "/ES_userData/Debug_test_data.json";
 		int blockNumber = 1;
 		int entrySize = 1000;
 		int sleepTime = 1000;
@@ -239,15 +240,12 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
-			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
-			settingBuilder = parser.jsonFileToXContentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(mappingPath,false);
+			settingBuilder = parser.jsonFileToXContentBuilder(settingPath,false);
 
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
-			parser.setFilePath("/ES_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
@@ -255,7 +253,7 @@ public class ElasticSearchTest {
 			SecretKey key = Util.makeSymmetricKey(seed);
 
 			for (int i = 0; i < entrySize; i++) {
-				var map = parser.jsonFileToMap();
+				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -280,8 +278,10 @@ public class ElasticSearchTest {
 
 	@Test
 	void getBlockDataPairTest() throws IOException {
-		String indexName = "test_block_chain10ls" +
-				"";
+		String indexName = "test_block_chain10ls";
+		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
+		String settingPath = "/ES_MappingAndSetting/Setting.json";
+		String dataFilePath = "/ES_userData/Debug_test_data.json";
 		int blockNumber = 0;
 		int entrySize = 100;
 		int versionNumber = 1;
@@ -293,23 +293,19 @@ public class ElasticSearchTest {
 			esRestClient.connectToEs();
 			XContentBuilder mappingBuilder;
 			XContentBuilder settingBuilder;
-			parser.setFilePath("/ES_MappingAndSetting/Debug_test_mapping.json");
-			mappingBuilder = parser.jsonFileToXContentBuilder(false);
 
-			parser.setFilePath("/ES_MappingAndSetting/Setting.json");
-			settingBuilder = parser.jsonFileToXContentBuilder(false);
+			mappingBuilder = parser.jsonFileToXContentBuilder(mappingPath,false);
+			settingBuilder = parser.jsonFileToXContentBuilder(settingPath,false);
+			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
 			String seed = "Hello World!";
 			SecretKey key = Util.makeSymmetricKey(seed);
 
-			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
-
-			parser.setFilePath("/ES_userData/Debug_test_data.json");
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
 			List<byte[]> encData = new ArrayList<>();
 
 			for (int i = 0; i < entrySize; i++) {
-				var map = parser.jsonFileToMap();
+				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
 				encData.add(Util.encrypt(Util.serToString((Serializable) sampleUserData.get(i)).getBytes(), key));
@@ -340,20 +336,20 @@ public class ElasticSearchTest {
 
 	@Test
 	void concurrentBulkInsertTest() {
+		String indexName = "test_block_chain";
+		String dataFilePath = "/ES_userData/Debug_test_data.json";
 		int entrySize = 1000;
 		int sleepTime = 1000;
 		int maxThreadNum = 10;
 		List<Thread> threadList = new ArrayList<>(maxThreadNum);
-		String indexName = "test_block_chain";
 		int blockNumber = 0;
 
 		EsJsonParser parser = new EsJsonParser();
-		parser.setFilePath("/ES_userData/Debug_test_data.json");
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
 		List<byte[]> encData = new ArrayList<>();
 
 		for (int i = 0; i < entrySize; i++) {
-			sampleUserData.add(parser.jsonFileToMap());
+			sampleUserData.add(parser.jsonFileToMap(dataFilePath));
 			encData.add(Util.serToString((Serializable) sampleUserData.get(i)).getBytes());
 		}
 
