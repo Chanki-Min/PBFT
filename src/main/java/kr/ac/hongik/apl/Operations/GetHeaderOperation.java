@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.Operations;
 
 import kr.ac.hongik.apl.Logger;
+import kr.ac.hongik.apl.Replica;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
 
@@ -37,7 +38,8 @@ public class GetHeaderOperation extends Operation {
 				);
 			}
 			return header;
-		} catch (SQLException ignore) {
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e.getMessage());
 			return null;
 		}
 	}

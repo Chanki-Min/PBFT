@@ -113,7 +113,6 @@ public class SQLSearchOperation extends Operation {
 		return objectMapper.writeValueAsString(toMap);
 	}
 
-	//TODO : genson이나 jackson으로 map serialize해서 사용하자
 	private String getSqlQuery(String key, String query, int fetchSize) {
 
 		ObjectNode objectNode = objectMapper.createObjectNode();
