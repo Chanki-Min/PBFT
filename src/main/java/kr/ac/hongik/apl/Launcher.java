@@ -14,15 +14,6 @@ public class Launcher {
 				case "server":
 					Replica.main(Arrays.stream(args).skip(1).toArray(String[]::new));
 					break;
-				case "client":
-					Client.main(Arrays.stream(args).skip(1).toArray(String[]::new));
-					break;
-				case "monitor":
-					Monitor.main(Arrays.stream(args).skip(1).toArray(String[]::new));
-					break;
-				case "broker":
-					Broker.main(Arrays.stream(args).skip(1).toArray(String[]::new));
-					break;
 				default:
 					throw new IllegalArgumentException();
 			}

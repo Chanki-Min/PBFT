@@ -1,3 +1,4 @@
+/*
 package kr.ac.hongik.apl;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -9,8 +10,10 @@ import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Generator.Generator;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.GetHeaderOperation;
-import kr.ac.hongik.apl.Operations.InsertHeaderOperation;
+import kr.ac.hongik.apl.Operations.deprecated.InsertHeaderOperation;
 import kr.ac.hongik.apl.Operations.Operation;
+import kr.ac.hongik.apl.Replica;
+import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
 import org.elasticsearch.action.search.SearchRequest;
@@ -240,13 +243,7 @@ public class Broker {
 		int result = (int) client.getReply();
 	}
 
-	/**
-	 * @param indices list of search target indices
-	 * @return latest block_number of indices
-	 * @throws NoSuchFieldException
-	 * @throws IOException
-	 * @throws EsRestClient.EsSSLException
-	 */
+
 	private int getLatestBlockNumber(List<String> indices) throws NoSuchFieldException, IOException, EsRestClient.EsSSLException {
 		SearchRequest searchMaxRequest = new SearchRequest(indices.toArray(new String[indices.size()]));
 		SearchSourceBuilder maxBuilder = new SearchSourceBuilder();
@@ -278,10 +275,7 @@ public class Broker {
 		return (Triple<Integer, String, String>) client.getReply();
 	}
 
-	/**
-	 * @param fileName String formatted ~Mapping_[target]*.json
-	 * @return [target]*
-	 */
+
 	private String getIndexNameFromFilePath(String fileName) {
 		Pattern pattern = Pattern.compile("(?<=(Mapping_)).*(?=(.json))");
 		Matcher matcher = pattern.matcher(fileName);
@@ -291,3 +285,4 @@ public class Broker {
 			return null;
 	}
 }
+*/

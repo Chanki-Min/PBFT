@@ -1,3 +1,4 @@
+/*
 package kr.ac.hongik.apl;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -6,9 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
-import kr.ac.hongik.apl.Operations.BlockVerificationOperation;
+import kr.ac.hongik.apl.Operations.deprecated.BlockVerificationOperation;
 import kr.ac.hongik.apl.Operations.GetLatestBlockNumberOperation;
 import kr.ac.hongik.apl.Operations.Operation;
+import kr.ac.hongik.apl.Replica;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,7 +75,7 @@ public class Monitor extends Client {
 
 	/**
 	 * @param args [VerifyCation Period as Second]
-	 */
+
 	public static void main(String[] args) throws IOException {
 		int time = Integer.parseInt(args[0]);
 		Properties properties = new Properties();
@@ -106,7 +108,7 @@ public class Monitor extends Client {
 			EsRestClient esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 			esRestClient.getClusterInfo();
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 		} catch (Exception e) {
 			Replica.msgDebugger.error(e.getMessage());
 			System.exit(1);
@@ -117,10 +119,7 @@ public class Monitor extends Client {
 		verifierSchedule.scheduleWithFixedDelay(verifier, time, time, timeUnit);
 	}
 
-	/**
-	 * @param
-	 * @return latest block_number of BlockChain table in pbft rdbms
-	 */
+
 	private int getLatestBlockNumber() {
 		Operation getLatestBlockNumberOperation = new GetLatestBlockNumberOperation(super.getPublicKey());
 		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(super.getPrivateKey(), getLatestBlockNumberOperation);
@@ -140,3 +139,4 @@ public class Monitor extends Client {
 		}
 	}
 }
+*/

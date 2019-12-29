@@ -53,7 +53,7 @@ public class ConcurrentBulkInsertThread extends Thread {
 			esRestClient.bulkInsertDocumentByProcessor(
 					indexName, 0, plain_data, encrypt_data, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
 			esRestClient.deleteIndex(indexName);
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 
 		} catch (IOException | InterruptedException | EsRestClient.EsSSLException e) {
 			throw new Error(e);

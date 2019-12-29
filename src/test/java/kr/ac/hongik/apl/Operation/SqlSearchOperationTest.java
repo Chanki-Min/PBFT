@@ -90,7 +90,7 @@ public class SqlSearchOperationTest {
 				responseBody = concatBody(responseBody, cursorBody);
 				int i = 0;
 			}
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 			EsJsonParser esJsonParser = new EsJsonParser();
 			LinkedHashMap<Integer, LinkedHashMap> resultMap = esJsonParser.sqlResponseStringToLinkedMap(responseBody);
 		} catch (ResponseException | EsRestClient.EsSSLException e) {
@@ -107,7 +107,7 @@ public class SqlSearchOperationTest {
 			request.setEntity(new NStringEntity(query, ContentType.APPLICATION_JSON));
 			return esRestClient.getClient().getLowLevelClient().performRequest(request);
 		} finally {
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 		}
 	}
 

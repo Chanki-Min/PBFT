@@ -22,10 +22,6 @@ car_location : 차량의 위치 [위도, 경도] 소수점 2번째 자리까지
       "ignore_malformed": true,
       "coerce": false
     },
-    //cipher data (Base64 encoded String)
-    "encrypt_data": {
-      "type": "binary"
-    },
     //imaginary plain data
     "car_id": {
       "type": "keyword",

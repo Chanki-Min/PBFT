@@ -1,7 +1,7 @@
 package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.*;
-import kr.ac.hongik.apl.Operations.GreetingOperation;
+import kr.ac.hongik.apl.Operations.Dev.GreetingOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Operations.OperationExecutionException;
 

@@ -78,6 +78,10 @@ public class Logger {
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
 				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
+				"CREATE TABLE BlockChain (idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))",
+				"INSERT INTO BlockChain VALUES (0, 'FIRST_ROOT', 'PREV')",
+
+				"CREATE TABLE Hashes (idx INT, hash TEXT, PRIMARY KEY(idx) )"
 		};
 		for (String query: queries) {
 			try (var preparedStatement = conn.prepareStatement(query)) {

@@ -122,12 +122,12 @@ public class ElasticSearchTest {
 		}
 		System.out.println("ClusterInfo Requset successful? : " + isConnected);
 		try {
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 
-		esRestClient.disConnectToEs();
+		esRestClient.close();
 		Assertions.assertEquals(true, isConnected);
 	}
 
@@ -151,7 +151,7 @@ public class ElasticSearchTest {
 			System.out.println("Index Creation test Successful, deleting test-index...");
 			esRestClient.deleteIndex("test_block_chain");
 			Assertions.assertEquals(false, isIndexExists("test_block_chain"));
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -161,7 +161,7 @@ public class ElasticSearchTest {
 	@Test
 	void SingleInsertTest() throws IOException {
 		String indexName = "test_block_chain";
-		String dataFilePath = "/ES_userData/Debug_test_data.json";
+		String dataFilePath = "/Es_testData/Debug_test_data.json";
 		int blockNumber = 0;
 		int entrySize = 100;
 		boolean deleteIndexAfterFinish = false;
@@ -209,7 +209,7 @@ public class ElasticSearchTest {
 		} catch (IOException e) {
 			throw new IOError(e);
 		} finally {
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 		}
 	}
 
@@ -218,7 +218,7 @@ public class ElasticSearchTest {
 		String indexName = "test_block_chain";
 		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
-		String dataFilePath = "/ES_userData/Debug_test_data.json";
+		String dataFilePath = "/Es_testData/Debug_test_data.json";
 		int blockNumber = 1;
 		int entrySize = 1000;
 		int sleepTime = 1000;
@@ -261,7 +261,7 @@ public class ElasticSearchTest {
 		} catch (Util.EncryptionException e) {
 			e.printStackTrace();
 		} finally {
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 		}
 
 	}
@@ -271,7 +271,7 @@ public class ElasticSearchTest {
 		String indexName = "test_block_chain10ls";
 		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
-		String dataFilePath = "/ES_userData/Debug_test_data.json";
+		String dataFilePath = "/Es_testData/Debug_test_data.json";
 		int blockNumber = 0;
 		int entrySize = 100;
 		int versionNumber = 1;
@@ -313,7 +313,7 @@ public class ElasticSearchTest {
 			Pair<List<Map<String, Object>>, List<String>> resultPair = esRestClient.getBlockDataPair(indexName, blockNumber);
 			System.err.println("entrySize :" + entrySize + " getAllDataTime :" + (System.currentTimeMillis() - currTime));
 			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 			if (deleteIndexAfterFinish) esRestClient.deleteIndex("test_block_chain");
 		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
@@ -327,7 +327,7 @@ public class ElasticSearchTest {
 	@Test
 	void concurrentBulkInsertTest() {
 		String indexName = "test_block_chain";
-		String dataFilePath = "/ES_userData/Debug_test_data.json";
+		String dataFilePath = "/Es_testData/Debug_test_data.json";
 		int entrySize = 1000;
 		int sleepTime = 1000;
 		int maxThreadNum = 10;

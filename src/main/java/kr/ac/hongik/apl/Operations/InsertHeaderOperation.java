@@ -8,15 +8,17 @@ import org.apache.commons.lang3.tuple.Triple;
 
 import java.security.PublicKey;
 import java.sql.SQLException;
+import java.util.List;
 
 public class InsertHeaderOperation extends Operation {
 	private final String tableName = "BlockChain";
-	private int blockNumber;
+	private final int batchSize = 100;
+	private List<String> hashes;
 	private String root;
 
-	public InsertHeaderOperation(PublicKey clientInfo, int blockNumber, String root) {
+	public InsertHeaderOperation(PublicKey clientInfo, List<String> hashes, String root) {
 		super(clientInfo);
-		this.blockNumber = blockNumber;
+		this.hashes = hashes;
 		this.root = root;
 	}
 
@@ -27,10 +29,9 @@ public class InsertHeaderOperation extends Operation {
 	@Override
 	public Object execute(Object obj) throws OperationExecutionException {
 		try {
-			int indexNum = -1;
 			Logger logger = (Logger) obj;
-			createTableIfNotExists(logger);
-			indexNum = storeHeaderAndReturnIdx(blockNumber, root, logger);
+			int indexNum = storeHeaderAndReturnIdx(root, logger);
+			storeHash(indexNum, hashes, logger);
 			return indexNum;
 		} catch (Exception e) {
 			throw new OperationExecutionException(e);
@@ -38,25 +39,12 @@ public class InsertHeaderOperation extends Operation {
 	}
 
 	/**
-	 * createTableIfNotExists creates a BlockChain table and insert a dummy row.
-	 *
-	 * @param logger
-	 */
-	private void createTableIfNotExists(Logger logger) {
-		try {
-			logger.getPreparedStatement("CREATE TABLE " + tableName + " (idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev)) ").execute();
-			logger.getPreparedStatement("INSERT INTO " + tableName + " VALUES (0, 'FIRST_ROOT', 'PREV')").execute();
-		} catch (SQLException ignored) {
-		}
-	}
-
-	/**
 	 * @param root   root is a root of merkle tree
-	 * @param logger
+	 * @param logger logger
 	 * @return An index of just inserted block.
 	 * @throws SQLException
 	 */
-	private int storeHeaderAndReturnIdx(int blockNumber, String root, Logger logger) {
+	private int storeHeaderAndReturnIdx(String root, Logger logger) {
 		String query = "INSERT INTO " + tableName + " VALUES ( ?, ?, ? )";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			Triple<Integer, String, String> previousBlock = getLatestBlock(logger);
@@ -69,6 +57,27 @@ public class InsertHeaderOperation extends Operation {
 			psmt.execute();
 			return previousBlock.getLeft() + 1;
 		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * @param indexNum hashes's index number
+	 * @param hashes list of all entry's hash
+	 * @param logger logger
+	 * @throws SQLException
+	 */
+	private void storeHash(int indexNum, List<String> hashes, Logger logger) {
+		String query = "INSERT INTO Hashes (idx, hash) VALUES( ?, ?)";
+		long time = System.currentTimeMillis();
+		try (var psmt = logger.getPreparedStatement(query)) {
+			psmt.setInt(1, indexNum);
+			psmt.setString(2, Util.serToBase64String(hashes));
+			psmt.execute();
+			Replica.msgDebugger.info(String.format("hashlist insertion end with time : %d", System.currentTimeMillis() - time));
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
 		}
 	}
@@ -78,17 +87,14 @@ public class InsertHeaderOperation extends Operation {
 	 * @return A triplet of (Block number, merkle root, previous block hash)
 	 * @throws SQLException
 	 */
-	private Triple<Integer, String, String> getLatestBlock(Logger logger) {
+	private Triple<Integer, String, String> getLatestBlock(Logger logger) throws SQLException {
 		String query = "SELECT idx, root, prev FROM " + tableName + " b WHERE b.idx = (SELECT MAX(idx) from " + tableName + " b2)";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			var ret = psmt.executeQuery();
-			//TODO : 이부분 리펙토링 필요하다!
 			if (ret.next())
 				return new ImmutableTriple<>(ret.getInt(1), ret.getString(2), ret.getString(3));
 			else
 				throw new SQLException("There's no tuple in " + tableName);
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
 		}
 	}
 }

@@ -1,7 +1,6 @@
 package kr.ac.hongik.apl.Operations;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.Blockchain.HashTree;
@@ -9,7 +8,6 @@ import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
-import org.apache.commons.lang3.SerializationException;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
 
@@ -19,7 +17,8 @@ import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.*;
 
-import static kr.ac.hongik.apl.Util.*;
+import static kr.ac.hongik.apl.Util.hash;
+import static kr.ac.hongik.apl.Util.makeSymmetricKey;
 
 public class BlockVerificationOperation extends Operation {
 	private final String tableName = "BlockChain";
@@ -52,21 +51,22 @@ public class BlockVerificationOperation extends Operation {
 		try {
 			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
+
 			indexName = esRestClient.getIndexNameFromBlockNumber(blockNumber, indices);
 			List<String> result = verifyChain(logger, blockNumber, indexName);
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 			return result;
-		} catch (Exception e) {
+		} catch (IOException | EsRestClient.EsSSLException | NoSuchFieldException | EsRestClient.EsException e) {
 			throw new OperationExecutionException(e);
 		}
 	}
 
-	private List<String> verifyChain(Logger logger, int blockNumber, String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
+	/*
+	Verify Header&Data and get verification logs as OrderedMap
+	 */
+	private List<String> verifyChain(Logger logger, int blockNumber, String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException {
 		List<String> verifyLog = new ArrayList<>();
 
-		/*
-		Verify Header&Data and get verification logs as OrderedMap
-		 */
 		LinkedHashMap headerError = verifyHeader(logger, blockNumber);
 		List<LinkedHashMap> dataErrors = verifyData(logger, blockNumber, indexName);
 
@@ -93,7 +93,6 @@ public class BlockVerificationOperation extends Operation {
 	/**
 	 * @param logger
 	 * @param blockNumber
-	 * @throws SQLException
 	 * @return null if blockNumbe'th header is verified, LinkedHashMap that contains error info if not
 	 */
 	private LinkedHashMap verifyHeader(Logger logger, int blockNumber) {
@@ -134,26 +133,23 @@ public class BlockVerificationOperation extends Operation {
 	 * @param indexName
 	 * @return new ArrayList() if blockNumbe'th header is verified, List(LinkedHashMap) that contains error info if not
 	 * @throws NoSuchFieldException
-	 * @throws SQLException
 	 * @throws IOException
 	 * @throws EsRestClient.EsException
-	 * @throws EsRestClient.EsSSLException
 	 */
-	private List<LinkedHashMap> verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsSSLException {
+	private List<LinkedHashMap> verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsException {
 		if (blockNum == 0)
 			return new ArrayList<>();
 
-		List<Map<String, Object>> restoreMapList = new ArrayList<>();
 		List<LinkedHashMap> errors = new ArrayList<>();
 
 		Triple<Integer, String, String> header = getHeader(logger, blockNum);
 		SecretKey key = makeSymmetricKey(header.toString());
-		var blockDataPair = esRestClient.getBlockDataPair(indexName, blockNumber);
+		List<Map<String, Object>> plainDatas = esRestClient.newGetBlockData(indexName, blockNumber);
 
 		//먼저 ES에서 가져온 plainData의 hash를 계산한다.
 		List<String> plainHashList = new ArrayList<>();
-		for (Map<String, Object> x: blockDataPair.getLeft()) {
-			String plainEntry = objectMapper.writeValueAsString(x);
+		for (Map<String, Object> e: plainDatas) {
+			String plainEntry = objectMapper.writeValueAsString(e);
 			String hash = hash(plainEntry);
 			plainHashList.add(hash);
 		}
@@ -161,36 +157,22 @@ public class BlockVerificationOperation extends Operation {
 		//ES의 plain으로부터 hash root'을 계산한다
 		String rootPrime = new HashTree(plainHashList.toArray(new String[0])).toString();
 
-		//TODO : 오류 발생시 케이스를 에러코드를 통한 전달로 바꾸기
+		//TODO : 오류 발생시 케이스를 에러코드를 통한 전달로 바꾸기, 만약 ES에서 entry_num, block_num 등을 건들 경우의 대책 강구하기
 		if (header.getMiddle().equals(rootPrime)) {
 			return errors;
 		} else {
 			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, -1, indexName, "New root made by plainData does not match with PBFT's root"}));
 		}
 
-		//try to decrypt base64 encoding & decrypt encByte[] by generated key & deserialize decByte[] to Map.class
-		int entryNum;
-		for (entryNum = 0; entryNum < blockDataPair.getRight().size(); entryNum++) {
-			try {
-				String base64Str = blockDataPair.getRight().get(entryNum);
-				byte[] enc = Base64.getDecoder().decode(base64Str);
-				String decryptStr = new String(decrypt(enc, key));
-				restoreMapList.add(desToObject(decryptStr, Map.class));
+		List<String> hashes = getHashList(logger, blockNum);
 
-				//만약 이 단계까지 Exception 없이 왔다면 d'은 무결하므로 d와 비교한다.
-				if(!equals(blockDataPair.getLeft().get(entryNum), restoreMapList.get(entryNum))) {
-					errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Data has problem, but can be restored by encrypt_data"}));
-				}
-
-			} catch (IllegalArgumentException e) {
-				errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Cipher -> Entry Base64 decoding failure"}));
-				restoreMapList.add(null);
-			} catch (EncryptionException e) {
-				errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Cipher -> Entry decryption failure"}));
-				restoreMapList.add(null);
-			} catch (SerializationException s) {
-				errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Cipher -> Entry deserialization failure"}));
-				restoreMapList.add(null);
+		if(hashes.size() != plainDatas.size()) {
+			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, -1, indexName, "hashList's and plainData's size does not match"}));
+			return errors;
+		}
+		for(int entryNum=0; entryNum < plainDatas.size(); entryNum++) {
+			if(!hashes.get(entryNum).equals(plainHashList.get(entryNum))) {
+				errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry's hash does not match with replica's hash"}));
 			}
 		}
 		return errors;
@@ -201,8 +183,7 @@ public class BlockVerificationOperation extends Operation {
 			return null;
 		}
 		String query = "SELECT b.idx, b.root, b.prev from " + tableName + " AS b WHERE b.idx = " + (headerNum);
-		try {
-			var psmt = logger.getPreparedStatement(query);
+		try (var psmt = logger.getPreparedStatement(query)) {
 			var rs = psmt.executeQuery();
 			if (rs.next()) {
 				return new ImmutableTriple<>(rs.getInt("idx"), rs.getString("root"), rs.getString("prev"));
@@ -210,26 +191,23 @@ public class BlockVerificationOperation extends Operation {
 				throw new SQLException("Table :" + tableName + " headerNum :" + headerNum + ", Not Found");
 			}
 		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
 		}
 	}
 
-	private boolean equals(Map<String, Object> ori, Map<String, Object> res) {
-		if (ori.size() != res.size()) {
-			Replica.msgDebugger.debug(String.format("isMapSame::size NOT same. ori: %d, res: %d", ori.size(), res.size()));
-			return false;
-		}
-		/*
-		Es에 저장된 cipher 를 deserialize 하는 과정에서 Wrapped Class간 Equals가 의도한 대로 되지 않는 문제가 있음
-		이 문제를 피하기 위해서 ori와 res의 json serialize된 String은 같을 것이므로 이를 비교한다.
-		 */
-		try {
-			String oriSer = objectMapper.writeValueAsString(ori);
-			String resSer = objectMapper.writeValueAsString(res);
-			return oriSer.equals(resSer);
-		} catch (JsonProcessingException e) {
-			Replica.msgDebugger.error(e.getMessage());
-			throw new Error(e);
+	private List<String> getHashList(Logger logger, int blockNumber) {
+		String query = "SELECT hash FROM Hashes WHERE idx = ?";
+		List<String> hashList;
+
+		try(var psmt = logger.getPreparedStatement(query)) {
+			psmt.setInt(1, blockNumber);
+			var rs = psmt.executeQuery();
+
+			return Util.desToObject(rs.getString(1), List.class);
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 

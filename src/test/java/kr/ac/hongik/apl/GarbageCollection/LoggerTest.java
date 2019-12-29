@@ -3,7 +3,7 @@ package kr.ac.hongik.apl.GarbageCollection;
 import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Messages.RequestMessage;
-import kr.ac.hongik.apl.Operations.CountMsgsOperation;
+import kr.ac.hongik.apl.Operations.Dev.CountMsgsOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Replica;
 import org.junit.jupiter.api.Assertions;

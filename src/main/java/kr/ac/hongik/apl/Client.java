@@ -28,9 +28,6 @@ public class Client extends Connector implements Closeable {
 		super.connect();
 	}
 
-	public static void main(String[] args) throws IOException {
-	}
-
 	@Override
 	protected void sendHeaderMessage(SocketChannel channel) {
 		HeaderMessage headerMessage = new HeaderMessage(-1, this.getPublicKey(), "client");

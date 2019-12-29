@@ -37,7 +37,7 @@ public class EsJsonParserTest {
 	@Test
 	public void parseQueryToMapTest() {
 		EsJsonParser parser = new EsJsonParser();
-		Map info = parser.jsonFileToMap("/ES_userData/Debug_test_data.json");
+		Map info = parser.jsonFileToMap("/Es_testData/Debug_test_data.json");
 	}
 
 	@Test
@@ -61,7 +61,7 @@ public class EsJsonParserTest {
 		String seed = "Hello World!";
 		SecretKey key = Util.makeSymmetricKey(seed);
 
-		Map originalMap = parser.jsonFileToMap("/ES_userData/Debug_test_data.json");
+		Map originalMap = parser.jsonFileToMap("/Es_testData/Debug_test_data.json");
 
 		String serializedMap = Util.serToBase64String((Serializable) originalMap);
 		byte[] enc = Util.encrypt(serializedMap.getBytes(), key);

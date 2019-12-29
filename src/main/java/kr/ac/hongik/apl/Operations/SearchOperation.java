@@ -2,7 +2,6 @@ package kr.ac.hongik.apl.Operations;
 
 
 import kr.ac.hongik.apl.ES.EsRestClient;
-import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.entity.NStringEntity;
@@ -51,13 +50,11 @@ public class SearchOperation extends Operation {
 				throw new IllegalArgumentException(String.format("endpoint [%s] does not have _search or _sql parameter.", endpoint));
 			}
 
-			Logger logger = (Logger) obj;
 			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 
 			Request request = new Request(HttpProtocol, endpoint);
-			parameterMap.entrySet().stream().
-					forEach(e -> request.addParameter(e.getKey(), e.getValue()));
+			parameterMap.forEach(request::addParameter);
 			request.setEntity(new NStringEntity(body, org.apache.http.entity.ContentType.APPLICATION_JSON));
 			Response response = esRestClient.getClient().getLowLevelClient().performRequest(request);
 

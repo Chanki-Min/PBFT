@@ -1,9 +1,0 @@
-{
-  "user_id": "zizondriver",
-  "verification_method": "keypad",
-  "car_id": "22가2222",
-  "timestamp": "2019-09-06 12:00:00",
-  "fuel_level": 100.0,
-  "mileage": 30000,
-  "route": null
-}

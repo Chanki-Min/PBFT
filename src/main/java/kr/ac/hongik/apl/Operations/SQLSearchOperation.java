@@ -69,7 +69,7 @@ public class SQLSearchOperation extends Operation {
 					cursorID = getCursorId(responseBody);
 				}
 			}
-			esRestClient.disConnectToEs();
+			esRestClient.close();
 			return responseBody;
 		} catch (ResponseException e) {
 			e.printStackTrace();

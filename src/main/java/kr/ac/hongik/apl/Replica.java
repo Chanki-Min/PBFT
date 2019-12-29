@@ -278,7 +278,6 @@ public class Replica extends Connector {
 				broadcastToReplica(message);
 			} else {
 				detailDebugger.trace(String.format("relay to primary, viewNum : %d", viewNum));
-				//TODO : 만약 재접속한 replica가 request를 relay할때 primary의 소켓이 없다면 예외 발생
 				super.send(getReplicaMap().get(getPrimary()), message);
 
 				//Set a timer for view-change phase

@@ -21,10 +21,6 @@ car_id : 차량 번호판 (띄어쓰기 없이 50자 내외로 부탁드립니�
       "ignore_malformed": true,
       "coerce": false
     },
-    //cipher data (Base64 encoded String)
-    "encrypt_data": {
-      "type": "binary"
-    },
     //plain data
     "user_id": {
       "type": "keyword",

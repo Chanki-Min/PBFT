@@ -65,7 +65,7 @@ public class SearchOperationTest {
 	}
 
 	@Test
-	public void reflection() throws NoSuchFieldException, EsRestClient.EsSSLException, IOException, IllegalAccessException {
+	public void reflectionTest() throws NoSuchFieldException, EsRestClient.EsSSLException, IOException, IllegalAccessException {
 		String HttpProtocol = "GET";
 		String endpoint = "_cat/nodes";
 		Map<String, String> paramMap = new HashMap<>();
