@@ -25,12 +25,16 @@ public class InsertHeaderOperation extends Operation {
 	 * @return indexNum that PBFT actually insert to db
 	 */
 	@Override
-	public Object execute(Object obj) throws SQLException {
-		int indexNum = -1;
+	public Object execute(Object obj) throws OperationExecutionException {
+		try {
+			int indexNum = -1;
 			Logger logger = (Logger) obj;
 			createTableIfNotExists(logger);
 			indexNum = storeHeaderAndReturnIdx(blockNumber, root, logger);
-		return indexNum;
+			return indexNum;
+		} catch (Exception e) {
+			throw new OperationExecutionException(e);
+		}
 	}
 
 	/**
@@ -52,7 +56,7 @@ public class InsertHeaderOperation extends Operation {
 	 * @return An index of just inserted block.
 	 * @throws SQLException
 	 */
-	private int storeHeaderAndReturnIdx(int blockNumber, String root, Logger logger) throws SQLException {
+	private int storeHeaderAndReturnIdx(int blockNumber, String root, Logger logger) {
 		String query = "INSERT INTO " + tableName + " VALUES ( ?, ?, ? )";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			Triple<Integer, String, String> previousBlock = getLatestBlock(logger);
@@ -64,6 +68,8 @@ public class InsertHeaderOperation extends Operation {
 			psmt.setString(3, prevHash);
 			psmt.execute();
 			return previousBlock.getLeft() + 1;
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -72,14 +78,17 @@ public class InsertHeaderOperation extends Operation {
 	 * @return A triplet of (Block number, merkle root, previous block hash)
 	 * @throws SQLException
 	 */
-	private Triple<Integer, String, String> getLatestBlock(Logger logger) throws SQLException {
+	private Triple<Integer, String, String> getLatestBlock(Logger logger) {
 		String query = "SELECT idx, root, prev FROM " + tableName + " b WHERE b.idx = (SELECT MAX(idx) from " + tableName + " b2)";
 		try (var psmt = logger.getPreparedStatement(query)) {
 			var ret = psmt.executeQuery();
+			//TODO : 이부분 리펙토링 필요하다!
 			if (ret.next())
 				return new ImmutableTriple<>(ret.getInt(1), ret.getString(2), ret.getString(3));
 			else
 				throw new SQLException("There's no tuple in " + tableName);
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
 		}
 	}
 }

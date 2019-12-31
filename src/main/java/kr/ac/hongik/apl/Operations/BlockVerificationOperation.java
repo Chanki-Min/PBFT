@@ -43,28 +43,27 @@ public class BlockVerificationOperation extends Operation {
 	 * cause : All_Pass, etc(error causes)...
 	 */
 	@Override
-	public Object execute(Object obj) {
+	public Object execute(Object obj) throws OperationExecutionException {
 		this.objectMapper = new ObjectMapper()
 				.enable(JsonParser.Feature.ALLOW_COMMENTS)
 				.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 		Logger logger = (Logger) obj;
 		String indexName;
 		try {
-
-
 			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 			indexName = esRestClient.getIndexNameFromBlockNumber(blockNumber, indices);
 			List<String> result = verifyChain(logger, blockNumber, indexName);
 			esRestClient.disConnectToEs();
 			return result;
-		} catch (IOException | EsRestClient.EsSSLException | NoSuchFieldException | SQLException | EsRestClient.EsException e) {
-			throw new Error(e);
+		} catch (Exception e) {
+			throw new OperationExecutionException(e);
 		}
 	}
 
-	private List<String> verifyChain(Logger logger, int blockNumber, String indexName) throws SQLException, IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
+	private List<String> verifyChain(Logger logger, int blockNumber, String indexName) throws IOException, EsRestClient.EsException, NoSuchFieldException, EsRestClient.EsSSLException {
 		List<String> verifyLog = new ArrayList<>();
+
 		/*
 		Verify Header&Data and get verification logs as OrderedMap
 		 */
@@ -97,7 +96,7 @@ public class BlockVerificationOperation extends Operation {
 	 * @throws SQLException
 	 * @return null if blockNumbe'th header is verified, LinkedHashMap that contains error info if not
 	 */
-	private LinkedHashMap verifyHeader(Logger logger, int blockNumber) throws SQLException {
+	private LinkedHashMap verifyHeader(Logger logger, int blockNumber) {
 		Triple<Integer, String, String> prevHeader = getHeader(logger, blockNumber - 1);
 		Triple<Integer, String, String> currHeader = getHeader(logger, blockNumber);
 		Boolean[] checkList = new Boolean[3];
@@ -140,7 +139,7 @@ public class BlockVerificationOperation extends Operation {
 	 * @throws EsRestClient.EsException
 	 * @throws EsRestClient.EsSSLException
 	 */
-	private List<LinkedHashMap> verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, SQLException, IOException, EsRestClient.EsException, EsRestClient.EsSSLException {
+	private List<LinkedHashMap> verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsException, EsRestClient.EsSSLException {
 		if (blockNum == 0)
 			return new ArrayList<>();
 
@@ -197,24 +196,27 @@ public class BlockVerificationOperation extends Operation {
 		return errors;
 	}
 
-	private Triple<Integer, String, String> getHeader(Logger logger, int headerNum) throws SQLException {
+	private Triple<Integer, String, String> getHeader(Logger logger, int headerNum) {
 		if (headerNum < 0) {
 			return null;
 		}
 		String query = "SELECT b.idx, b.root, b.prev from " + tableName + " AS b WHERE b.idx = " + (headerNum);
-		var psmt = logger.getPreparedStatement(query);
-		var rs = psmt.executeQuery();
-		if (rs.next()) {
-			return new ImmutableTriple<>(rs.getInt("idx"), rs.getString("root"), rs.getString("prev"));
-		} else {
-			throw new SQLException("Table :" + tableName + " headerNum :" + headerNum + ", Not Found");
+		try {
+			var psmt = logger.getPreparedStatement(query);
+			var rs = psmt.executeQuery();
+			if (rs.next()) {
+				return new ImmutableTriple<>(rs.getInt("idx"), rs.getString("root"), rs.getString("prev"));
+			} else {
+				throw new SQLException("Table :" + tableName + " headerNum :" + headerNum + ", Not Found");
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
 		}
 	}
 
 	private boolean equals(Map<String, Object> ori, Map<String, Object> res) {
 		if (ori.size() != res.size()) {
 			Replica.msgDebugger.debug(String.format("isMapSame::size NOT same. ori: %d, res: %d", ori.size(), res.size()));
-
 			return false;
 		}
 		/*

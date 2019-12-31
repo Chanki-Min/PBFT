@@ -7,6 +7,7 @@ import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.ResourceBundle;
 import java.util.UUID;
 
 import static kr.ac.hongik.apl.Util.desToObject;
@@ -35,7 +36,8 @@ public class Logger {
 				this.createTables();
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -78,11 +80,11 @@ public class Logger {
 				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
 		};
 		for (String query: queries) {
-			try {
-				PreparedStatement preparedStatement = conn.prepareStatement(query);
+			try (var preparedStatement = conn.prepareStatement(query)) {
 				preparedStatement.execute();
 			} catch (SQLException e) {
-				e.printStackTrace();
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
 			}
 		}
 	}
@@ -96,133 +98,160 @@ public class Logger {
 		try {
 			conn.close();
 		} catch (SQLException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
-	public String getStateDigest(int seqNum, int maxFaulty, int viewNum) throws SQLException {
+	public String getStateDigest(int seqNum, int maxFaulty, int viewNum) {
 		StringBuilder builder = new StringBuilder();
 
 		String baseQuery = "SELECT lastStableCheckpoint, seqNum, digest FROM UnstableCheckPoints";
-		PreparedStatement pstmt = conn.prepareStatement(baseQuery);
-		ResultSet ret = pstmt.executeQuery();
-		while(ret.next()){
-			builder.append(ret.getInt(1));
-			builder.append(ret.getInt(2));
-			builder.append(ret.getString(3));
+		try (var psmt = conn.prepareStatement(baseQuery)) {
+			ResultSet ret = psmt.executeQuery();
+			while (ret.next()) {
+				builder.append(ret.getInt(1));
+				builder.append(ret.getInt(2));
+				builder.append(ret.getString(3));
+			}
+			return Util.hash(builder.toString().getBytes());
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
-		return Util.hash(builder.toString().getBytes());
 	}
 
-	private String getPrePrepareMsgs(int seqNum, int viewNum) throws SQLException {
-
+	private String getPrePrepareMsgs(int seqNum, int viewNum) {
 		String baseQuery = "SELECT DISTINCT digest, viewNum, seqNum FROM Preprepares WHERE seqNum <= ? AND viewNum = ? ORDER BY seqNum";
-		PreparedStatement pstmt = conn.prepareStatement(baseQuery);
-		pstmt.setInt(1, seqNum);
-		pstmt.setInt(2, viewNum);
+		try (var pstmt = conn.prepareStatement(baseQuery)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.setInt(2, viewNum);
+			ResultSet ret = pstmt.executeQuery();
 
-
-		ResultSet ret = pstmt.executeQuery();
-
-		StringBuilder builder = new StringBuilder();
-
-		while (ret.next()) {
-			builder.append(ret.getString("digest"));
-			builder.append(ret.getInt("viewNum"));
-			builder.append(ret.getInt("seqNum"));
+			StringBuilder builder = new StringBuilder();
+			while (ret.next()) {
+				builder.append(ret.getString("digest"));
+				builder.append(ret.getInt("viewNum"));
+				builder.append(ret.getInt("seqNum"));
+			}
+			return String.valueOf(builder);
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
-		return String.valueOf(builder);
 
 	}
 
-	private String getPrepareMsgs(int seqNum, int maxFaulty, int viewNum) throws SQLException {
+	private String getPrepareMsgs(int seqNum, int maxFaulty, int viewNum) {
 		String baseQuery = "SELECT DISTINCT digest, viewNum, seqNum FROM Prepares WHERE seqNum <= ? AND viewNum = ? GROUP BY digest," +
 				" viewNum, seqNum HAVING count(*) > ? ORDER BY seqNum";
 
-		PreparedStatement pstmt = conn.prepareStatement(baseQuery);
-		pstmt.setInt(1, seqNum);
-		pstmt.setInt(2, viewNum);
-		pstmt.setInt(3, 2 * maxFaulty);
+		try (var pstmt = conn.prepareStatement(baseQuery)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.setInt(2, viewNum);
+			pstmt.setInt(3, 2 * maxFaulty);
 
 
-		ResultSet ret = pstmt.executeQuery();
+			ResultSet ret = pstmt.executeQuery();
 
-		StringBuilder builder = new StringBuilder();
+			StringBuilder builder = new StringBuilder();
 
-		while (ret.next()) {
-			builder.append(ret.getString("digest"));
-			builder.append(ret.getInt("viewNum"));
-			builder.append(ret.getInt("seqNum"));
+			while (ret.next()) {
+				builder.append(ret.getString("digest"));
+				builder.append(ret.getInt("viewNum"));
+				builder.append(ret.getInt("seqNum"));
+			}
+			return String.valueOf(builder);
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
-		return String.valueOf(builder);
 
 	}
 
-	private String getCommitMsgs(int seqNum, int maxFaulty) throws SQLException {
+	private String getCommitMsgs(int seqNum, int maxFaulty) {
 		String baseQuery = "SELECT DISTINCT digest, seqNum FROM Commits WHERE seqNum <= ?  GROUP BY digest, seqNum " +
 				"HAVING count(*) > ? ORDER BY seqNum";
 
-		PreparedStatement pstmt = conn.prepareStatement(baseQuery);
-		pstmt.setInt(1, seqNum);
-		pstmt.setInt(2, 2 * maxFaulty);
-		ResultSet ret = pstmt.executeQuery();
+		try (var pstmt = conn.prepareStatement(baseQuery)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.setInt(2, 2 * maxFaulty);
+			ResultSet ret = pstmt.executeQuery();
 
-		StringBuilder builder = new StringBuilder();
+			StringBuilder builder = new StringBuilder();
 
-		while (ret.next()) {
-			builder.append(ret.getString(1));
-			builder.append(ret.getInt(2));
+			while (ret.next()) {
+				builder.append(ret.getString(1));
+				builder.append(ret.getInt(2));
+			}
+
+			return String.valueOf(builder);
+		}catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
-
-		return String.valueOf(builder);
 
 	}
 
 	public void executeGarbageCollection(int seqNum) {
-		try {
-			cleanUpPrePrepareMsg(seqNum);
-			cleanUpPrepareMsg(seqNum);
-			cleanUpCommitMsg(seqNum);
-			cleanUpUnstableCheckpoint(seqNum);
-			cleanUpCheckpointMsg(seqNum);
+		cleanUpPrePrepareMsg(seqNum);
+		cleanUpPrepareMsg(seqNum);
+		cleanUpCommitMsg(seqNum);
+		cleanUpUnstableCheckpoint(seqNum);
+		cleanUpCheckpointMsg(seqNum);
+	}
+
+	private void cleanUpPrePrepareMsg(int seqNum) {
+		String query = "DELETE FROM Preprepares WHERE seqNum <= ?";
+		try (var pstmt = conn.prepareStatement(query)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.execute();
 		} catch (SQLException e) {
-			if (e.getErrorCode() == CONSTRAINT_ERROR)
-				return;
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
-	private void cleanUpPrePrepareMsg(int seqNum) throws SQLException {
-		String query = "DELETE FROM Preprepares WHERE seqNum <= ?";
-		PreparedStatement pstmt = conn.prepareStatement(query);
-		pstmt.setInt(1, seqNum);
-		pstmt.execute();
-	}
-
-	private void cleanUpPrepareMsg(int seqNum) throws SQLException {
+	private void cleanUpPrepareMsg(int seqNum) {
 		String query = "DELETE FROM Prepares WHERE seqNum <= ?";
-		PreparedStatement pstmt = conn.prepareStatement(query);
-		pstmt.setInt(1, seqNum);
-		pstmt.execute();
+		try (var pstmt = conn.prepareStatement(query)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
-	private void cleanUpCommitMsg(int seqNum) throws SQLException {
+	private void cleanUpCommitMsg(int seqNum) {
 		String query = "DELETE FROM Commits WHERE seqNum <= ?";
-		PreparedStatement pstmt = conn.prepareStatement(query);
-		pstmt.setInt(1, seqNum);
-		pstmt.execute();
+		try (var pstmt = conn.prepareStatement(query)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
-	private void cleanUpUnstableCheckpoint(int seqNum) throws SQLException {
+	private void cleanUpUnstableCheckpoint(int seqNum) {
 		String query = "DELETE FROM UnstableCheckPoints WHERE seqNum <= ?";
-		PreparedStatement pstmt = conn.prepareStatement(query);
-		pstmt.setInt(1, seqNum);
-		pstmt.execute();
+		try (var pstmt = conn.prepareStatement(query)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
-	private void cleanUpCheckpointMsg(int seqNum) throws SQLException {
+	private void cleanUpCheckpointMsg(int seqNum) {
 		String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
-		PreparedStatement pstmt = conn.prepareStatement(query);
-		pstmt.setInt(1, seqNum);
-		pstmt.execute();
+		try (var pstmt = conn.prepareStatement(query)) {
+			pstmt.setInt(1, seqNum);
+			pstmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
 	//new-view-msg 에서 digest(null)이 올 때 의도한 대로 null이 리턴되는지 확인이 필요함.
@@ -243,13 +272,18 @@ public class Logger {
 				return operation;
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
 		}
 	}
 
-	public PreparedStatement getPreparedStatement(String baseQuery) throws SQLException {
-		return conn.prepareStatement(baseQuery);
+	public PreparedStatement getPreparedStatement(String baseQuery) {
+		try {
+			return conn.prepareStatement(baseQuery);
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
 	public void insertMessage(Message message) {
@@ -286,8 +320,12 @@ public class Logger {
 
 			pstmt.execute();
 		} catch (SQLException e) {
-			if (e.getErrorCode() == CONSTRAINT_ERROR) return;
-			e.printStackTrace();
+			if (e.getErrorCode() == CONSTRAINT_ERROR)
+				return;
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 
@@ -307,7 +345,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 
@@ -326,7 +367,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 
@@ -344,7 +388,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 	private void insertNewUnstableCheckPoint(UnstableCheckPoint unstableCheckPoint){
@@ -360,7 +407,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 	private void insertCheckPointMessage(CheckPointMessage message) {
@@ -378,7 +428,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 
@@ -396,7 +449,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 
@@ -410,7 +466,10 @@ public class Logger {
 		} catch (SQLException e) {
 			if (e.getErrorCode() == CONSTRAINT_ERROR)
 				return;
-			e.printStackTrace();
+			else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
 		}
 	}
 
@@ -426,88 +485,98 @@ public class Logger {
 			pstmt.setString(2, data);
 			pstmt.execute();
 		} catch (SQLException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
 	public boolean findMessage(Message message) {
-		try {
-			if (message instanceof RequestMessage) {
-				return findRequestMessage((RequestMessage) message);
-			} else if (message instanceof PreprepareMessage) {
-				return findPreprepareMessage((PreprepareMessage) message);
-			} else if (message instanceof PrepareMessage) {
-				return findPrepareMessage((PrepareMessage) message);
-			} else if (message instanceof CommitMessage) {
-				return findCommitMessage((CommitMessage) message);
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
+		if (message instanceof RequestMessage) {
+			return findRequestMessage((RequestMessage) message);
+		} else if (message instanceof PreprepareMessage) {
+			return findPreprepareMessage((PreprepareMessage) message);
+		} else if (message instanceof PrepareMessage) {
+			return findPrepareMessage((PrepareMessage) message);
+		} else if (message instanceof CommitMessage) {
+			return findCommitMessage((CommitMessage) message);
 		}
 		return false;
 	}
 
-	private boolean findRequestMessage(RequestMessage message) throws SQLException {
+	private boolean findRequestMessage(RequestMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
-		PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+		try (var psmt = conn.prepareStatement(baseQuery)) {
 
-		String data = Util.serToBase64String(message.getClientInfo());
-		pstatement.setString(1, data);
-		pstatement.setLong(2, message.getTime());
-		String data1 = Util.serToBase64String(message.getOperation());
-		pstatement.setString(3, data1);
+			String data = Util.serToBase64String(message.getClientInfo());
+			psmt.setString(1, data);
+			psmt.setLong(2, message.getTime());
+			String data1 = Util.serToBase64String(message.getOperation());
+			psmt.setString(3, data1);
 
-		ResultSet ret = pstatement.executeQuery();
-		if (ret.next())
-			return ret.getInt(1) == 1;
-		else
-			throw new SQLException("Failed to find the message in the DB");
+			var ret = psmt.executeQuery();
+			if (ret.next())
+				return ret.getInt(1) == 1;
+			else
+				throw new SQLException("Failed to find the message in the DB");
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
-	private boolean findPreprepareMessage(PreprepareMessage message) throws SQLException {
+	private boolean findPreprepareMessage(PreprepareMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Preprepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?";
-		PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+		try (var psmt = conn.prepareStatement(baseQuery)) {
+			psmt.setInt(1, message.getViewNum());
+			psmt.setInt(2, message.getSeqNum());
+			psmt.setString(3, message.getDigest());
 
-		pstatement.setInt(1, message.getViewNum());
-		pstatement.setInt(2, message.getSeqNum());
-		pstatement.setString(3, message.getDigest());
-
-		ResultSet ret = pstatement.executeQuery();
-		if (ret.next())
-			return ret.getInt(1) == 1;
-		else
-			throw new SQLException("Failed to find the message in the DB");
+			var ret = psmt.executeQuery();
+			if (ret.next())
+				return ret.getInt(1) == 1;
+			else
+				throw new SQLException("Failed to find the message in the DB");
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
-	private boolean findPrepareMessage(PrepareMessage message) throws SQLException {
+	private boolean findPrepareMessage(PrepareMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Prepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ? AND P.replica = ?";
-		PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+		try (var psmt = conn.prepareStatement(baseQuery)) {
+			psmt.setInt(1, message.getViewNum());
+			psmt.setInt(2, message.getSeqNum());
+			psmt.setString(3, message.getDigest());
+			psmt.setInt(4, message.getReplicaNum());
 
-		pstatement.setInt(1, message.getViewNum());
-		pstatement.setInt(2, message.getSeqNum());
-		pstatement.setString(3, message.getDigest());
-		pstatement.setInt(4, message.getReplicaNum());
-
-		ResultSet ret = pstatement.executeQuery();
-		if (ret.next())
-			return ret.getInt(1) == 1;
-		else
-			throw new SQLException("Failed to find the message in the DB");
+			ResultSet ret = psmt.executeQuery();
+			if (ret.next())
+				return ret.getInt(1) == 1;
+			else
+				throw new SQLException("Failed to find the message in the DB");
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
-	private boolean findCommitMessage(CommitMessage message) throws SQLException {
+	private boolean findCommitMessage(CommitMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Commits C WHERE C.viewNum = ? AND C.seqNum = ? AND C.digest = ? AND C.replica = ?";
-		PreparedStatement pstatement = conn.prepareStatement(baseQuery);
+		try (var pstatement = conn.prepareStatement(baseQuery)) {
+			pstatement.setInt(1, message.getViewNum());
+			pstatement.setInt(2, message.getSeqNum());
+			pstatement.setString(3, message.getDigest());
+			pstatement.setInt(4, message.getReplicaNum());
 
-		pstatement.setInt(1, message.getViewNum());
-		pstatement.setInt(2, message.getSeqNum());
-		pstatement.setString(3, message.getDigest());
-		pstatement.setInt(4, message.getReplicaNum());
-
-		ResultSet ret = pstatement.executeQuery();
-		if (ret.next())
-			return ret.getInt(1) == 1;
-		else
-			throw new SQLException("Failed to find the message in the DB");
+			ResultSet ret = pstatement.executeQuery();
+			if (ret.next())
+				return ret.getInt(1) == 1;
+			else
+				throw new SQLException("Failed to find the message in the DB");
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 }

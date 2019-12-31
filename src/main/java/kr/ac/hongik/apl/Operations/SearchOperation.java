@@ -13,7 +13,7 @@ import org.elasticsearch.client.Response;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.security.PublicKey;
-import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -29,7 +29,7 @@ public class SearchOperation extends Operation {
 	private EsRestClient esRestClient;
 
 	public SearchOperation(PublicKey clientInfo, Map<String, Object> esConfig, String HttpProtocol,
-						   String endpoint, Map parameterMap, String body) {
+						   String endpoint, Map parameterMap, String body) throws OperationExecutionException {
 		super(clientInfo);
 		this.esRestClientConfigs = esConfig;
 		this.HttpProtocol = HttpProtocol;
@@ -41,10 +41,9 @@ public class SearchOperation extends Operation {
 	/**
 	 * @param obj logger
 	 * @return	http entity of elasticsearch response
-	 * @throws SQLException
 	 */
 	@Override
-	public Object execute(Object obj) throws SQLException {
+	public Object execute(Object obj) {
 		try {
 			Pattern searchPatten = Pattern.compile(".*_search.*|.*_sql.*");
 			Matcher matcher = searchPatten.matcher(endpoint);
@@ -68,7 +67,7 @@ public class SearchOperation extends Operation {
 
 			return getHttpMap(httpResponse, null);
 		} catch (EsRestClient.EsSSLException | NoSuchFieldException | IOException | IllegalArgumentException | IllegalAccessException e) {
-			Replica.msgDebugger.error(e.getMessage());
+			Replica.msgDebugger.error(e);
 			LinkedHashMap<String, String> httpMap = new LinkedHashMap<>();
 			return getHttpMap(null, e);
 		}
@@ -90,13 +89,12 @@ public class SearchOperation extends Operation {
 				httpMap.put("reasonPhrase", null);
 				httpMap.put("entity", null);
 				httpMap.put("locale", null);
-				httpMap.put("error", e.getMessage());
+				httpMap.put("error", Arrays.toString(e.getStackTrace()));
 				return httpMap;
 			}
 			return httpMap;
 		} catch (IOException ex) {
-			Replica.msgDebugger.error(ex.getMessage());
-			throw new Error(ex);
+			throw new RuntimeException(ex);
 		}
 	}
 }

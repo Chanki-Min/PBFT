@@ -31,7 +31,7 @@ public class Monitor extends Client {
 		Replica.msgDebugger.info(String.format("%s", new String(new char[80]).replace("\0", "=")));
 		List<String> indices = List.of("car_log", "user_log");
 		int maxBlockNumber = getLatestBlockNumber();
-		if (maxBlockNumber == -1) {
+		if (maxBlockNumber <= 0) {
 			Replica.msgDebugger.info(String.format("Block not exist. Abort verification"));
 			return;
 		}

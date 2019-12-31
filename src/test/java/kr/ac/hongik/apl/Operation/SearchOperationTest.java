@@ -42,7 +42,7 @@ public class SearchOperationTest {
 	}
 
 	@Test
-	public void searchOperationTest() throws IOException {
+	public void searchOperationTest() throws Exception{
 		String HttpProtocol = "GET";
 		String endpoint = "_cat/nodes";
 		Map<String, String> paramMap = new HashMap<>();

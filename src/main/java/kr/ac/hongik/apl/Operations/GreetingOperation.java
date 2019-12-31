@@ -9,7 +9,11 @@ public class GreetingOperation extends Operation {
 	}
 
 	@Override
-	public Object execute(Object obj) {
-		return new Greeting("Hello, World!");
+	public Object execute(Object obj) throws OperationExecutionException {
+		try {
+			return new Greeting("Hello, World!");
+		} catch (Exception e) {
+			throw new OperationExecutionException(e);
+		}
 	}
 }

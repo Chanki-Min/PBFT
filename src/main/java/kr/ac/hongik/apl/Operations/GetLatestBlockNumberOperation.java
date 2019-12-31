@@ -11,17 +11,22 @@ public class GetLatestBlockNumberOperation extends Operation {
 	}
 
 	@Override
-	public Object execute(Object obj) {
-		Logger logger = (Logger) obj;
+	public Object execute(Object obj) throws OperationExecutionException {
 		try {
+			Logger logger = (Logger) obj;
 			String query = "SELECT max(idx) from BlockChain";
-			var psmt = logger.getPreparedStatement(query);
-			var rs = psmt.executeQuery();
-			if (rs.next()) {
-				return rs.getInt(1);
+			try (var psmt = logger.getPreparedStatement(query)) {
+				var rs = psmt.executeQuery();
+				if (rs.next()) {
+					return rs.getInt(1);
+				} else {
+					return -1;
+				}
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
 			}
-		} catch (SQLException ignore) {
+		} catch (Exception e) {
+			throw new OperationExecutionException(e);
 		}
-		return -1;
 	}
 }

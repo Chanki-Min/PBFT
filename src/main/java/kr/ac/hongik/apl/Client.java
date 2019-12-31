@@ -1,10 +1,13 @@
 package kr.ac.hongik.apl;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.ac.hongik.apl.Messages.HeaderMessage;
 import kr.ac.hongik.apl.Messages.Message;
 import kr.ac.hongik.apl.Messages.ReplyMessage;
 import kr.ac.hongik.apl.Messages.RequestMessage;
+import kr.ac.hongik.apl.Operations.OperationExecutionException;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
@@ -75,20 +78,31 @@ public class Client extends Connector {
 	 */
 	public Object getReply() {
 		ReplyMessage replyMessage;
-
-
 		while (true) {
 			Message message = null;
 			try {
 				message = receive();
 			} catch (InterruptedException e) {
-				e.printStackTrace();
+				Replica.msgDebugger.error(e);
+				continue;
 			}
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
 				continue;
 			}
 			replyMessage = (ReplyMessage) message;
+			// check is reply object is OperationExecutionException
+			if(replyMessage.getResult() instanceof OperationExecutionException) {
+				ObjectMapper objectMapper = new ObjectMapper();
+				var exception = (OperationExecutionException) replyMessage.getResult();
+				Replica.msgDebugger.error("OperationExecutionException occurred ", exception);
+				try {
+					Replica.msgDebugger.error(objectMapper.writeValueAsString(replyMessage.getData()));
+				} catch (JsonProcessingException e) {
+					Replica.msgDebugger.error(e);
+				}
+			}
+
 			// check client info
 			PublicKey publicKey = this.publicKeyMap.get(getReplicaMap().get(replyMessage.getReplicaNum()));
 			if (replyMessage.verifySignature(publicKey)) {

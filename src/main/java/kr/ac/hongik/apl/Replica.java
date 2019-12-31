@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.*;
+import kr.ac.hongik.apl.Operations.OperationExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.echocat.jsu.JdbcUtils;
 
@@ -10,6 +11,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.rmi.RemoteException;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -86,17 +88,19 @@ public class Replica extends Connector {
 			Properties properties = new Properties();
 			InputStream is = Replica.class.getResourceAsStream("/replica.properties");
 			properties.load(new java.io.BufferedInputStream(is));
+			if(args.length < 3) {
+				msgDebugger.error(String.format("Usage: program <ip> <forwarded-public port> <opening port>"));
+				return;
+			}
 			String outerIP = args[0];
 			int outerPort = Integer.parseInt(args[1]);
 			int innerPort = Integer.parseInt(args[2]);
 
 			Replica replica = new Replica(properties, outerIP, outerPort, innerPort);
 			replica.start();
-		} catch (ArrayIndexOutOfBoundsException e) {
-			msgDebugger.error(String.format("Usage: program <ip> <forwarded-public port> <opening port>"));
 		} catch (Exception e) {
-			e.printStackTrace();
-			msgDebugger.error(e.getMessage());
+			msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -332,8 +336,8 @@ public class Replica extends Connector {
 				}
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
-			return;
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 
 		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
@@ -400,8 +404,14 @@ public class Replica extends Connector {
 					Optional.ofNullable(timer).ifPresent(Timer::cancel);
 
 					if (operation != null) {
-						msgDebugger.info(String.format("Executed #%d", rightNextCommitMsg.getSeqNum()));
-						Object ret = operation.execute(this.logger);
+						Object ret;
+						try {
+							ret = operation.execute(this.logger);
+							msgDebugger.info(String.format("Executed #%d", rightNextCommitMsg.getSeqNum()));
+						} catch (OperationExecutionException e) {
+							Replica.msgDebugger.error("Error occurred in Execution phase. ", e);
+							ret = e;	//operation의 실행 중 예외 발생시 예외 객체를 reply로 보낸다.
+						}
 						if(MEASURE) {
 							if (rightNextCommitMsg.getSeqNum()%10 == 0) {
 								printConsensusTime();
@@ -421,7 +431,7 @@ public class Replica extends Connector {
 						logger.insertMessage(unstableCheckPoint);
 					}
 
-					/****** Checkpoint Phase *******/
+					/* Checkpoint Phase */
 					if (rightNextCommitMsg.getSeqNum() == getWatermarks()[1] - 1) {
 
 						int seqNum = rightNextCommitMsg.getSeqNum();
@@ -434,8 +444,6 @@ public class Replica extends Connector {
 						getReplicaMap().values().forEach(sock -> send(sock, checkpointMessage));
 					}
 				}
-			} catch (SQLException e) {
-				e.printStackTrace();
 			} catch (NoSuchElementException ignored) {
 			}
 		}
@@ -445,7 +453,7 @@ public class Replica extends Connector {
 
 		msgDebugger.debug(String.format("Got Checkpoint msg seq : %d from %d", message.getSeqNum(), message.getReplicaNum()));
 
-		PublicKey publicKey = publicKeyMap.get(this.getReplicaMap().get(message.getReplicaNum()));
+		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(message.getReplicaNum()));
 		if (!message.verify(publicKey))
 			return;
 
@@ -492,7 +500,8 @@ public class Replica extends Connector {
 				}
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -523,7 +532,7 @@ public class Replica extends Connector {
 			if (message.getNewViewNum() % getReplicaMap().size() == getMyNumber() && canMakeNewViewMessage(message)) {
 				/* 정확히 2f + 1개일 때만 broadcast */
 
-				msgDebugger.debug(String.format("Send NewViewMessage"));
+				msgDebugger.debug("Send NewViewMessage");
 				NewViewMessage newViewMessage = NewViewMessage.makeNewViewMessage(this, message.getNewViewNum());
 				logger.insertMessage(newViewMessage);
 				getReplicaMap().values().forEach(sock -> send(sock, newViewMessage));
@@ -581,7 +590,8 @@ public class Replica extends Connector {
 				}
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -664,20 +674,16 @@ public class Replica extends Connector {
 				return null;
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
-			return null;
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
 	private void broadcastToReplica(RequestMessage message) {
-		try {
-			int seqNum = getLatestSequenceNumber() + 1;
-			PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getViewNum(), seqNum, message);
-			logger.insertMessage(preprepareMessage);
-			getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
+		int seqNum = getLatestSequenceNumber() + 1;
+		PreprepareMessage preprepareMessage = makePrePrepareMsg(getPrivateKey(), getViewNum(), seqNum, message);
+		logger.insertMessage(preprepareMessage);
+		getReplicaMap().values().forEach(channel -> send(channel, preprepareMessage));
 	}
 
 	private static int getSeqNumFromMsg(Message message) {
@@ -741,8 +747,8 @@ public class Replica extends Connector {
 
 	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
 		String query = "SELECT E.seqNum FROM Executed E";
-		try (var pstmt = logger.getPreparedStatement(query)) {
-			try (var ret = pstmt.executeQuery()) {
+		try (var psmt = logger.getPreparedStatement(query)) {
+			try (var ret = psmt.executeQuery()) {
 				List<Integer> seqList = JdbcUtils.toStream(ret)
 						.map(rethrow().wrapFunction(x -> x.getInt(1)))
 						.collect(Collectors.toList());
@@ -767,8 +773,8 @@ public class Replica extends Connector {
 				}
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new NoSuchElementException();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -792,15 +798,18 @@ public class Replica extends Connector {
 				.findFirst().get().getKey();
 	}
 
-	protected int getLatestSequenceNumber() throws SQLException {
+	protected int getLatestSequenceNumber() {
 		String query = "SELECT P.seqNum FROM Preprepares P where viewNum = ?";
-		PreparedStatement pstmt = logger.getPreparedStatement(query);
-		pstmt.setInt(1, this.getViewNum());
-		ResultSet ret = pstmt.executeQuery();
-		List<Integer> seqList = JdbcUtils.toStream(ret)
-				.map(rethrow().wrapFunction(x -> x.getInt(1)))
-				.collect(Collectors.toList());
-		return seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
+		try (var pstmt = logger.getPreparedStatement(query)) {
+			pstmt.setInt(1, this.getViewNum());
+			ResultSet ret = pstmt.executeQuery();
+			List<Integer> seqList = JdbcUtils.toStream(ret)
+					.map(rethrow().wrapFunction(x -> x.getInt(1)))
+					.collect(Collectors.toList());
+			return seqList.isEmpty() ? getWatermarks()[0] - 1 : seqList.stream().max(Integer::compareTo).get();
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/**
@@ -819,37 +828,42 @@ public class Replica extends Connector {
 					.count() == 2 * getMaximumFaulty() + 1;
 
 		} catch (SQLException e) {
-			e.printStackTrace();
-			return false;
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 	}
 
-	private boolean canMakeNewViewMessage(ViewChangeMessage message) throws SQLException {
-		Boolean[] checklist = new Boolean[3];
-		String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
-		try (var pstmt = logger.getPreparedStatement(query1)) {
-			pstmt.setInt(1, this.myNumber);
-			pstmt.setInt(2, message.getNewViewNum());
-			var ret = pstmt.executeQuery();
-			if (ret.next())
-				checklist[0] = ret.getInt(1) == 1;
+	private boolean canMakeNewViewMessage(ViewChangeMessage message) {
+		try {
+			Boolean[] checklist = new Boolean[3];
+			String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
+			try (var pstmt = logger.getPreparedStatement(query1)) {
+				pstmt.setInt(1, this.myNumber);
+				pstmt.setInt(2, message.getNewViewNum());
+				var ret = pstmt.executeQuery();
+				if (ret.next())
+					checklist[0] = ret.getInt(1) == 1;
+			}
+			String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
+			try (var pstmt = logger.getPreparedStatement(query2)) {
+				pstmt.setInt(1, this.myNumber);
+				pstmt.setInt(2, message.getNewViewNum());
+				var ret = pstmt.executeQuery();
+				if (ret.next())
+					checklist[1] = ret.getInt(1) >= 2 * getMaximumFaulty();
+			}
+			String query3 = "SELECT count(*) FROM NewViewMessages WHERE newViewNum = ?";
+			try (var psmt = logger.getPreparedStatement(query3)) {
+				psmt.setInt(1, message.getNewViewNum());
+				var ret = psmt.executeQuery();
+				if (ret.next())
+					checklist[2] = ret.getInt(1) == 0;
+			}
+			return Arrays.stream(checklist).allMatch(x -> x);
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
-		String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
-		try (var pstmt = logger.getPreparedStatement(query2)) {
-			pstmt.setInt(1, this.myNumber);
-			pstmt.setInt(2, message.getNewViewNum());
-			var ret = pstmt.executeQuery();
-			if (ret.next())
-				checklist[1] = ret.getInt(1) >= 2 * getMaximumFaulty();
-		}
-		String query3 = "SELECT count(*) FROM NewViewMessages WHERE newViewNum = ?";
-		try (var psmt = logger.getPreparedStatement(query3)) {
-			psmt.setInt(1, message.getNewViewNum());
-			var ret = psmt.executeQuery();
-			if (ret.next())
-				checklist[2] = ret.getInt(1) == 0;
-		}
-		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
 	/**

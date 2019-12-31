@@ -50,7 +50,8 @@ abstract class Connector {
 		try {
 			this.selector = Selector.open();
 		} catch (IOException e) {
-			e.printStackTrace();
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
 		}
 		replicaAddresses = Util.parseProperties(prop);
 	}
@@ -61,7 +62,7 @@ abstract class Connector {
 			SelectionKey key = socketChannel.keyFor(selector);
 			key.cancel();
 			assert !selector.keys().contains(socketChannel);
-		} catch (IOException | NullPointerException e) {
+		} catch (IOException | NullPointerException ignore) {
 			//Ignore exception
 		}
 	}
@@ -97,7 +98,6 @@ abstract class Connector {
 				Replica.msgDebugger.debug(String.format("HeaderMessage sent to %d", i));
 			} catch (IOException e) {
 				closeWithoutException(socketChannel);
-				continue;
 			}
 		}
 	}
@@ -124,7 +124,6 @@ abstract class Connector {
 			while (byteBuffer.hasRemaining()) {
 				int n = channel.write(byteBuffer);
 			}
-			return;
 
 		} catch (IOException e) {
 			reconnect(channel);
@@ -143,7 +142,7 @@ abstract class Connector {
 			try {
 				selector.select();
 			} catch (IOException e) {
-				e.printStackTrace();
+				Replica.msgDebugger.error(e);
 				continue;
 			}
 			Iterator<SelectionKey> it = selector.selectedKeys().iterator();
