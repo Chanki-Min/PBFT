@@ -7,7 +7,6 @@ import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
-import java.util.ResourceBundle;
 import java.util.UUID;
 
 import static kr.ac.hongik.apl.Util.desToObject;
@@ -73,7 +72,7 @@ public class Logger {
 				"CREATE TABLE Checkpoints (seqNum INT, stateDigest TEXT, replica INT,data TEXT, PRIMARY KEY(seqNum, " +
 						"stateDigest, replica))",
 				"CREATE TABLE UnstableCheckPoints (lastStableCheckpoint INT, seqNum INT, digest TEXT, PRIMARY KEY(lastStableCheckpoint, seqNum, digest))",
-				"CREATE TABLE Executed (seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
+				"CREATE TABLE Executed (client TEXT, seqNum INT, replyMessage TEXT NOT NULL, PRIMARY KEY(seqNum))",
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
@@ -309,14 +308,13 @@ public class Logger {
 
 	private void insertRequestMessage(RequestMessage message) {
 		String baseQuery = "INSERT INTO Requests (client, timestamp, operation) VALUES ( ?, ?, ? )";
-		try {
-			PreparedStatement pstmt = conn.prepareStatement(baseQuery);
+		try (var pstmt = conn.prepareStatement(baseQuery)){
+			String clientInfo = Util.serToBase64String(message.getClientInfo());
+			String digest = Util.serToBase64String(message.getOperation());
 
-			String data = Util.serToBase64String(message.getClientInfo());
-			pstmt.setString(1, data);
+			pstmt.setString(1, clientInfo);
 			pstmt.setLong(2, message.getTime());
-			String data1 = Util.serToBase64String(message.getOperation());
-			pstmt.setString(3, data1);
+			pstmt.setString(3, digest);
 
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -331,9 +329,7 @@ public class Logger {
 
 	private void insertPreprepareMessage(PreprepareMessage message) {
 		String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ?, ?)";
-		try {
-			PreparedStatement pstmt = conn.prepareStatement(baseQuery);
-
+		try (PreparedStatement pstmt = conn.prepareStatement(baseQuery);){
 			pstmt.setInt(1, message.getViewNum());
 			pstmt.setInt(2, message.getSeqNum());
 			pstmt.setString(3, message.getDigest());
@@ -354,8 +350,7 @@ public class Logger {
 
 	private void insertPrepareMessage(PrepareMessage message) {
 		String baseQuery = "INSERT INTO Prepares VALUES ( ?, ?, ?, ?, ?)";
-		try {
-			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, message.getViewNum());
 			preparedStatement.setInt(2, message.getSeqNum());
@@ -376,8 +371,7 @@ public class Logger {
 
 	private void insertCommitMessage(CommitMessage message) {
 		String baseQuery = "INSERT INTO Commits VALUES ( ?, ?, ?, ? )";
-		try {
-			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, message.getViewNum());
 			preparedStatement.setInt(2, message.getSeqNum());
@@ -396,8 +390,7 @@ public class Logger {
 	}
 	private void insertNewUnstableCheckPoint(UnstableCheckPoint unstableCheckPoint){
 		String baseQuery = "INSERT INTO UnstableCheckPoints VALUES (? , ? , ?)";
-		try{
-			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, unstableCheckPoint.getLastStableCheckPointNum());
 			preparedStatement.setInt(2, unstableCheckPoint.getSeqNum());
@@ -415,8 +408,7 @@ public class Logger {
 	}
 	private void insertCheckPointMessage(CheckPointMessage message) {
 		String baseQuery = "INSERT INTO Checkpoints VALUES (? , ? , ?, ?)";
-		try {
-			PreparedStatement preparedStatement = conn.prepareStatement(baseQuery);
+		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, message.getSeqNum());
 			preparedStatement.setString(2, message.getDigest());
@@ -478,12 +470,24 @@ public class Logger {
 	}
 
 	private void insertReplyMessage(int seqNum, ReplyMessage message) {
-		String query = "INSERT INTO Executed VALUES (?, ?)";
-		try (var pstmt = getPreparedStatement(query)) {
-			pstmt.setInt(1, seqNum);
+		String insertQuery = "INSERT INTO Executed VALUES (?, ?, ?)";
+		String clientInfo = Util.serToBase64String(message.getClientInfo());
+		try (var psmt = getPreparedStatement(insertQuery)) {
 			String data = Util.serToBase64String(message);
-			pstmt.setString(2, data);
-			pstmt.execute();
+			psmt.setString(1, clientInfo);
+			psmt.setInt(2, seqNum);
+			psmt.setString(3, data);
+			psmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+
+		String deleteQuery = "DELETE FROM Executed WHERE client = ? AND seqNum < ?";
+		try (var psmt = getPreparedStatement(deleteQuery)) {
+			psmt.setString(1, clientInfo);
+			psmt.setInt(2, seqNum);
+			psmt.execute();
 		} catch (SQLException e) {
 			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);

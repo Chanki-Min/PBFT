@@ -17,6 +17,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Client extends Connector {
+	//TODO : Client와 Replica 연결을 끊는 메소드가 필요하다. 안그러면 Executed가 계속 증가할 가능성이 있다.
+
 	//TODO : replies는 key로 request Timestamp, element로 현재까지 받은 replys 배열인데 이것이 무한대로 커지면 안되므로 gc단계 등에서 지워줄 필요가 있다.
 	private HashMap<Long, HashSet<Integer>> replies = new HashMap<>();
 	//TODO : ignoreList는 합의가 완료된 request의 timestamp를 저장하는 리스트로, 계속 증가하는 문제가 있음
@@ -113,7 +115,6 @@ public class Client extends Connector {
 				 * 한 클라이언트가 여러 request를 보낼 시, 그 request들을 구분해주는 것은 timestamp이므로,
 				 * Timestamp값을 이용하여 여러 요청들을 구분한다.
 				 */
-
 				if (replies.containsKey(uniqueKey)) {
 					checkReplica = replies.get(uniqueKey);
 				} else {
@@ -122,7 +123,6 @@ public class Client extends Connector {
 
 				checkReplica.add(replyMessage.getReplicaNum());
 				replies.put(uniqueKey, checkReplica);
-				checkReplica = replies.get(uniqueKey);
 				synchronized (replyLock) {
 					if(replyMessage.getTime() != this.getReceivingTimeStamp()){
 						continue;

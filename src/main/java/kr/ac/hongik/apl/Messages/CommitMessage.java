@@ -2,6 +2,7 @@ package kr.ac.hongik.apl.Messages;
 
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
+import org.echocat.jsu.JdbcUtils;
 
 import java.io.Serializable;
 import java.security.PrivateKey;
@@ -9,8 +10,11 @@ import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static com.diffplug.common.base.Errors.rethrow;
 import static kr.ac.hongik.apl.Util.sign;
 
 public class CommitMessage implements Message {
@@ -89,26 +93,28 @@ public class CommitMessage implements Message {
             return false;
         }
         checklist[2] = !isAlreadyExecuted(prepareStatement, this.getSeqNum());
-
         Replica.detailDebugger.trace(String.format("verify result : %s ", Arrays.toString(checklist)));
 
         return Arrays.stream(checklist).allMatch(x -> x);
     }
 
     boolean isAlreadyExecuted(Function<String, PreparedStatement> prepareStatement, int sequenceNumber) {
-        String query = "SELECT count(*) FROM Executed E WHERE E.seqNum = ?";
+        String query = "SELECT seqNum FROM Executed E";
         try (var pstmt = prepareStatement.apply(query)) {
-            pstmt.setInt(1, sequenceNumber);
             try (var ret = pstmt.executeQuery()) {
-                if (ret.next())
-                    return ret.getInt(1) > 0;
-                else
+                List<Integer> seqList = JdbcUtils.toStream(ret)
+                        .map(rethrow().wrapFunction(x -> x.getInt(1)))
+                        .collect(Collectors.toList());
+                if(seqList.isEmpty())
                     return false;
+                else {
+                    return seqList.stream().max(Integer::compareTo).get() >= sequenceNumber;
+                }
             }
         } catch (SQLException e) {
+            Replica.msgDebugger.error(e);
             throw new RuntimeException(e);
         }
-
     }
 
 	private static class Data implements Serializable {
