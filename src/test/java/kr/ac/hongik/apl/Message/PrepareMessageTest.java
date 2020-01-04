@@ -1,7 +1,9 @@
-package kr.ac.hongik.apl;
+package kr.ac.hongik.apl.Message;
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Messages.CommitMessage;
 import kr.ac.hongik.apl.Messages.PrepareMessage;
+import kr.ac.hongik.apl.Util;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

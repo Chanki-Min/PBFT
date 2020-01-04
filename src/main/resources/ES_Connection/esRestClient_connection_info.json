@@ -3,8 +3,8 @@
   "masterHostInfo": [
     {
       "name": "es01-master01",
-      "hostName": "223.194.70.111",
-      "port": "51192",
+      "hostName": "223.194.70.105",
+      "port": "19192",
       "hostScheme": "https"
     }
   ]

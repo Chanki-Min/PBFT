@@ -1,4 +1,4 @@
-package kr.ac.hongik.apl;
+package kr.ac.hongik.apl.Message;
 
 import kr.ac.hongik.apl.Messages.ReplyMessage;
 import org.junit.jupiter.api.Test;

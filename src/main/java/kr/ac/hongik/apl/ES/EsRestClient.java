@@ -7,6 +7,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.ssl.SSLContextBuilder;
@@ -103,13 +104,15 @@ public class EsRestClient {
 					.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
 						@Override
 						public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpAsyncClientBuilder) {
-							return httpAsyncClientBuilder.setSSLContext(sslContext)
-									.setDefaultCredentialsProvider(credentialsProvider);
+							return httpAsyncClientBuilder
+									.setSSLContext(sslContext)
+									.setDefaultCredentialsProvider(credentialsProvider)
+									.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE);
 						}
 					});
 			restHighLevelClient = new RestHighLevelClient(builder);
 		} catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
-			throw new EsSSLException(e.getMessage());
+			throw new EsSSLException(e);
 		}
 	}
 
@@ -135,7 +138,7 @@ public class EsRestClient {
 			return;
 		} else {
 			Replica.msgDebugger.error(String.format("configs property has unexpected format"));
-			throw new NoSuchFieldException();
+			throw new NoSuchFieldException("configs property has unexpected format");
 		}
 	}
 
@@ -181,7 +184,7 @@ public class EsRestClient {
 				throw new EsException("Cannot CREATE " + indexName);
 			}
 		} catch (ElasticsearchStatusException e) {
-			throw new EsConcurrencyException(e.getMessage());
+			throw new EsConcurrencyException(e);
 		}
 	}
 
@@ -441,11 +444,17 @@ public class EsRestClient {
 		public EsConcurrencyException(String s) {
 			super(s);
 		}
+		public EsConcurrencyException(Exception e) {
+			super(e);
+		}
 	}
 
 	public static class EsSSLException extends Exception {
 		public EsSSLException(String s) {
 			super(s);
+		}
+		public EsSSLException(Exception e) {
+			super(e);
 		}
 	}
 }

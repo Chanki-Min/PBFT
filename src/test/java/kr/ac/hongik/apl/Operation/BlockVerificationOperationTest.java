@@ -53,8 +53,8 @@ public class BlockVerificationOperationTest {
 
 		Map<String, Object> masterMap = new HashMap<>();
 		masterMap.put( "name", "es01-master01");
-		masterMap.put( "hostName", "223.194.70.111");
-		masterMap.put( "port", "51192");
+		masterMap.put( "hostName", "223.194.70.105");
+		masterMap.put( "port", "19192");
 		masterMap.put( "hostScheme", "https");
 
 		esRestClientConfigs.put("masterHostInfo", List.of(masterMap));

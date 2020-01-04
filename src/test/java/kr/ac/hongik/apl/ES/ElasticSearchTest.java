@@ -7,6 +7,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.ssl.SSLContextBuilder;
@@ -57,15 +58,15 @@ public class ElasticSearchTest {
 	@BeforeEach
 	public void makeConfig() {
 		esRestClientConfigs = new HashMap<>();
-		esRestClientConfigs.put("userName", "apl");
+		esRestClientConfigs.put("userName", "elastic");
 		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
 		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
 		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
 
 		Map<String, Object> masterMap = new HashMap<>();
 		masterMap.put( "name", "es01-master01");
-		masterMap.put( "hostName", "223.194.70.111");
-		masterMap.put( "port", "51192");
+		masterMap.put( "hostName", "223.194.70.105");
+		masterMap.put( "port", "19192");
 		masterMap.put( "hostScheme", "https");
 
 		esRestClientConfigs.put("masterHostInfo", List.of(masterMap));
@@ -89,12 +90,14 @@ public class ElasticSearchTest {
 		final SSLContext sslContext = sslBuilder.build();
 
 		RestClientBuilder builder = RestClient.builder(
-				new HttpHost("223.194.70.111", 51192, "https"))
+				new HttpHost("223.194.70.105", 19192, "https"))
 				.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
 					@Override
 					public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpAsyncClientBuilder) {
-						return httpAsyncClientBuilder.setSSLContext(sslContext)
-								.setDefaultCredentialsProvider(credentialsProvider);
+						return httpAsyncClientBuilder
+								.setSSLContext(sslContext)
+								.setDefaultCredentialsProvider(credentialsProvider)
+								.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE);
 					}
 				});
 
