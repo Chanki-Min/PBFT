@@ -7,6 +7,7 @@ import java.io.File;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.List;
 import java.util.UUID;
 
 import static kr.ac.hongik.apl.Util.desToObject;
@@ -192,12 +193,34 @@ public class Logger {
 
 	}
 
-	public void executeGarbageCollection(int seqNum) {
+	public void executeGarbageCollection(int seqNum, List<String> clientInfoArray) {
 		cleanUpPrePrepareMsg(seqNum);
 		cleanUpPrepareMsg(seqNum);
 		cleanUpCommitMsg(seqNum);
 		cleanUpUnstableCheckpoint(seqNum);
 		cleanUpCheckpointMsg(seqNum);
+		cleanUpExecutedMsg(seqNum-1, clientInfoArray);
+	}
+
+	private void cleanUpExecutedMsg(int seqNum, List<String> clientInfoArray) {
+		StringBuilder query = new StringBuilder();
+		query.append("DELETE FROM Executed WHERE seqNum <= ? AND client NOT IN (");
+
+		for( int i = 0 ; i < clientInfoArray.size(); i++ ) {
+			query = i < (clientInfoArray.size() - 1) ? query.append("?,") : query.append("?");
+		}
+		query.append(")");
+
+		try (var psmt = conn.prepareStatement(query.toString())) {
+			psmt.setInt(1, seqNum);
+			for(int i=0; i<clientInfoArray.size(); i++) {
+				psmt.setString(i+2, clientInfoArray.get(i));
+			}
+			psmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
 	}
 
 	private void cleanUpPrePrepareMsg(int seqNum) {

@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl;
 
 
+import kr.ac.hongik.apl.Messages.CloseConnectionMessage;
 import kr.ac.hongik.apl.Messages.HeaderMessage;
 import kr.ac.hongik.apl.Messages.Message;
 
@@ -113,6 +114,8 @@ abstract class Connector {
 	 * @param message
 	 */
 	public void send(SocketChannel channel, Message message) {
+		if(!channel.isConnected())
+			return;
 		byte[] payload = serialize(message);
 
 		try {
@@ -187,6 +190,9 @@ abstract class Connector {
 						if (message instanceof HeaderMessage) {
 							HeaderMessage headerMessage = (HeaderMessage) message;
 							headerMessage.setChannel(channel);
+						} else if (message instanceof CloseConnectionMessage) {
+							CloseConnectionMessage closeConnectionMessage = (CloseConnectionMessage) message;
+							closeConnectionMessage.setChannel(channel);
 						}
 						return (Message) message;
 					} catch (IOException e) {
