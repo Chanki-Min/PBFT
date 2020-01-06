@@ -162,15 +162,17 @@ public class Replica extends Connector {
 			} else if(message instanceof  CloseConnectionMessage) {
 				handleCloseConnectionMessage((CloseConnectionMessage) message);
 			} else if (message instanceof RequestMessage) {
-				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
+				if (!publicKeyMap.containsValue(((RequestMessage) message).getOperation().getClientInfo())) {
+					detailDebugger.trace(String.format("Got request msg but ignored, publicKeyMap.contains? : %b", publicKeyMap.containsValue(((RequestMessage) message).getClientInfo())));
 					receiveBuffer.put(message);
-					//loopback(message);
+				}
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo()))
+				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo())) {
 					receiveBuffer.put(message);
-					//loopback(message);
+					detailDebugger.trace(String.format("Got request msg but ignored, publicKeyMap.contains? : %b", publicKeyMap.containsValue(((PreprepareMessage) message).getRequestMessage().getClientInfo())));
+				}
 				else
 					handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
@@ -272,8 +274,11 @@ public class Replica extends Connector {
 			}
 			logger.insertMessage(message);
 			if (this.getPrimary() == this.myNumber) {
+				detailDebugger.trace("broadcastToReplica");
 				broadcastToReplica(message);
 			} else {
+				detailDebugger.trace(String.format("relay to primary, viewNum : %d", viewNum));
+				//TODO : 만약 재접속한 replica가 request를 relay할때 primary의 소켓이 없다면 예외 발생
 				super.send(getReplicaMap().get(getPrimary()), message);
 
 				//Set a timer for view-change phase
@@ -295,14 +300,14 @@ public class Replica extends Connector {
 
 		msgDebugger.debug(String.format("Got Pre-pre msg view : %d seq : %d request timestamp : %d", message.getViewNum(), message.getSeqNum(), message.getRequestMessage().getTime()));
 
-		SocketChannel primaryChannel = this.getReplicaMap().get(this.getPrimary());
+		SocketChannel primaryChannel = getReplicaMap().get(this.getPrimary());
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
-		SocketChannel PublicKeySocket = getChannelFromClientInfo(clientPublicKey);
-		clientPublicKey = publicKeyMap.get(PublicKeySocket);
+
 		boolean isVerified = message.isVerified(primaryPublicKey, this.getViewNum(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
 
 		if (isVerified) {
+			msgDebugger.debug(String.format("Pre-pre msg verified view : %d seq : %d request timestamp : %d", message.getViewNum(), message.getSeqNum(), message.getRequestMessage().getTime()));
 			logger.insertMessage(message);
 			logger.insertMessage(message.getRequestMessage());
 			PrepareMessage prepareMessage = makePrepareMsg(
@@ -324,10 +329,15 @@ public class Replica extends Connector {
 		if (message.isVerified(publicKey, this.getViewNum(), this::getWatermarks)) {
 			logger.insertMessage(message);
 		}
-		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.seqNum = ? AND C.replica = ? AND C.digest = ?")) {
-			pstmt.setInt(1, message.getSeqNum());
-			pstmt.setInt(2, this.myNumber);
-			pstmt.setString(3, message.getDigest());
+
+		/*
+		* Commits 의 viewNum까지 확인해줘야 viewChange phase에서 재접속한 노드가 정상적인 실행을 할 수 있음에 주의해야 한다.
+		*/
+		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.viewNum = ? ANd C.seqNum = ? AND C.replica = ? AND C.digest = ?")) {
+			pstmt.setInt(1, message.getViewNum());
+			pstmt.setInt(2, message.getSeqNum());
+			pstmt.setInt(3, this.myNumber);
+			pstmt.setString(4, message.getDigest());
 			try (var ret = pstmt.executeQuery()) {
 				if (ret.next()) {
 					var i = ret.getInt(1);
@@ -348,8 +358,8 @@ public class Replica extends Connector {
 					message.getDigest(),
 					this.myNumber);
 
+			//prepare 메세지를 2f+1개 초과해서 받을때 중복된 Commit msg생성을 방지하기 위하여 일단 내가 만든 커밋 메세지를 핸들한다.
 			handleCommitMessage(commitMessage);
-
 			getReplicaMap().values().forEach(channel -> send(channel, commitMessage));
 		}
 	}
@@ -359,7 +369,6 @@ public class Replica extends Connector {
 
 		SocketChannel channel = message.getChannel();
 		this.publicKeyMap.put(channel, message.getPublicKey());
-		if (!publicKeyMap.containsValue(message.getPublicKey())) throw new AssertionError();
 
 		switch (message.getType()) {
 			case "replica":
@@ -373,16 +382,10 @@ public class Replica extends Connector {
 	}
 
 	private void handleCloseConnectionMessage(CloseConnectionMessage message) {
-		msgDebugger.debug(String.format("Got CloseConnection msg, replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
+		detailDebugger.trace(String.format("Got CloseConnection msg, replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
 		SocketChannel channel = message.getChannel();
-		msgDebugger.debug(String.format("before publicKeyMap size : %d", publicKeyMap.size()));
 		this.publicKeyMap.remove(channel);
-		msgDebugger.debug(String.format("after publicKeyMap size : %d", publicKeyMap.size()));
-		try {
-			channel.close();
-		} catch (IOException ignore) {
-			msgDebugger.error(ignore);
-		}
+		closeWithoutException(channel);
 		msgDebugger.debug(String.format("Connection Closed from channel : %s", message.getChannel().toString()));
 	}
 
@@ -399,6 +402,7 @@ public class Replica extends Connector {
 
 		if (isCommitted) {
 			if(MEASURE){
+				Replica.detailDebugger.trace("isCommitted");
 				Long key = logger.getOperation(cmsg).getTimestamp();
 				consensusTimeMap.put(key, Instant.now().toEpochMilli() - receiveRequestTimeMap.get(key));
 				double duration = (double)(consensusTimeMap.get(key)) / 1000;
@@ -409,7 +413,9 @@ public class Replica extends Connector {
 				executionBuffer.add(cmsg);
 			try {
 				while (true) {
+					Replica.detailDebugger.trace("try to getRightNextCommitMsg");
 					CommitMessage rightNextCommitMsg = getRightNextCommitMsg();
+					Replica.detailDebugger.trace("got getRightNextCommitMsg");
 					var operation = logger.getOperation(rightNextCommitMsg);
 					// Release backup's view-change timer
 					String key = makeKeyForTimer(rightNextCommitMsg);
@@ -646,7 +652,7 @@ public class Replica extends Connector {
 					.collect(Collectors.toList());
 			logger.executeGarbageCollection(getWatermarks()[0] - 1, clientInfos);
 		}
-
+		//모든 preprepareMsg를 합의하여 낙오된 replica를 복구한다
 		if (message.getOperationList() != null) {
 			message.getOperationList()
 					.stream()
@@ -787,9 +793,11 @@ public class Replica extends Connector {
 						} else if(first.getSeqNum() < getWatermarks()[0]){
 							executionBuffer.poll();
 						} else {
+							Replica.detailDebugger.trace(String.format("getRightNextCommitMsg:: cannot poll from exeBuff, first seq : %d sofar : %d", first.getSeqNum(), soFarMaxSeqNum));
 							throw new NoSuchElementException();
 						}
 					} else {
+						Replica.detailDebugger.trace(String.format("getRightNextCommitMsg:: cannot poll from exeBuff, first is null"));
 						throw new NoSuchElementException();
 					}
 				}
@@ -815,6 +823,10 @@ public class Replica extends Connector {
 	}
 
 	public SocketChannel getChannelFromClientInfo(PublicKey key) {
+		/*
+		if(!publicKeyMap.containsKey(key))
+			return null;
+		*/
 		return publicKeyMap.entrySet().stream()
 				.filter(x -> x.getValue().equals(key))
 				.findFirst().get().getKey();

@@ -90,11 +90,18 @@ public class Client extends Connector implements Closeable {
 			int idx = new Random().nextInt(getReplicaMap().size());
 
 			Replica.msgDebugger.debug(String.format("Send Request Msg to %d", idx));
-
+			checkSocketChannel();
 			var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
-
 			send(sock, msg);
 			setReceivingTimeStamp(msg.getTime());
+		}
+	}
+
+	public void checkSocketChannel() {
+		Replica.detailDebugger.trace("Checking Socket connection before send message...");
+		for(var entry : getReplicaMap().entrySet()) {
+			HeartBeatMessage signal = new HeartBeatMessage();
+			send(entry.getValue(), signal);
 		}
 	}
 

@@ -137,11 +137,14 @@ public class NewViewMessage implements Message {
 
 		Boolean[] checklist = new Boolean[4];
 
+		//NewViewMessage의 signature를 검증한다
 		checklist[0] = this.verify(keymap.get(Replica.getReplicaMap().get(newPrimaryNum)));
 
+		//NewViewMessage의 ViewChangeList의 모든 vMsg의 signatue를 검증한다
 		checklist[1] = this.getViewChangeMessageList().stream()
 				.allMatch(v -> v.verify(keymap.get(Replica.getReplicaMap().get(v.getReplicaNum()))));
 
+		//모든 vMsg에서 PreprareMsg를 가져온다
 		List<PrepareMessage> agreed_prepares = this.getViewChangeMessageList()
 				.stream()
 				.flatMap(v -> v.getMessageList().stream())

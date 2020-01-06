@@ -3,6 +3,7 @@ package kr.ac.hongik.apl;
 
 import kr.ac.hongik.apl.Messages.CloseConnectionMessage;
 import kr.ac.hongik.apl.Messages.HeaderMessage;
+import kr.ac.hongik.apl.Messages.HeartBeatMessage;
 import kr.ac.hongik.apl.Messages.Message;
 
 import java.io.IOException;
@@ -57,12 +58,11 @@ abstract class Connector {
 		replicaAddresses = Util.parseProperties(prop);
 	}
 
-	private void closeWithoutException(SocketChannel socketChannel) {
+	protected void closeWithoutException(SocketChannel socketChannel) {
 		try {
 			socketChannel.close();
 			SelectionKey key = socketChannel.keyFor(selector);
 			key.cancel();
-			assert !selector.keys().contains(socketChannel);
 		} catch (IOException | NullPointerException ignore) {
 			//Ignore exception
 		}
@@ -95,10 +95,9 @@ abstract class Connector {
 			try {
 				socketChannel = makeConnection(replicaAddresses.get(i));
 				getReplicaMap().put(i, socketChannel);
-				socketChannel = null;
 				Replica.msgDebugger.debug(String.format("HeaderMessage sent to %d", i));
 			} catch (IOException e) {
-				closeWithoutException(socketChannel);
+				reconnect(socketChannel);
 			}
 		}
 	}
@@ -114,8 +113,10 @@ abstract class Connector {
 	 * @param message
 	 */
 	public void send(SocketChannel channel, Message message) {
-		if(!channel.isConnected())
+		if(!channel.isConnected()) {
+			reconnect(channel);
 			return;
+		}
 		byte[] payload = serialize(message);
 
 		try {
@@ -127,9 +128,45 @@ abstract class Connector {
 			while (byteBuffer.hasRemaining()) {
 				int n = channel.write(byteBuffer);
 			}
-
 		} catch (IOException e) {
 			reconnect(channel);
+		}
+	}
+
+	/**
+	 * send, receive에서 소켓 전송,읽기 작업 실패(IOException)시 호출되는 메소드이다.
+	 * 연결에 실패한 소캣채널로 replica id를 찾고, 해당 replica id에 따른 ip:port로 새로운
+	 * 소캣채널 연결을 시도한다.
+	 *
+	 * @param channel 연결에 실패한 소캣채널
+	 */
+	private void reconnect(SocketChannel channel) {
+		/* Broken connection: try reconnecting if that socket was connected to replica */
+		Replica.detailDebugger.trace(String.format("try to reconnect with socket %s", channel == null ? "" : channel.toString()));
+		SocketChannel newChannel = null;
+		try {
+			int replicaNum = getReplicaMap().entrySet().stream()
+					.filter(x -> x.getValue().equals(channel))
+					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+			closeWithoutException(channel);    //de-register a selector
+			var address = replicaAddresses.get(replicaNum);
+			newChannel = makeConnection(address);
+			getReplicaMap().put(replicaNum, newChannel);
+		} catch (NoSuchElementException e) {
+			//client socket is failed. ignore reconnection
+			Replica.msgDebugger.warn(String.format("no matching replicaNum"));
+			Replica.msgDebugger.warn(e);
+			closeWithoutException(channel);    //de-register a selector
+			return;
+		} catch (IOException e) {
+			Replica.msgDebugger.warn(String.format("reconnection failed"));
+			Replica.msgDebugger.warn(e);
+			return;
+		}
+		if(!channel.isConnected()) {
+			Replica.msgDebugger.warn(String.format("reconnection failed, serverSocket connection failure"));
+		}else {
+			Replica.detailDebugger.trace(String.format("reconnected with address : %s", newChannel == null ? "" : newChannel.toString()));
 		}
 	}
 
@@ -193,6 +230,9 @@ abstract class Connector {
 						} else if (message instanceof CloseConnectionMessage) {
 							CloseConnectionMessage closeConnectionMessage = (CloseConnectionMessage) message;
 							closeConnectionMessage.setChannel(channel);
+						} else if (message instanceof HeartBeatMessage) {
+							Replica.detailDebugger.trace("Got heartbeat signal");
+							continue;
 						}
 						return (Message) message;
 					} catch (IOException e) {
@@ -204,33 +244,6 @@ abstract class Connector {
 
 			}
 		}
-	}
-
-	private void reconnect(SocketChannel channel) {
-		/* Broken connection: try reconnecting if that socket was connected to replica */
-		getReplicaMap().remove(channel);
-		try {
-			int replicaNum = getReplicaMap().entrySet().stream()
-					.filter(x -> x.getValue().equals(channel))
-					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
-			closeWithoutException(channel);    //de-register a selector
-			var address = replicaAddresses.get(replicaNum);
-			try {
-				SocketChannel newChannel = makeConnection(address);
-				getReplicaMap().put(replicaNum, newChannel);
-			} catch (IOException e1) {
-				//pass
-			}
-
-		} catch (NoSuchElementException e1) {
-			//client socket is failed. ignore reconnection
-			closeWithoutException(channel);    //de-register a selector
-			return;
-		}
-		/*
-		 * 재전송을 안하는 이유:
-		 * getRemoteAddress에서 exception 발생시 재전송하게 되면 원치 않는 곳에 전송할 수 있기 때문
-		 */
 	}
 
 	static public Map<Integer, SocketChannel> getReplicaMap() {
