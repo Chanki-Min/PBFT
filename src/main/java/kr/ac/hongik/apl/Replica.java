@@ -11,9 +11,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.rmi.RemoteException;
 import java.security.PublicKey;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -161,6 +159,8 @@ public class Replica extends Connector {
 			}
 			if (message instanceof HeaderMessage) {
 				handleHeaderMessage((HeaderMessage) message);
+			} else if(message instanceof  CloseConnectionMessage) {
+				handleCloseConnectionMessage((CloseConnectionMessage) message);
 			} else if (message instanceof RequestMessage) {
 				if (!publicKeyMap.containsValue(((RequestMessage) message).getClientInfo()))
 					receiveBuffer.put(message);
@@ -355,7 +355,6 @@ public class Replica extends Connector {
 	}
 
 	private void handleHeaderMessage(HeaderMessage message) {
-
 		msgDebugger.debug(String.format("Got Header msg replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
 
 		SocketChannel channel = message.getChannel();
@@ -371,6 +370,20 @@ public class Replica extends Connector {
 			default:
 				msgDebugger.error(String.format("Invalid header message : %s", message));
 		}
+	}
+
+	private void handleCloseConnectionMessage(CloseConnectionMessage message) {
+		msgDebugger.debug(String.format("Got CloseConnection msg, replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
+		SocketChannel channel = message.getChannel();
+		msgDebugger.debug(String.format("before publicKeyMap size : %d", publicKeyMap.size()));
+		this.publicKeyMap.remove(channel);
+		msgDebugger.debug(String.format("after publicKeyMap size : %d", publicKeyMap.size()));
+		try {
+			channel.close();
+		} catch (IOException ignore) {
+			msgDebugger.error(ignore);
+		}
+		msgDebugger.debug(String.format("Connection Closed from channel : %s", message.getChannel().toString()));
 	}
 
 	private void handleCommitMessage(CommitMessage cmsg) {
@@ -490,7 +503,10 @@ public class Replica extends Connector {
 
 					if (max > 2 * getMaximumFaulty() && message.getSeqNum() > this.lowWatermark) {
 						synchronized (watermarkLock) {
-							logger.executeGarbageCollection(message.getSeqNum());
+							List<String> clientInfos = publicKeyMap.values().stream()
+									.map(Util::serToBase64String)
+									.collect(Collectors.toList());
+							logger.executeGarbageCollection(message.getSeqNum(), clientInfos);
 							lowWatermark += WATERMARK_UNIT;
 
 							detailDebugger.trace(String.format("GARBAGE COLLECTION DONE -> new low watermark : %d", lowWatermark));
@@ -625,7 +641,10 @@ public class Replica extends Connector {
 					.stream()
 					.flatMap(x -> x.getCheckPointMessages().stream())
 					.forEach(c -> logger.insertMessage(c));
-			logger.executeGarbageCollection(getWatermarks()[0] - 1);
+			List<String> clientInfos = publicKeyMap.values().stream()
+					.map(Util::serToBase64String)
+					.collect(Collectors.toList());
+			logger.executeGarbageCollection(getWatermarks()[0] - 1, clientInfos);
 		}
 
 		if (message.getOperationList() != null) {
@@ -716,14 +735,17 @@ public class Replica extends Connector {
 	*/
 	private static int getPriorityFromMsg(Message message) {
 		if (message instanceof HeaderMessage) {
-			return -4;
+			return -5;
 		} else if (message instanceof NewViewMessage) {
-			return -3;
+			return -4;
 		} else if (message instanceof ViewChangeMessage) {
-			return -2;
+			return -3;
 		} else if (message instanceof RequestMessage) {
+			return -2;
+		} else if (message instanceof CloseConnectionMessage) {
 			return -1;
-		} else if (message instanceof PreprepareMessage) {
+		}
+		else if (message instanceof PreprepareMessage) {
 			return ((PreprepareMessage) message).getSeqNum() + ((PreprepareMessage) message).getViewNum();
 		} else if (message instanceof PrepareMessage) {
 			return ((PrepareMessage) message).getSeqNum() + ((PrepareMessage) message).getViewNum();

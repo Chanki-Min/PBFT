@@ -73,6 +73,7 @@ class LoggerTest {
 				System.err.println();
 				//Assertions.assertEquals((firstRet[3] + i) % Replica.WATERMARK_UNIT, ret[3] % Replica.WATERMARK_UNIT);
 			}
+			client.close();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

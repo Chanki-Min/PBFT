@@ -3,12 +3,10 @@ package kr.ac.hongik.apl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.ac.hongik.apl.Messages.HeaderMessage;
-import kr.ac.hongik.apl.Messages.Message;
-import kr.ac.hongik.apl.Messages.ReplyMessage;
-import kr.ac.hongik.apl.Messages.RequestMessage;
+import kr.ac.hongik.apl.Messages.*;
 import kr.ac.hongik.apl.Operations.OperationExecutionException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
 import java.security.PublicKey;
@@ -16,14 +14,9 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class Client extends Connector {
-	/*TODO : Client와 Replica 연결을 끊는 메소드가 필요하다. 안그러면 Executed가 계속 증가할 가능성이 있다.
-	* close가 해야 할 일
-	* 1. replica 의 Excuted에서 clientInfo인 레코드 삭제
-	* 2. replica->connector의 client 소켓 닫기
-	 */
+public class Client extends Connector implements Closeable {
+
 	private HashMap<Long, HashSet<Integer>> replies = new HashMap<>();
-	//TODO : ignoreList는 합의가 완료된 request의 timestamp를 저장하는 리스트로, 계속 증가하는 문제가 있음
 	private List<Long> ignoreList = new ArrayList<>();
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
 	private Long receivingTimeStamp;
@@ -44,6 +37,37 @@ public class Client extends Connector {
 		send(channel, headerMessage);
 
 		Replica.msgDebugger.debug(String.format("Send Header msg, key : %s", headerMessage.getPublicKey().toString().substring(46,66)));
+	}
+
+	/*
+	 * 로직
+	 * 1.Client가 closeConnectionMsg send
+	 * 2.Replica가 수신
+	 * 3.Replica.super.publicKeyMap 에서 Client의 소켓 채널 삭제
+	 * 4.Replica.super에서 client 소켓 채널 disconnect
+	 * 5.Client.super.publicKeyMap에서 replica의 소켓 채널 삭제
+	 * 6.Client.super에서 replica의 소켓 채널 disconnect
+	 * 7. replica 의 Excuted에서 clientInfo인 레코드 삭제
+	 */
+	public void close() {
+		//disconnect from every replica
+		CloseConnectionMessage closeConnectionMessage = new CloseConnectionMessage(-1, this.getPublicKey(), "client");
+		ignoreList.clear();
+		replies.clear();
+		//cancle all timer and clear timerMap
+		timerMap.values().forEach(Timer::cancel);
+		timerMap.clear();
+		var itr = publicKeyMap.keySet().iterator();
+		while(itr.hasNext()) {
+			SocketChannel channel = itr.next();
+			send(channel, closeConnectionMessage);
+			itr.remove();
+			try {
+				channel.close();
+			} catch (IOException e) {
+				Replica.msgDebugger.error(e);
+			}
+		}
 	}
 
 	/**
