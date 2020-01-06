@@ -87,12 +87,38 @@ public class Client extends Connector implements Closeable {
 				setReceivingTimeStamp(msg.getTime());
 				return;
 			}
-			//TODO : 죽은 replica node를 무시하도록 코드 수정이 필요함
 			int idx = new Random().nextInt(getReplicaMap().size());
 
 			Replica.msgDebugger.debug(String.format("Send Request Msg to %d", idx));
 
 			var sock = getReplicaMap().values().stream().skip(idx).findFirst().get();
+
+			send(sock, msg);
+			setReceivingTimeStamp(msg.getTime());
+		}
+	}
+
+	/**
+	 * requestMessage를 임의의 replica에게 보내고 만약 요청이 오지 않을 경우를 대비하여 broadcastTimer를 설정한다.
+	 * 타이머 만료시 모든 replica들에게 requestMsg를 broadcast하여 viewChange Phase를 유도한다
+	 *
+	 * @param msg 요청할 requestMessage
+	 * @param replicaNum  요청을 보낼 replica number
+	 */
+	public void request(RequestMessage msg, int replicaNum) {
+		synchronized (replyLock) {
+			BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
+			Timer timer = new Timer();
+			timer.schedule(task, TIMEOUT);
+			timerMap.put(msg.getTime(), timer);
+			if(Replica.MEASURE){
+				getReplicaMap().values().stream().forEach(x -> send(x, msg));
+				setReceivingTimeStamp(msg.getTime());
+				return;
+			}
+			Replica.msgDebugger.debug(String.format("Send Request Msg to %d", replicaNum));
+
+			var sock = getReplicaMap().values().stream().skip(replicaNum).findFirst().get();
 
 			send(sock, msg);
 			setReceivingTimeStamp(msg.getTime());
