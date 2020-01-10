@@ -27,6 +27,7 @@ public class BlockVerificationOperationTest {
 	private Map<String, Object> esRestClientConfigs;
 	private EsRestClient esRestClient;
 	private ObjectMapper objectMapper = new ObjectMapper();
+	boolean isHashListInclude = false;
 
 	@BeforeEach
 	public void makeConfig() throws NoSuchFieldException, EsRestClient.EsSSLException {
@@ -58,7 +59,9 @@ public class BlockVerificationOperationTest {
 		String indexMappingPath = "/ES_MappingAndSetting/Mapping_car_log.json";
 		String indexSettingPath = "/ES_MappingAndSetting/Setting.json";
 		String indexName = getIndexNameFromFilePath(indexMappingPath);
+		String chainName = "car_logs_blockChain";
 		boolean isDataLoop = true;
+
 		int dataSize = 100;
 
 		Generator generator = new Generator(dummyDataPath, isDataLoop);
@@ -81,8 +84,8 @@ public class BlockVerificationOperationTest {
 			hashList.add(hash);
 		}
 		HashTree hashTree = new HashTree(hashList.toArray(new String[0]));
-		int blockNumber = storeHeaderAndHashToPBFTAndReturnIdx(hashTree.toString(), hashList);
-		storeDataToEs(indexName, blockNumber, carLogList);
+		int blockNumber = storeHeaderAndHashToPBFTAndReturnIdx(chainName, hashTree.toString(), hashList);
+		storeDataToEs(indexName, chainName, blockNumber, carLogList);
 		System.err.printf("car_log insertion end\n");
 
 		/*
@@ -94,7 +97,7 @@ public class BlockVerificationOperationTest {
 
 		Client client = new Client(prop);
 
-		Operation verifyBlockOp = new BlockVerificationOperation(client.getPublicKey(), esRestClientConfigs, blockNumber, Arrays.asList("car_log"));
+		Operation verifyBlockOp = new BlockVerificationOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
 		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), verifyBlockOp);
 		long send = System.currentTimeMillis();
 		client.request(insertRequestMsg);
@@ -104,7 +107,7 @@ public class BlockVerificationOperationTest {
 		데이터를 변조한 뒤에 다시 검증해본다
 		 */
 
-		verifyBlockOp = new BlockVerificationOperation(client.getPublicKey(), esRestClientConfigs, blockNumber, Arrays.asList("car_log"));
+		verifyBlockOp = new BlockVerificationOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
 		insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), verifyBlockOp);
 		client.request(insertRequestMsg);
 		List errorResult = (List) client.getReply();
@@ -119,19 +122,24 @@ public class BlockVerificationOperationTest {
 			return null;
 	}
 
-	private void storeDataToEs(String indexName, int blockNumber, List<Map<String, Object>> dataList) throws IOException, EsRestClient.EsConcurrencyException, InterruptedException, EsRestClient.EsException {
-		esRestClient.bulkInsertDocumentByProcessor(indexName, blockNumber, dataList,
+	private void storeDataToEs(String indexName ,String chainName, int blockNumber, List<Map<String, Object>> dataList) throws IOException, EsRestClient.EsConcurrencyException, InterruptedException, EsRestClient.EsException {
+		esRestClient.bulkInsertDocumentByProcessor(indexName, chainName, blockNumber, dataList,
 				1, 1000, 10, ByteSizeUnit.MB, 5);
 	}
 
-	private int storeHeaderAndHashToPBFTAndReturnIdx(String root, List<String> hashList) throws IOException {
+	private int storeHeaderAndHashToPBFTAndReturnIdx(String chainName, String root, List<String> hashList) throws IOException {
 		//send [block#, root] to PBFT to PBFT generates Header and store to sqliteDB itself
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 		Client client = new Client(prop);
 
-		Operation insertHeaderOp = new InsertHeaderOperation(client.getPublicKey(), hashList, root);
+		Operation insertHeaderOp;
+		if(isHashListInclude)
+			insertHeaderOp = new InsertHeaderOperation(client.getPublicKey(), chainName, hashList, root);
+		else
+			insertHeaderOp = new InsertHeaderOperation(client.getPublicKey(), chainName, root);
+
 		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), insertHeaderOp);
 		client.request(insertRequestMsg);
 		int blockNumber = (int) client.getReply();

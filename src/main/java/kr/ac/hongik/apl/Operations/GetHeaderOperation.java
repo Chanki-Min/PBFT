@@ -9,10 +9,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class GetHeaderOperation extends Operation {
+	private String chainName;
 	private int blockNumber;
 
-	public GetHeaderOperation(PublicKey clientInfo, int blockNumber) {
+	public GetHeaderOperation(PublicKey clientInfo, String chainName, int blockNumber) {
 		super(clientInfo);
+		this.chainName = chainName;
 		this.blockNumber = blockNumber;
 	}
 
@@ -23,8 +25,9 @@ public class GetHeaderOperation extends Operation {
 				return new ImmutableTriple<Integer, String, String>(0, "FIRST_ROOT", "PREV");
 			}
 			Logger logger = (Logger) obj;
-			String baseQuery = "SELECT b.idx, b.root, b.prev FROM BlockChain AS b WHERE b.idx = " + blockNumber;
-			try (var psmt = logger.getPreparedStatement(baseQuery)) {
+			String baseQuery = "SELECT b.idx, b.root, b.prev FROM " + Logger.BLOCK_CHAIN +" AS b WHERE b.idx = ?";
+			try (var psmt = logger.getPreparedStatement(chainName, baseQuery)) {
+				psmt.setInt(1, blockNumber);
 				ResultSet ret = psmt.executeQuery();
 
 				Triple<Integer, String, String> header = null;

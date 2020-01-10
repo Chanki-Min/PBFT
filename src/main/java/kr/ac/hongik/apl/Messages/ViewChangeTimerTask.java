@@ -2,8 +2,6 @@ package kr.ac.hongik.apl.Messages;
 
 import kr.ac.hongik.apl.Replica;
 
-import static com.diffplug.common.base.Errors.rethrow;
-
 /**
  * pre-prepare timeout시에는 ViewChangeTimer로서 동작하며, newViewMsg를 기다리는 중에는 newViewTimer로 동작한다.
  *
@@ -37,10 +35,9 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		replica.removeNewViewTimer(newViewNum);
 		replica.removeViewChangeTimer();
 
-		var getPreparedStatementFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
 		Replica.detailDebugger.trace(String.format("Checkpoint num : %d NewViewNum : %d", replica.getWatermarks()[0], newViewNum));
 		synchronized (replica.watermarkLock) {
-			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getWatermarks()[0], newViewNum, replica, getPreparedStatementFn);
+			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getWatermarks()[0], newViewNum, replica, replica.getLogger()::getPreparedStatement);
 			Replica.getReplicaMap().values().forEach(sock -> replica.send(sock, viewChangeMessage));
 		}
 	}

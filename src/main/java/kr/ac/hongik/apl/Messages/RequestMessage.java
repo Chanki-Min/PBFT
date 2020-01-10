@@ -1,6 +1,7 @@
 package kr.ac.hongik.apl.Messages;
 
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Util;
 
@@ -8,7 +9,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static java.util.Base64.getEncoder;
 import static kr.ac.hongik.apl.Util.serialize;
@@ -34,10 +35,10 @@ public class RequestMessage implements Message {
 		return Util.verify(publicKey, this.operation, this.signature);
 	}
 
-	public boolean isNotRepeated(Function<String, PreparedStatement> prepareStatement) {
+	public boolean isNotRepeated(BiFunction<String, String, PreparedStatement> prepareStatement) {
 		//Client의 request timestamp는 항상 증가하는 방향으로만 이루어져야 한다.
 		String baseQuery = "SELECT R.timestamp FROM Requests R WHERE R.client = ? ORDER BY R.timestamp DESC";
-		try (var pstmt = prepareStatement.apply(baseQuery)) {
+		try (var pstmt = prepareStatement.apply(Logger.CONSENSUS, baseQuery)) {
 			pstmt.setString(1, getEncoder().encodeToString(serialize(this.getClientInfo())));
 			var ret = pstmt.executeQuery();
 

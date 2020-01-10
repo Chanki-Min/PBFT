@@ -13,6 +13,8 @@ import java.security.PrivateKey;
 import static kr.ac.hongik.apl.Util.generateKeyPair;
 
 class PrepareMessageTest {
+	String dbFileName = "test";
+
 	@Test
 	void test() {
 		System.out.println("PrepareMessage Class Unit Test Start");

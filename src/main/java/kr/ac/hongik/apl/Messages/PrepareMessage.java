@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 
@@ -11,7 +12,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static kr.ac.hongik.apl.Util.sign;
@@ -83,7 +84,7 @@ public class PrepareMessage implements Message {
 		return Arrays.stream(checklist).allMatch(x -> x);
 	}
 
-	public boolean isPrepared(Function<String, PreparedStatement> prepareStatement, int maxfaulty, int replicaNum) {
+	public boolean isPrepared(BiFunction<String, String, PreparedStatement> prepareStatement, int maxfaulty, int replicaNum) {
 
 		Boolean[] checklist = new Boolean[3];
 		String baseQuery;
@@ -93,7 +94,7 @@ public class PrepareMessage implements Message {
 				.append("FROM Preprepares AS P ")
 				.append("WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?")
 				.toString();
-		try (var pstmt = prepareStatement.apply(baseQuery)) {
+		try (var pstmt = prepareStatement.apply(Logger.CONSENSUS,baseQuery)) {
 			pstmt.setInt(1, this.getViewNum());
 			pstmt.setInt(2, this.getSeqNum());
 			pstmt.setString(3, this.getDigest());
@@ -113,7 +114,7 @@ public class PrepareMessage implements Message {
 				.append("WHERE P.digest = ? AND P.viewNum = ? AND P.seqNum = ?")
 				.toString();
 		List<Integer> matchedPrepareMessages = new ArrayList<>();
-		try (var pstmt = prepareStatement.apply(baseQuery)) {
+		try (var pstmt = prepareStatement.apply(Logger.CONSENSUS, baseQuery)) {
 			pstmt.setString(1, this.getDigest());
 			pstmt.setInt(2, this.getViewNum());
 			pstmt.setInt(3, this.getSeqNum());

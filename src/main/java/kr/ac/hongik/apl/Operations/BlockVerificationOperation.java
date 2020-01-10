@@ -3,6 +3,7 @@ package kr.ac.hongik.apl.Operations;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import kr.ac.hongik.apl.Blockchain.BlockHeader;
 import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Logger;
@@ -11,29 +12,25 @@ import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
 
-import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.security.PublicKey;
 import java.sql.SQLException;
 import java.util.*;
 
 import static kr.ac.hongik.apl.Util.hash;
-import static kr.ac.hongik.apl.Util.makeSymmetricKey;
 
 public class BlockVerificationOperation extends Operation {
-	private final String tableName = "BlockChain";
 	private ObjectMapper objectMapper = null;
+	private String chainName;
 	private int blockNumber;
-	private List<String> indices;
 	private Map<String, Object> esRestClientConfigs;
 	private EsRestClient esRestClient;
 
-	public BlockVerificationOperation(PublicKey publicKey, Map<String, Object> esRestClientConfigs, int blockNumber, List<String> indices) {
+	public BlockVerificationOperation(PublicKey publicKey, Map<String, Object> esRestClientConfigs,String chainName, int blockNumber) {
 		super(publicKey);
 		this.esRestClientConfigs = esRestClientConfigs;
+		this.chainName = chainName;
 		this.blockNumber = blockNumber;
-		this.indices = indices;
-
 	}
 
 	/**
@@ -52,7 +49,7 @@ public class BlockVerificationOperation extends Operation {
 			esRestClient = new EsRestClient(esRestClientConfigs);
 			esRestClient.connectToEs();
 
-			indexName = esRestClient.getIndexNameFromBlockNumber(blockNumber, indices);
+			indexName = esRestClient.getIndexNameFromChainNameAndBlockNumber(chainName, blockNumber);
 			List<String> result = verifyChain(logger, blockNumber, indexName);
 			esRestClient.close();
 			return result;
@@ -96,21 +93,22 @@ public class BlockVerificationOperation extends Operation {
 	 * @return null if blockNumbe'th header is verified, LinkedHashMap that contains error info if not
 	 */
 	private LinkedHashMap verifyHeader(Logger logger, int blockNumber) {
-		Triple<Integer, String, String> prevHeader = getHeader(logger, blockNumber - 1);
-		Triple<Integer, String, String> currHeader = getHeader(logger, blockNumber);
+		BlockHeader prevHeader = logger.getBlockHeader(chainName, blockNumber-1);
+		BlockHeader currHeader = logger.getBlockHeader(chainName, blockNumber);
 		Boolean[] checkList = new Boolean[3];
 
 		/*prevHeader == null인 경우는 currHeader = 0 인 경우이므로, curr가 0번째 Header의 preset을 따르는지를 검증한다
 		  prevHeader != null인 경우는 각 idx#가 일치하는지, 그리고 curr의 prev가 hash(prevHeader)인지를 검증한다
 		 */
 		if (prevHeader == null) {
-			checkList[0] = currHeader.getLeft() == 0;
-			checkList[1] = currHeader.getMiddle().equals("FIRST_ROOT");
-			checkList[2] = currHeader.getRight().equals("PREV");
+			checkList[0] = currHeader.getBlockNumber() == 0;
+			checkList[1] = currHeader.getRootHash().equals("FIRST_ROOT");
+			checkList[2] = currHeader.getPrevHash().equals("PREV");
+			checkList[2] = currHeader.getHasHashList().equals(false);
 		} else {
-			checkList[0] = prevHeader.getLeft() == (blockNumber - 1);
-			checkList[1] = currHeader.getLeft() == blockNumber;
-			checkList[2] = currHeader.getRight().equals(Util.hash(prevHeader.toString()));
+			checkList[0] = prevHeader.getBlockNumber() == (blockNumber - 1);
+			checkList[1] = currHeader.getBlockNumber() == blockNumber;
+			checkList[2] = currHeader.getPrevHash().equals(Util.hash(prevHeader.toString()));
 		}
 
 		if (!Arrays.stream(checkList).allMatch(Boolean::booleanValue)) {
@@ -129,26 +127,25 @@ public class BlockVerificationOperation extends Operation {
 
 	/**
 	 * @param logger
-	 * @param blockNum
+	 * @param blockNumer
 	 * @param indexName
 	 * @return new ArrayList() if blockNumbe'th header is verified, List(LinkedHashMap) that contains error info if not
 	 * @throws NoSuchFieldException
 	 * @throws IOException
 	 * @throws EsRestClient.EsException
 	 */
-	private List<LinkedHashMap> verifyData(Logger logger, int blockNum, String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsException {
-		if (blockNum == 0)
+	private List<LinkedHashMap> verifyData(Logger logger, int blockNumer, String indexName) throws NoSuchFieldException, IOException, EsRestClient.EsException {
+		if (blockNumer == 0)
 			return new ArrayList<>();
 
 		List<LinkedHashMap> errors = new ArrayList<>();
 
-		Triple<Integer, String, String> header = getHeader(logger, blockNum);
-		SecretKey key = makeSymmetricKey(header.toString());
-		List<Map<String, Object>> plainDatas = esRestClient.getBlockData(indexName, blockNumber);
+		BlockHeader header = logger.getBlockHeader(chainName, blockNumber);
+		List<Map<String, Object>> plainDataList = esRestClient.getBlockData(indexName, chainName, blockNumber);
 
 		//먼저 ES에서 가져온 plainData의 hash를 계산한다.
 		List<String> plainHashList = new ArrayList<>();
-		for (Map<String, Object> e: plainDatas) {
+		for (Map<String, Object> e: plainDataList) {
 			String plainEntry = objectMapper.writeValueAsString(e);
 			String hash = hash(plainEntry);
 			plainHashList.add(hash);
@@ -158,19 +155,21 @@ public class BlockVerificationOperation extends Operation {
 		String rootPrime = new HashTree(plainHashList.toArray(new String[0])).toString();
 
 		//TODO : 오류 발생시 케이스를 에러코드를 통한 전달로 바꾸기, 만약 ES에서 entry_num, block_num 등을 건들 경우의 대책 강구하기
-		if (header.getMiddle().equals(rootPrime)) {
+		if (header.getRootHash().equals(rootPrime)) {
 			return errors;
 		} else {
 			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, -1, indexName, "New root made by plainData does not match with PBFT's root"}));
 		}
 
-		List<String> hashes = getHashList(logger, blockNum);
+		if(!isBlockHasHashList(logger, blockNumber))
+			return errors;
 
-		if(hashes.size() != plainDatas.size()) {
+		List<String> hashes = getHashList(logger, blockNumber);
+		if(hashes.size() != plainDataList.size()) {
 			errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, -1, indexName, "hashList's and plainData's size does not match"}));
 			return errors;
 		}
-		for(int entryNum=0; entryNum < plainDatas.size(); entryNum++) {
+		for(int entryNum=0; entryNum < plainDataList.size(); entryNum++) {
 			if(!hashes.get(entryNum).equals(plainHashList.get(entryNum))) {
 				errors.add(getDataErrorMap(new Object[] {"data", System.currentTimeMillis(), blockNumber, entryNum, indexName, "Entry's hash does not match with replica's hash"}));
 			}
@@ -178,18 +177,14 @@ public class BlockVerificationOperation extends Operation {
 		return errors;
 	}
 
-	private Triple<Integer, String, String> getHeader(Logger logger, int headerNum) {
-		if (headerNum < 0) {
-			return null;
-		}
-		String query = "SELECT b.idx, b.root, b.prev from " + tableName + " AS b WHERE b.idx = " + (headerNum);
-		try (var psmt = logger.getPreparedStatement(query)) {
+	private boolean isBlockHasHashList(Logger logger, int blockNumber) {
+		String query = "SELECT hasHashList FROM " + Logger.BLOCK_CHAIN + " WHERE idx = ?";
+
+		try (var psmt = logger.getPreparedStatement(chainName, query)){
+			psmt.setInt(1, blockNumber);
 			var rs = psmt.executeQuery();
-			if (rs.next()) {
-				return new ImmutableTriple<>(rs.getInt("idx"), rs.getString("root"), rs.getString("prev"));
-			} else {
-				throw new SQLException("Table :" + tableName + " headerNum :" + headerNum + ", Not Found");
-			}
+
+			return rs.getBoolean(1);
 		} catch (SQLException e) {
 			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
@@ -197,10 +192,10 @@ public class BlockVerificationOperation extends Operation {
 	}
 
 	private List<String> getHashList(Logger logger, int blockNumber) {
-		String query = "SELECT hash FROM Hashes WHERE idx = ?";
+		String query = "SELECT hash FROM " + Logger.HASHES + " WHERE idx = ?";
 		List<String> hashList;
 
-		try(var psmt = logger.getPreparedStatement(query)) {
+		try(var psmt = logger.getPreparedStatement(chainName, query)) {
 			psmt.setInt(1, blockNumber);
 			var rs = psmt.executeQuery();
 

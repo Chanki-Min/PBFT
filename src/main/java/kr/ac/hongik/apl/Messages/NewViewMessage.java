@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.echocat.jsu.JdbcUtils;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -32,7 +34,7 @@ public class NewViewMessage implements Message {
 	}
 
 	public static NewViewMessage makeNewViewMessage(Replica replica, int newViewNum) throws SQLException {
-		Function<String, PreparedStatement> queryFn = rethrow().wrap(replica.getLogger()::getPreparedStatement);
+		BiFunction<String, String, PreparedStatement> queryFn = replica.getLogger()::getPreparedStatement;
 		List<ViewChangeMessage> viewChangeMessages = getViewChangeMessages(queryFn, newViewNum);    //GC가 이미 끝나서 DB안에는 last checkpoint 이후만 있다고 가정
 		List<PreprepareMessage> operationList = getOperationList(replica, viewChangeMessages, newViewNum);
 
@@ -113,13 +115,13 @@ public class NewViewMessage implements Message {
 		return pre_prepares;
 	}
 
-	private static List<ViewChangeMessage> getViewChangeMessages(Function<String, PreparedStatement> queryFn, int newViewNum) throws SQLException {
+	private static List<ViewChangeMessage> getViewChangeMessages(BiFunction<String, String, PreparedStatement> queryFn, int newViewNum) throws SQLException {
 		/* Replica.canMakeNewViewMessage에서 replica 자신의 view-change 메시지가 있는지, 2f개의 다른 backup들의 메시지가 있는지 이미 검증한다. */
 
 		String query = "SELECT V.data FROM ViewChanges V " +
 				"WHERE V.newViewNum = ? " +
 				"AND V.checkpointNum = (SELECT MAX(V3.checkpointNum) FROM ViewChanges V3 WHERE V3.newViewNum = ?)";    /* newViewNum은 단조증가함! */
-		try (var pstmt = queryFn.apply(query)) {
+		try (var pstmt = queryFn.apply(Logger.CONSENSUS, query)) {
 			pstmt.setInt(1, newViewNum);
 			pstmt.setInt(2, newViewNum);
 			var ret = pstmt.executeQuery();

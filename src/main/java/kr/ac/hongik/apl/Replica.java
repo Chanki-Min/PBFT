@@ -112,7 +112,7 @@ public class Replica extends Connector {
 	 */
 	public Replica(Properties prop, String serverPublicIp, int serverPublicPort, int serverInnerPort) {
 		super(prop); //Connector 설정
-		this.logger = new Logger(String.format("consensus_%s_%d.db", serverPublicIp, serverPublicPort)); //logger file 생성
+		this.logger = new Logger(); //logger file 생성
 		this.myNumber = getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort);
 		this.lowWatermark = 0;
 
@@ -265,8 +265,7 @@ public class Replica extends Connector {
 		var sock = getChannelFromClientInfo(message.getClientInfo());
 		PublicKey publicKey = publicKeyMap.get(sock);
 		boolean canGoNextState = message.verify(publicKey) &&
-				message.isNotRepeated(rethrow().wrap(logger::getPreparedStatement));
-
+				message.isNotRepeated(logger::getPreparedStatement);
 		if (canGoNextState) {
 			detailDebugger.trace("cangoNextState");
 			if(MEASURE){
@@ -303,7 +302,7 @@ public class Replica extends Connector {
 		PublicKey primaryPublicKey = this.publicKeyMap.get(primaryChannel);
 		PublicKey clientPublicKey = message.getRequestMessage().getClientInfo();
 
-		boolean isVerified = message.isVerified(primaryPublicKey, this.getViewNum(), clientPublicKey, rethrow().wrap(logger::getPreparedStatement));
+		boolean isVerified = message.isVerified(primaryPublicKey, this.getViewNum(), clientPublicKey,logger::getPreparedStatement);
 
 		if (isVerified) {
 			msgDebugger.debug(String.format("Pre-pre msg verified view : %d seq : %d request timestamp : %d", message.getViewNum(), message.getSeqNum(), message.getRequestMessage().getTime()));
@@ -332,7 +331,7 @@ public class Replica extends Connector {
 		/*
 		* Commits 의 viewNum까지 확인해줘야 viewChange phase에서 재접속한 노드가 정상적인 실행을 할 수 있음에 주의해야 한다.
 		*/
-		try (var pstmt = logger.getPreparedStatement("SELECT count(*) FROM Commits C WHERE C.viewNum = ? ANd C.seqNum = ? AND C.replica = ? AND C.digest = ?")) {
+		try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS,"SELECT count(*) FROM Commits C WHERE C.viewNum = ? ANd C.seqNum = ? AND C.replica = ? AND C.digest = ?")) {
 			pstmt.setInt(1, message.getViewNum());
 			pstmt.setInt(2, message.getSeqNum());
 			pstmt.setInt(3, this.myNumber);
@@ -349,7 +348,7 @@ public class Replica extends Connector {
 			throw new RuntimeException(e);
 		}
 
-		if (message.isPrepared(rethrow().wrap(logger::getPreparedStatement), getMaximumFaulty(), this.myNumber)) {
+		if (message.isPrepared(logger::getPreparedStatement, getMaximumFaulty(), this.myNumber)) {
 			CommitMessage commitMessage = CommitMessage.makeCommitMsg(
 					this.getPrivateKey(),
 					message.getViewNum(),
@@ -396,8 +395,7 @@ public class Replica extends Connector {
 		if (!cmsg.verify(publicKey))
 			return;
 		logger.insertMessage(cmsg);
-		boolean isCommitted = cmsg.isCommittedLocal(rethrow().wrap(logger::getPreparedStatement),
-				getMaximumFaulty(), this.myNumber);
+		boolean isCommitted = cmsg.isCommittedLocal(logger::getPreparedStatement, getMaximumFaulty(), this.myNumber);
 
 		if (isCommitted) {
 			if(MEASURE){
@@ -482,7 +480,7 @@ public class Replica extends Connector {
 		}
 		try {
 			String query = "SELECT count(*) FROM Checkpoints C WHERE C.seqNum = ? AND C.replica = ?";
-			try (var psmt = logger.getPreparedStatement(query)) {
+			try (var psmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
 				psmt.setInt(1, message.getSeqNum());
 				psmt.setInt(2, this.myNumber);
 				var ret = psmt.executeQuery();
@@ -491,7 +489,7 @@ public class Replica extends Connector {
 					return;
 			}
 			query = "SELECT stateDigest FROM Checkpoints C WHERE C.seqNum = ?";
-			try (var psmt = logger.getPreparedStatement(query)) {
+			try (var psmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
 				psmt.setInt(1, message.getSeqNum());
 				try (var ret = psmt.executeQuery()) {
 					Map<String, Integer> digestMap = new HashMap<>();
@@ -536,7 +534,7 @@ public class Replica extends Connector {
 		}
 		try {
 			String isAlreadyInsertedQuery = "SELECT count(*) FROM Viewchanges V WHERE V.newViewNum = ? AND V.replica = ?";
-			try (var pstmt = logger.getPreparedStatement(isAlreadyInsertedQuery)) {
+			try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, isAlreadyInsertedQuery)) {
 				pstmt.setInt(1, message.getNewViewNum());
 				pstmt.setInt(2, message.getReplicaNum());
 				ResultSet rs = pstmt.executeQuery();
@@ -570,7 +568,7 @@ public class Replica extends Connector {
 				/* f + 1 이상의 v > currentView 인 view-change를 수집한다면
 					나 자신도 f + 1개의 view-change 중 min-view number로 view-change message를 만들어 배포한다. */
 
-				try (var pstmt = logger.getPreparedStatement(isAlreadyInsertedQuery)) {
+				try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, isAlreadyInsertedQuery)) {
 					pstmt.setInt(1, message.getNewViewNum());
 					pstmt.setInt(2, getMyNumber());
 					ResultSet rs = pstmt.executeQuery();
@@ -584,7 +582,7 @@ public class Replica extends Connector {
 						+ "WHERE V1.newViewNum > ? AND "
 						+ "NOT V1.newViewNum IN "
 						+ "( SELECT V2.newViewNum FROM Viewchanges V2 WHERE V2.replica = ? )";
-				try (var pstmt = logger.getPreparedStatement(query)) {
+				try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
 					pstmt.setInt(1, this.getViewNum());
 					pstmt.setInt(2, this.getMyNumber());
 					ResultSet rs = pstmt.executeQuery();
@@ -598,14 +596,13 @@ public class Replica extends Connector {
 
 				if (newViewNumList.size() == getMaximumFaulty() + 1) {
 					this.setViewChangePhase(true);
-					var getPreparedStatementFn = rethrow().wrap(getLogger()::getPreparedStatement);
 
 					message.getCheckPointMessages().stream().forEach(x -> logger.insertMessage(x));
 					synchronized (watermarkLock) {
 						removeViewChangeTimer();
 						ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(
 								message.getLastCheckpointNum(), minNewViewNum, this,
-								getPreparedStatementFn);
+								logger::getPreparedStatement);
 						getReplicaMap().values().forEach(sock -> send(sock, viewChangeMessage));
 					}
 				}
@@ -680,13 +677,13 @@ public class Replica extends Connector {
 	}
 
 	private ReplyMessage findReplyMessageOrNull(RequestMessage requestMessage) {
-		try (var pstmt = logger.getPreparedStatement("SELECT PP.seqNum FROM PrePrepares PP WHERE PP.requestMessage = ?")) {
+		try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS,"SELECT PP.seqNum FROM PrePrepares PP WHERE PP.requestMessage = ?")) {
 			pstmt.setString(1, Util.serToBase64String(requestMessage));
 			var ret = pstmt.executeQuery();
 			if (ret.next()) {
 				int seqNum = ret.getInt(1);
 
-				try (var pstmt1 = logger.getPreparedStatement("SELECT E.replyMessage FROM Executed E WHERE E.seqNum = ?")) {
+				try (var pstmt1 = logger.getPreparedStatement(Logger.CONSENSUS, "SELECT E.replyMessage FROM Executed E WHERE E.seqNum = ?")) {
 					pstmt1.setInt(1, seqNum);
 					var ret1 = pstmt1.executeQuery();
 					if (ret1.next())
@@ -774,7 +771,7 @@ public class Replica extends Connector {
 
 	private CommitMessage getRightNextCommitMsg() throws NoSuchElementException {
 		String query = "SELECT E.seqNum FROM Executed E";
-		try (var psmt = logger.getPreparedStatement(query)) {
+		try (var psmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
 			try (var ret = psmt.executeQuery()) {
 				List<Integer> seqList = JdbcUtils.toStream(ret)
 						.map(rethrow().wrapFunction(x -> x.getInt(1)))
@@ -833,7 +830,7 @@ public class Replica extends Connector {
 
 	protected int getLatestSequenceNumber() {
 		String query = "SELECT P.seqNum FROM Preprepares P where viewNum = ?";
-		try (var pstmt = logger.getPreparedStatement(query)) {
+		try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
 			pstmt.setInt(1, this.getViewNum());
 			ResultSet ret = pstmt.executeQuery();
 			List<Integer> seqList = JdbcUtils.toStream(ret)
@@ -851,7 +848,7 @@ public class Replica extends Connector {
 	 */
 	private boolean hasTwoFPlusOneMessages(ViewChangeMessage message) {
 		String query = "SELECT newViewNum FROM Viewchanges V WHERE V.newViewNum = ? ";
-		try (var pstmt = logger.getPreparedStatement(query)) {
+		try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			var ret = pstmt.executeQuery();
 
@@ -870,7 +867,7 @@ public class Replica extends Connector {
 		try {
 			Boolean[] checklist = new Boolean[3];
 			String query1 = "SELECT count(*) FROM ViewChanges V WHERE V.replica = ? AND V.newViewNum = ?";
-			try (var pstmt = logger.getPreparedStatement(query1)) {
+			try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, query1)) {
 				pstmt.setInt(1, this.myNumber);
 				pstmt.setInt(2, message.getNewViewNum());
 				var ret = pstmt.executeQuery();
@@ -878,7 +875,7 @@ public class Replica extends Connector {
 					checklist[0] = ret.getInt(1) == 1;
 			}
 			String query2 = "SELECT count(*) FROM ViewChanges V WHERE V.replica <> ? AND V.newViewNum = ?";
-			try (var pstmt = logger.getPreparedStatement(query2)) {
+			try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, query2)) {
 				pstmt.setInt(1, this.myNumber);
 				pstmt.setInt(2, message.getNewViewNum());
 				var ret = pstmt.executeQuery();
@@ -886,7 +883,7 @@ public class Replica extends Connector {
 					checklist[1] = ret.getInt(1) >= 2 * getMaximumFaulty();
 			}
 			String query3 = "SELECT count(*) FROM NewViewMessages WHERE newViewNum = ?";
-			try (var psmt = logger.getPreparedStatement(query3)) {
+			try (var psmt = logger.getPreparedStatement(Logger.CONSENSUS, query3)) {
 				psmt.setInt(1, message.getNewViewNum());
 				var ret = psmt.executeQuery();
 				if (ret.next())

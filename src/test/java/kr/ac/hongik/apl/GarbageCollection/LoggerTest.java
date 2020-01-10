@@ -30,11 +30,10 @@ class SampleOperation extends Operation {
 }
 
 class LoggerTest {
-
 	@Test
-	void createTables() {
+	void createDB() {
 		Logger logger = new Logger();
-
+		logger.createBlockChainDb("test_blk_1");
 	}
 
 	@Test

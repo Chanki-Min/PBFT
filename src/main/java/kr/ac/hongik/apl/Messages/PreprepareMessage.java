@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Replica;
 
@@ -11,7 +12,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static kr.ac.hongik.apl.Util.*;
 
@@ -49,11 +50,10 @@ public class PreprepareMessage implements Message {
 	 * @param prepareStatement
 	 * @return
 	 */
-
 	public boolean isVerified(PublicKey primaryPublicKey,
 							  final int currentView,
 							  PublicKey clientPublicKey,
-							  Function<String, PreparedStatement> prepareStatement) {
+							  BiFunction<String, String, PreparedStatement> prepareStatement) {
 		Boolean[] checklist = new Boolean[4];
 
 		checklist[0] = verify(primaryPublicKey, this.data, this.signature);
@@ -79,10 +79,10 @@ public class PreprepareMessage implements Message {
 		return this.data.viewNum;
 	}
 
-	private boolean checkUniqueTuple(Function<String, PreparedStatement> prepareStatement) {
+	private boolean checkUniqueTuple(BiFunction<String, String, PreparedStatement> prepareStatement) {
 		String baseQuery = "SELECT DISTINCT P.digest FROM Preprepares P WHERE P.viewNum = ? AND P.seqNum = ?";
 		List<String> digests = new ArrayList<>();
-		try (var pstmt = prepareStatement.apply(baseQuery)) {
+		try (var pstmt = prepareStatement.apply(Logger.CONSENSUS, baseQuery)) {
 			pstmt.setInt(1, getViewNum());
 			pstmt.setInt(2, getSeqNum());
 			try (var ret = pstmt.executeQuery()) {

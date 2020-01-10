@@ -1,39 +1,83 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Blockchain.BlockHeader;
 import kr.ac.hongik.apl.Messages.*;
 import kr.ac.hongik.apl.Operations.Operation;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static kr.ac.hongik.apl.Util.desToObject;
 import static kr.ac.hongik.apl.Util.serToBase64String;
 
 public class Logger {
 	static final int CONSTRAINT_ERROR = 19;
-	private Connection conn = null;
-	private String fileName;
+	public static final String CONSENSUS = "consensus";
+	public static final String BLOCK_CHAIN = "BlockChain";
+	public static final String HASHES = "Hashes";
+	public static final String DB_PATH = "/replicaData/";
+
+	private Map<String, Connection> connectionMap = new HashMap<>();
 
 	public Logger() {
-		this(UUID.randomUUID().toString() + ".db");
+		createDataDirectoryIfNotExists();
+		loadDbConnection();
+		if (!connectionMap.containsKey(Logger.CONSENSUS)) {
+			createConsensusDb();
+		}
 	}
 
+	public void loadDbConnection() {
+		File dataDir = new File(getResourceFolder());
+		if (!dataDir.exists() || !dataDir.isDirectory()) {
+			throw new NoSuchElementException("cannt find Logger.DB_PATH");
+		}
 
-	public Logger(String fileName) {
-		if (!fileName.endsWith(".db"))
-			fileName += ".db";
-		this.fileName = fileName;
+		String[] dbFileList = dataDir.list(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.endsWith("db");
+			}
+		});
+		assert dbFileList != null;
+
+		for (String dbFile: dbFileList) {
+			var urlDbFile = getFilePath(dbFile);
+			try {
+				String key = dbFile.replace(".db", "");
+
+				if (!connectionMap.containsKey(key)) {
+					var conn = DriverManager.getConnection(urlDbFile);
+					connectionMap.put(key, conn);
+				} else {
+					Replica.msgDebugger.warn(String.format("duplicated db connection ignored, fileURL : %s", urlDbFile));
+				}
+			} catch (SQLException e) {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
+		}
+	}
+
+	private void createConsensusDb() {
+		String consensusDbFileName = Logger.CONSENSUS + ".db";
 		try {
-			var filePath = getFilePath();
-			if (new File(getFilePath().replace("jdbc:sqlite:", "")).exists()) {
-				this.conn = DriverManager.getConnection(filePath);
+			String consensusFilePath = getFilePath(consensusDbFileName);
+			Connection conn;
+			if (new File(getFilePath(consensusDbFileName).replace("jdbc:sqlite:", "")).exists()) {
+				conn = DriverManager.getConnection(consensusFilePath);
+				connectionMap.put(CONSENSUS, conn);
 			} else {
-				this.conn = DriverManager.getConnection(filePath);
-				this.createTables();
+				conn = DriverManager.getConnection(consensusFilePath);
+				connectionMap.put(CONSENSUS, conn);
+				this.createConsensusTables();
 			}
 		} catch (SQLException e) {
 			Replica.msgDebugger.error(e);
@@ -41,10 +85,44 @@ public class Logger {
 		}
 	}
 
-	private String getFilePath() {
-		var folder = getResourceFolder();
+	public void createBlockChainDb(String chainName) {
+		String chainFileName = chainName;
+
+		if (!chainName.endsWith(".db")) {
+			chainFileName += ".db";
+		}
+		try {
+			String chainFilePath = getFilePath(chainFileName);
+			if (new File(getFilePath(chainFileName).replace("jdbc:sqlite:", "")).exists()) {
+				throw new DuplicatedDbFileException(String.format("chainName : %s, already exists", chainFilePath));
+			}
+
+			var conn = DriverManager.getConnection(chainFilePath);
+			connectionMap.put(chainName, conn);
+			this.createBlockChainTables(chainName);
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+	}
+
+	private String getResourceFolder() {
+		var folder = System.getProperty("user.dir");
+		folder = folder.endsWith("/") ? folder.substring(0, folder.length() - 1) : folder;
+		return folder.concat(DB_PATH);
+	}
+
+	private String getFilePath(String fileName) {
+		String folder = getResourceFolder();
 		String encodedPath = "jdbc:sqlite:" + folder + fileName;
 		return URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
+	}
+
+	private void createDataDirectoryIfNotExists() {
+		String dataDir = getResourceFolder();
+		var dir = new File(dataDir);
+		if (!dir.exists())
+			dir.mkdir();
 	}
 
 	/**
@@ -59,7 +137,7 @@ public class Logger {
 	 * <p>
 	 * Blob insertion and comparison won't work so We are going to use serialized Base64 encoding instead of Blob
 	 */
-	private void createTables() {
+	private void createConsensusTables() {
 		String[] queries = {
 				"CREATE TABLE Requests (client TEXT,timestamp DATE,operation TEXT, PRIMARY KEY(client, timestamp, operation))",
 				"CREATE TABLE Preprepares (viewNum INT, seqNum INT, digest TEXT, requestMessage TEXT, data TEXT, " +
@@ -77,14 +155,9 @@ public class Logger {
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
-				//BlockChain Table Schema : "(idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))"
-				"CREATE TABLE BlockChain (idx INT, root TEXT, prev TEXT, PRIMARY KEY (idx, root, prev))",
-				"INSERT INTO BlockChain VALUES (0, 'FIRST_ROOT', 'PREV')",
-
-				"CREATE TABLE Hashes (idx INT, hash TEXT, PRIMARY KEY(idx) )"
 		};
 		for (String query: queries) {
-			try (var preparedStatement = conn.prepareStatement(query)) {
+			try (var preparedStatement = connectionMap.get(CONSENSUS).prepareStatement(query)) {
 				preparedStatement.execute();
 			} catch (SQLException e) {
 				Replica.msgDebugger.error(e);
@@ -93,11 +166,74 @@ public class Logger {
 		}
 	}
 
-	private String getResourceFolder() {
-		var folder = System.getProperty("user.dir");
-		return folder.endsWith("/") ? folder : folder + '/';
+	private void createBlockChainTables(String chainName) {
+		String [] queries = {
+				"CREATE TABLE BlockChain (idx INT, root TEXT, prev TEXT, hasHashList BOOLEAN, PRIMARY KEY (idx))",
+				"INSERT INTO BlockChain VALUES (0, 'FIRST_ROOT', 'PREV', 0)",
+
+				"CREATE TABLE Hashes (idx INT, hash TEXT, PRIMARY KEY(idx) )"
+		};
+		for (String query: queries) {
+			try (var preparedStatement = connectionMap.get(chainName).prepareStatement(query)) {
+				preparedStatement.execute();
+			} catch (SQLException e) {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
+		}
+
 	}
 
+	public boolean isBlockChainExists(String dbName) {
+		return connectionMap.containsKey(dbName);
+	}
+
+	/**
+	 * @return A triplet of (Block number, merkle root, previous block hash)
+	 * @throws SQLException
+	 */
+	public BlockHeader getLatestBlockHeader(String chainName) {
+		String query = "SELECT idx, root, prev, hasHashList FROM " + Logger.BLOCK_CHAIN + " b WHERE b.idx = (SELECT MAX(idx) from " + Logger.BLOCK_CHAIN + " b2)";
+		try (var psmt = this.getPreparedStatement(chainName, query)) {
+			var ret = psmt.executeQuery();
+			if (ret.next())
+				return new BlockHeader(
+						ret.getInt(1), ret.getString(2),
+						ret.getString(3), ret.getBoolean(4)
+				);
+			else
+				throw new SQLException(String.format("cannot find latest blockHeader from chain : %s", chainName));
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * @return A triplet of (Block number, merkle root, previous block hash)
+	 * @throws SQLException
+	 */
+	public BlockHeader getBlockHeader(String chainName, int blockNumber) {
+		String query = "SELECT idx, root, prev, hasHashList FROM " + Logger.BLOCK_CHAIN + " b WHERE b.idx = ?";
+		try (var psmt = this.getPreparedStatement(chainName, query)) {
+			psmt.setInt(1, blockNumber);
+			var ret = psmt.executeQuery();
+
+			if (ret.next())
+				return new BlockHeader(
+						ret.getInt(1), ret.getString(2),
+						ret.getString(3), ret.getBoolean(4)
+				);
+			else
+				throw new SQLException(String.format("cannot find blockHeader from chain : %s, blockNumber : %d", chainName, blockNumber));
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+	}
+
+	//TODO : Logger::close() 메소드 구현
+	/*
 	void close() {
 		try {
 			conn.close();
@@ -106,12 +242,14 @@ public class Logger {
 			throw new RuntimeException(e);
 		}
 	}
+	ㅇ
+	 */
 
 	public String getStateDigest(int seqNum, int maxFaulty, int viewNum) {
 		StringBuilder builder = new StringBuilder();
 
 		String baseQuery = "SELECT lastStableCheckpoint, seqNum, digest FROM UnstableCheckPoints";
-		try (var psmt = conn.prepareStatement(baseQuery)) {
+		try (var psmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			ResultSet ret = psmt.executeQuery();
 			while (ret.next()) {
 				builder.append(ret.getInt(1));
@@ -127,7 +265,7 @@ public class Logger {
 
 	private String getPrePrepareMsgs(int seqNum, int viewNum) {
 		String baseQuery = "SELECT DISTINCT digest, viewNum, seqNum FROM Preprepares WHERE seqNum <= ? AND viewNum = ? ORDER BY seqNum";
-		try (var pstmt = conn.prepareStatement(baseQuery)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, viewNum);
 			ResultSet ret = pstmt.executeQuery();
@@ -150,7 +288,7 @@ public class Logger {
 		String baseQuery = "SELECT DISTINCT digest, viewNum, seqNum FROM Prepares WHERE seqNum <= ? AND viewNum = ? GROUP BY digest," +
 				" viewNum, seqNum HAVING count(*) > ? ORDER BY seqNum";
 
-		try (var pstmt = conn.prepareStatement(baseQuery)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, viewNum);
 			pstmt.setInt(3, 2 * maxFaulty);
@@ -177,7 +315,7 @@ public class Logger {
 		String baseQuery = "SELECT DISTINCT digest, seqNum FROM Commits WHERE seqNum <= ?  GROUP BY digest, seqNum " +
 				"HAVING count(*) > ? ORDER BY seqNum";
 
-		try (var pstmt = conn.prepareStatement(baseQuery)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, 2 * maxFaulty);
 			ResultSet ret = pstmt.executeQuery();
@@ -215,7 +353,7 @@ public class Logger {
 		}
 		query.append(")");
 
-		try (var psmt = conn.prepareStatement(query.toString())) {
+		try (var psmt = connectionMap.get(CONSENSUS).prepareStatement(query.toString())) {
 			psmt.setInt(1, seqNum);
 			for(int i=0; i<clientInfoArray.size(); i++) {
 				psmt.setString(i+2, clientInfoArray.get(i));
@@ -229,7 +367,7 @@ public class Logger {
 
 	private void cleanUpPrePrepareMsg(int seqNum) {
 		String query = "DELETE FROM Preprepares WHERE seqNum <= ?";
-		try (var pstmt = conn.prepareStatement(query)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -240,7 +378,7 @@ public class Logger {
 
 	private void cleanUpPrepareMsg(int seqNum) {
 		String query = "DELETE FROM Prepares WHERE seqNum <= ?";
-		try (var pstmt = conn.prepareStatement(query)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -251,7 +389,7 @@ public class Logger {
 
 	private void cleanUpCommitMsg(int seqNum) {
 		String query = "DELETE FROM Commits WHERE seqNum <= ?";
-		try (var pstmt = conn.prepareStatement(query)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -261,7 +399,7 @@ public class Logger {
 	}
 	private void cleanUpUnstableCheckpoint(int seqNum) {
 		String query = "DELETE FROM UnstableCheckPoints WHERE seqNum <= ?";
-		try (var pstmt = conn.prepareStatement(query)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -271,7 +409,7 @@ public class Logger {
 	}
 	private void cleanUpCheckpointMsg(int seqNum) {
 		String query = "DELETE FROM Checkpoints WHERE seqNum < ?";
-		try (var pstmt = conn.prepareStatement(query)) {
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.execute();
 		} catch (SQLException e) {
@@ -287,7 +425,7 @@ public class Logger {
 				.append("FROM Preprepares AS P ")
 				.append("WHERE P.seqNum = ? AND P.digest = ?")
 				.toString();
-		try (var pstmt = getPreparedStatement(baseQuery)) {
+		try (var pstmt = getPreparedStatement(CONSENSUS, baseQuery)) {
 			pstmt.setInt(1, message.getSeqNum());
 			pstmt.setString(2, message.getDigest());
 
@@ -303,9 +441,12 @@ public class Logger {
 		}
 	}
 
-	public PreparedStatement getPreparedStatement(String baseQuery) {
+	public PreparedStatement getPreparedStatement(String dbName, String baseQuery) {
 		try {
-			return conn.prepareStatement(baseQuery);
+			if(!connectionMap.containsKey(dbName))
+				throw new SQLException(String.format("no such dbName : %s", dbName));
+			else
+				return connectionMap.get(dbName).prepareStatement(baseQuery);
 		} catch (SQLException e) {
 			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
@@ -335,7 +476,7 @@ public class Logger {
 
 	private void insertRequestMessage(RequestMessage message) {
 		String baseQuery = "INSERT INTO Requests (client, timestamp, operation) VALUES ( ?, ?, ? )";
-		try (var pstmt = conn.prepareStatement(baseQuery)){
+		try (var pstmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)){
 			String clientInfo = Util.serToBase64String(message.getClientInfo());
 			String digest = Util.serToBase64String(message.getOperation());
 
@@ -356,7 +497,7 @@ public class Logger {
 
 	private void insertPreprepareMessage(PreprepareMessage message) {
 		String baseQuery = "INSERT INTO Preprepares VALUES ( ?, ?, ?, ?, ?)";
-		try (PreparedStatement pstmt = conn.prepareStatement(baseQuery);){
+		try (PreparedStatement pstmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery);){
 			pstmt.setInt(1, message.getViewNum());
 			pstmt.setInt(2, message.getSeqNum());
 			pstmt.setString(3, message.getDigest());
@@ -377,7 +518,7 @@ public class Logger {
 
 	private void insertPrepareMessage(PrepareMessage message) {
 		String baseQuery = "INSERT INTO Prepares VALUES ( ?, ?, ?, ?, ?)";
-		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
+		try (PreparedStatement preparedStatement = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, message.getViewNum());
 			preparedStatement.setInt(2, message.getSeqNum());
@@ -398,7 +539,7 @@ public class Logger {
 
 	private void insertCommitMessage(CommitMessage message) {
 		String baseQuery = "INSERT INTO Commits VALUES ( ?, ?, ?, ? )";
-		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
+		try (PreparedStatement preparedStatement = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, message.getViewNum());
 			preparedStatement.setInt(2, message.getSeqNum());
@@ -417,7 +558,7 @@ public class Logger {
 	}
 	private void insertNewUnstableCheckPoint(UnstableCheckPoint unstableCheckPoint){
 		String baseQuery = "INSERT INTO UnstableCheckPoints VALUES (? , ? , ?)";
-		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
+		try (PreparedStatement preparedStatement = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, unstableCheckPoint.getLastStableCheckPointNum());
 			preparedStatement.setInt(2, unstableCheckPoint.getSeqNum());
@@ -435,7 +576,7 @@ public class Logger {
 	}
 	private void insertCheckPointMessage(CheckPointMessage message) {
 		String baseQuery = "INSERT INTO Checkpoints VALUES (? , ? , ?, ?)";
-		try (PreparedStatement preparedStatement = conn.prepareStatement(baseQuery)) {
+		try (PreparedStatement preparedStatement = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 
 			preparedStatement.setInt(1, message.getSeqNum());
 			preparedStatement.setString(2, message.getDigest());
@@ -456,7 +597,7 @@ public class Logger {
 
 	private void insertViewChangeMessage(ViewChangeMessage message) {
 		String query = "INSERT INTO ViewChanges VALUES (?, ?, ?, ?, ?, ?)";
-		try (var pstmt = getPreparedStatement(query)) {
+		try (var pstmt = getPreparedStatement(CONSENSUS, query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			pstmt.setInt(2, message.getLastCheckpointNum());
 			pstmt.setInt(3, message.getReplicaNum());
@@ -477,7 +618,7 @@ public class Logger {
 
 	private void insertNewViewMessage(NewViewMessage message) {
 		String query = "INSERT INTO NewViewMessages VALUES (?, ?)";
-		try (var pstmt = getPreparedStatement(query)) {
+		try (var pstmt = getPreparedStatement(CONSENSUS, query)) {
 			pstmt.setInt(1, message.getNewViewNum());
 			pstmt.setString(2, Util.serToBase64String(message));
 
@@ -499,7 +640,7 @@ public class Logger {
 	private void insertReplyMessage(int seqNum, ReplyMessage message) {
 		String insertQuery = "INSERT INTO Executed VALUES (?, ?, ?)";
 		String clientInfo = Util.serToBase64String(message.getClientInfo());
-		try (var psmt = getPreparedStatement(insertQuery)) {
+		try (var psmt = getPreparedStatement(CONSENSUS, insertQuery)) {
 			String data = Util.serToBase64String(message);
 			psmt.setString(1, clientInfo);
 			psmt.setInt(2, seqNum);
@@ -511,7 +652,7 @@ public class Logger {
 		}
 
 		String deleteQuery = "DELETE FROM Executed WHERE client = ? AND seqNum < ?";
-		try (var psmt = getPreparedStatement(deleteQuery)) {
+		try (var psmt = getPreparedStatement(CONSENSUS, deleteQuery)) {
 			psmt.setString(1, clientInfo);
 			psmt.setInt(2, seqNum);
 			psmt.execute();
@@ -536,7 +677,7 @@ public class Logger {
 
 	private boolean findRequestMessage(RequestMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Requests R WHERE R.client = ? AND R.timestamp = ? AND R.operation = ?";
-		try (var psmt = conn.prepareStatement(baseQuery)) {
+		try (var psmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 
 			String data = Util.serToBase64String(message.getClientInfo());
 			psmt.setString(1, data);
@@ -557,7 +698,7 @@ public class Logger {
 
 	private boolean findPreprepareMessage(PreprepareMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Preprepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ?";
-		try (var psmt = conn.prepareStatement(baseQuery)) {
+		try (var psmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			psmt.setInt(1, message.getViewNum());
 			psmt.setInt(2, message.getSeqNum());
 			psmt.setString(3, message.getDigest());
@@ -575,7 +716,7 @@ public class Logger {
 
 	private boolean findPrepareMessage(PrepareMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Prepares P WHERE P.viewNum = ? AND P.seqNum = ? AND P.digest = ? AND P.replica = ?";
-		try (var psmt = conn.prepareStatement(baseQuery)) {
+		try (var psmt = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			psmt.setInt(1, message.getViewNum());
 			psmt.setInt(2, message.getSeqNum());
 			psmt.setString(3, message.getDigest());
@@ -594,7 +735,7 @@ public class Logger {
 
 	private boolean findCommitMessage(CommitMessage message) {
 		String baseQuery = "SELECT COUNT(*) FROM Commits C WHERE C.viewNum = ? AND C.seqNum = ? AND C.digest = ? AND C.replica = ?";
-		try (var pstatement = conn.prepareStatement(baseQuery)) {
+		try (var pstatement = connectionMap.get(CONSENSUS).prepareStatement(baseQuery)) {
 			pstatement.setInt(1, message.getViewNum());
 			pstatement.setInt(2, message.getSeqNum());
 			pstatement.setString(3, message.getDigest());
@@ -608,6 +749,16 @@ public class Logger {
 		} catch (SQLException e) {
 			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
+		}
+	}
+
+	class DuplicatedDbFileException extends RuntimeException {
+		DuplicatedDbFileException(String e) {
+			super(e);
+		}
+
+		DuplicatedDbFileException(Exception e) {
+			super(e);
 		}
 	}
 }

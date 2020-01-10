@@ -12,6 +12,11 @@ car_location : 차량의 위치 [위도, 경도] 소수점 2번째 자리까지
   "dynamic": "strict",
   "properties": {
     //block META data
+    "chain_name": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true
+    },
     "block_number": {
       "type": "long",
       "ignore_malformed": true,

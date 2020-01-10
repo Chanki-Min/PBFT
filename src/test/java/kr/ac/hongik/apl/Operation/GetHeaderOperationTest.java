@@ -16,6 +16,7 @@ import java.util.Properties;
 public class GetHeaderOperationTest {
 	@Test
 	public void getHeaderOpTest() throws IOException {
+		String chanName = "test";
 		int blockNumber = 0;
 
 		InputStream in = getClass().getResourceAsStream("/replica.properties");
@@ -24,7 +25,7 @@ public class GetHeaderOperationTest {
 
 		Client client = new Client(prop);
 
-		Operation getHeaderOp = new GetHeaderOperation(client.getPublicKey(), blockNumber);
+		Operation getHeaderOp = new GetHeaderOperation(client.getPublicKey(), chanName, blockNumber);
 		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), getHeaderOp);
 		client.request(insertRequestMsg);
 

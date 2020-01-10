@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.echocat.jsu.JdbcUtils;
@@ -12,7 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -31,7 +32,7 @@ public class ViewChangeMessage implements Message {
 	}
 
 	public static ViewChangeMessage makeViewChangeMsg(int lastCheckpointNum, int newViewNum, Replica replica,
-													  Function<String, PreparedStatement> preparedStatement) {
+													  BiFunction<String, String, PreparedStatement> preparedStatement) {
 		Replica.detailDebugger.debug(String.format("last check point : %d new view : %d", lastCheckpointNum, newViewNum));
 
 		ViewChangeMessage.replica = replica;
@@ -50,7 +51,7 @@ public class ViewChangeMessage implements Message {
 		return new ViewChangeMessage(data, signature, replica);
 	}
 
-	private static List<Pm> getMessageList(Function<String, PreparedStatement> preparedStatement,
+	private static List<Pm> getMessageList(BiFunction<String, String, PreparedStatement> preparedStatement,
 										   int checkpointNum, int[] waterMark,
 										   int getMaximumFaulty) {
 
@@ -69,7 +70,7 @@ public class ViewChangeMessage implements Message {
 		return pmList.stream().filter(Objects::nonNull).collect(Collectors.toList());
 	}
 
-	private static Pm makePmOrNull(int seqNum, Function<String, PreparedStatement> preparedStatement, int getMaximumFaulty) {
+	private static Pm makePmOrNull(int seqNum, BiFunction<String, String, PreparedStatement> preparedStatement, int getMaximumFaulty) {
 
 
 		PreprepareMessage preprepareMessage;
@@ -79,7 +80,7 @@ public class ViewChangeMessage implements Message {
 		String query = "SELECT P1.digest, P1.data, P1.viewNum FROM Preprepares P1 " +
 				"where P1.seqNum = ? and P1.viewNum = (SELECT MAX(viewNum) from Preprepares P2 where P2.seqNum = ?)";
 
-		try (var pstmt = preparedStatement.apply(query)) {
+		try (var pstmt = preparedStatement.apply(Logger.CONSENSUS, query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, seqNum);
 			var ret = pstmt.executeQuery();
@@ -94,7 +95,7 @@ public class ViewChangeMessage implements Message {
 		query = "SELECT p1.data FROM Prepares AS p1 " +
 				"WHERE p1.seqNum = ? AND p1.viewNum = ? AND " +
 				"p1.digest = (SELECT digest FROM Prepares AS p2 WHERE p2.seqNum = ? AND p2.viewNum = ? GROUP BY p2.digest HAVING count(digest) > ?)";
-		try (var pstmt = preparedStatement.apply(query)) {
+		try (var pstmt = preparedStatement.apply(Logger.CONSENSUS, query)) {
 			pstmt.setInt(1, seqNum);
 			pstmt.setInt(2, maxViewNum);
 			pstmt.setInt(3, seqNum);
@@ -122,7 +123,7 @@ public class ViewChangeMessage implements Message {
 		return numList;
 	}
 
-	private static List<CheckPointMessage> getCheckpointMessages(Function<String, PreparedStatement> preparedStatement, int checkpointNum, int getMaximumFaulty) {
+	private static List<CheckPointMessage> getCheckpointMessages(BiFunction<String, String, PreparedStatement> preparedStatement, int checkpointNum, int getMaximumFaulty) {
 		String query = "SELECT data FROM Checkpoints cp1 " +
 				"where cp1.stateDigest = (select stateDigest from Checkpoints cp2 " +
 				"WHERE seqNum = ? " +
@@ -130,7 +131,7 @@ public class ViewChangeMessage implements Message {
 				"HAVING count(*) > ?)";
 		List<CheckPointMessage> checkpointList = null;
 
-		try (var pstmt = preparedStatement.apply(query)) {
+		try (var pstmt = preparedStatement.apply(Logger.CONSENSUS, query)) {
 			pstmt.setInt(1, checkpointNum - 1);
 			pstmt.setInt(2, 2 * getMaximumFaulty);
 			try (var ret = pstmt.executeQuery()) {

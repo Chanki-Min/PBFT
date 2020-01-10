@@ -11,6 +11,11 @@ car_id : 차량 번호판 (띄어쓰기 없이 50자 내외로 부탁드립니�
   "dynamic": "strict",
   "properties": {
     //block META data
+    "chain_name": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true
+    },
     "block_number": {
       "type": "long",
       "ignore_malformed": true,

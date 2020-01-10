@@ -22,7 +22,7 @@ public class CountMsgsOperation extends Operation {
 			int[] result = new int[table_name.length];
 
 			for (int i = 0; i < result.length; i++) {
-				try (var pstmt = logger.getPreparedStatement(base_query + table_name[i])) {
+				try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS, base_query + table_name[i])) {
 					var ret = pstmt.executeQuery();
 					if (ret.next()) {
 						result[i] = ret.getInt(1);

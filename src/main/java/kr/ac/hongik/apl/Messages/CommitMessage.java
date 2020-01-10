@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.Messages;
 
+import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.echocat.jsu.JdbcUtils;
@@ -11,7 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
@@ -57,11 +58,11 @@ public class CommitMessage implements Message {
         return Util.verify(key, this.data, this.signature);
     }
 
-	public boolean isCommittedLocal(Function<String, PreparedStatement> prepareStatement, int maxFaulty, int replicaNum) {
+	public boolean isCommittedLocal(BiFunction<String, String, PreparedStatement> prepareStatement, int maxFaulty, int replicaNum) {
         Boolean[] checklist = new Boolean[3];
         //Predicate isPrepared(m, v, n, i) is true
         String query = "SELECT count(*) FROM Commits WHERE seqNum = ? AND replica = ? AND digest = ?";
-        try (var pstmt = prepareStatement.apply(query)) {
+        try (var pstmt = prepareStatement.apply(Logger.CONSENSUS, query)) {
             pstmt.setInt(1, this.getSeqNum());
             pstmt.setInt(2, replicaNum);
             pstmt.setString(3, this.getDigest());
@@ -79,7 +80,7 @@ public class CommitMessage implements Message {
                 .append("FROM Commits C ")
                 .append("WHERE C.seqNum = ? AND C.digest = ?")
                 .toString();
-        try (var pstmt = prepareStatement.apply(baseQuery)) {
+        try (var pstmt = prepareStatement.apply(Logger.CONSENSUS, baseQuery)) {
             pstmt.setInt(1, this.getSeqNum());
             pstmt.setString(2, this.getDigest());
             try (var ret = pstmt.executeQuery()) {
@@ -98,9 +99,9 @@ public class CommitMessage implements Message {
         return Arrays.stream(checklist).allMatch(x -> x);
     }
 
-    boolean isAlreadyExecuted(Function<String, PreparedStatement> prepareStatement, int sequenceNumber) {
+    boolean isAlreadyExecuted(BiFunction<String, String, PreparedStatement> prepareStatement, int sequenceNumber) {
         String query = "SELECT seqNum FROM Executed E";
-        try (var pstmt = prepareStatement.apply(query)) {
+        try (var pstmt = prepareStatement.apply(Logger.CONSENSUS, query)) {
             try (var ret = pstmt.executeQuery()) {
                 List<Integer> seqList = JdbcUtils.toStream(ret)
                         .map(rethrow().wrapFunction(x -> x.getInt(1)))

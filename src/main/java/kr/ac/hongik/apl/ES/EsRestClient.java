@@ -57,6 +57,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class EsRestClient implements Closeable {
+	public static final String[] BLOCK_METADATA = {"block_number", "entry_number", "chain_name"};
 	private Map<String, Object> configs;
 	private List<String> hostNames = new ArrayList<>();
 	private List<Integer> ports = new ArrayList<>();
@@ -192,6 +193,7 @@ public class EsRestClient implements Closeable {
 	 * This store PlainData + encData
 	 *
 	 * @param indexName
+	 * @param chainName 소속된 블록체인의 이름
 	 * @param blockNumber
 	 * @param entryList original userData
 	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
@@ -206,7 +208,7 @@ public class EsRestClient implements Closeable {
 	 *                                that means other replica already bulkInserting to certain version, so cancel method
 	 */
 	public void bulkInsertDocumentByProcessor(
-			String indexName, int blockNumber, List<Map<String, Object>> entryList, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
+			String indexName, String chainName, int blockNumber, List<Map<String, Object>> entryList, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
 			throws IOException, EsException, EsConcurrencyException, InterruptedException {
 
 		if (!this.isIndexExists(indexName))
@@ -214,6 +216,7 @@ public class EsRestClient implements Closeable {
 
 		//Check entryList's mapping equals to Index's mapping
 		Set<String> indexKeySet = getFieldKeySet(indexName);
+		indexKeySet.remove("chain_name");
 		indexKeySet.remove("block_number");
 		indexKeySet.remove("entry_number");
 		if (!entryList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
@@ -260,12 +263,12 @@ public class EsRestClient implements Closeable {
 		BulkProcessor bulkProcessor = processorBuilder.build();
 
 		//make query
-		Base64.Encoder encoder = Base64.getEncoder();
 		for (int entryNumber = 0; entryNumber < entryList.size(); entryNumber++) {
 			String id = generateId(indexName, blockNumber, entryNumber);
 			XContentBuilder builder = new XContentFactory().jsonBuilder();
 			builder.startObject();
 			{
+				builder.field("chain_name", chainName);
 				builder.field("block_number", blockNumber);
 				builder.field("entry_number", entryNumber);
 			}
@@ -278,7 +281,7 @@ public class EsRestClient implements Closeable {
 		bulkProcessor.awaitClose(10L, TimeUnit.SECONDS);
 	}
 
-	public List<Map<String, Object>> getBlockData(String indexName, int blockNumber) throws EsException, IOException {
+	public List<Map<String, Object>> getBlockData(String indexName, String chainName, int blockNumber) throws EsException, IOException {
 		if (!isIndexExists(indexName)) {
 			throw new EsException(indexName + " does not exists");
 		}
@@ -291,6 +294,7 @@ public class EsRestClient implements Closeable {
 		BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
 		boolQueryBuilder.must(QueryBuilders.matchQuery("block_number", blockNumber));
+		boolQueryBuilder.must(QueryBuilders.matchQuery("chain_name", chainName));
 		boolQueryBuilder.mustNot(QueryBuilders.matchQuery("_id", generateId(indexName, blockNumber, -1)));
 
 		searchSourceBuilder.query(boolQueryBuilder);
@@ -306,7 +310,8 @@ public class EsRestClient implements Closeable {
 
 		for (SearchHit searchHit: searchHits) {
 			var sourceMap = searchHit.getSourceAsMap();
-			sourceMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
+			//반환 전 블록 메타데이터를 삭제한다
+			sourceMap.keySet().removeAll(Set.of(BLOCK_METADATA));
 			plainDataList.add(sourceMap);
 		}
 		return plainDataList;
@@ -337,17 +342,20 @@ public class EsRestClient implements Closeable {
 	}
 
 	/**
-	 * @param indices list of search target indices
+	 * @param chainName target block chain name
+	 * @param blockNumber target block number
 	 * @return latest block_number of indices
 	 * @throws IOException
 	 */
-	public String getIndexNameFromBlockNumber(int blockNumber, List<String> indices) throws IOException {
-
-
-		SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0]));
+	public String getIndexNameFromChainNameAndBlockNumber(String chainName, int blockNumber) throws IOException {
+		SearchRequest searchRequest = new SearchRequest();
 		SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+		BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
-		sourceBuilder.query(QueryBuilders.termQuery("block_number", blockNumber));
+		boolQueryBuilder.must(QueryBuilders.matchQuery("chain_name", chainName));
+		boolQueryBuilder.must(QueryBuilders.matchQuery("block_number", blockNumber));
+
+		sourceBuilder.query(boolQueryBuilder);
 		sourceBuilder.size(1);
 		sourceBuilder.fetchSource(false);
 

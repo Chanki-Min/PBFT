@@ -203,6 +203,7 @@ public class ElasticSearchTest {
 
 	@Test
 	public void bulkProcessorTest() throws IOException {
+		String chainName = "test_block_chain";
 		String indexName = "test_block_chain";
 		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
 		String settingPath = "/ES_MappingAndSetting/Setting.json";
@@ -236,7 +237,7 @@ public class ElasticSearchTest {
 			}
 
 			long time = System.currentTimeMillis();
-			esRestClient.bulkInsertDocumentByProcessor(indexName, blockNumber, sampleUserData, versionNumber, 10000, 10, ByteSizeUnit.MB, 5);
+			esRestClient.bulkInsertDocumentByProcessor(chainName, indexName, blockNumber, sampleUserData, versionNumber, 10000, 10, ByteSizeUnit.MB, 5);
 			System.err.println("time :" + (System.currentTimeMillis() - time));
 
 			if (deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
@@ -253,6 +254,7 @@ public class ElasticSearchTest {
 	@Test
 	void concurrentBulkInsertTest() {
 		String indexName = "test_block_chain";
+		String chainName = "test_block_chain";
 		String dataFilePath = "/Es_testData/Debug_test_data.json";
 		int entrySize = 1000;
 		int sleepTime = 1000;
@@ -269,7 +271,7 @@ public class ElasticSearchTest {
 
 		try {
 			for (int i = 0; i < maxThreadNum; i++) {
-				Thread thread = new Thread(new ConcurrentBulkInsertThread(esRestClientConfigs, indexName, blockNumber, sampleUserData, sleepTime, 1, i));
+				Thread thread = new Thread(new ConcurrentBulkInsertThread(esRestClientConfigs, chainName, indexName, blockNumber, sampleUserData, sleepTime, 1, i));
 				threadList.add(thread);
 			}
 			for (var t: threadList) {

@@ -49,6 +49,11 @@ Reference: https://www.elastic.co/guide/en/elasticsearch/reference/current/mappi
   "dynamic": "strict",
   "properties": {
     //block META data
+    "chain_name": {
+      "type": "keyword",
+      "ignore_above": 50,
+      "index": true
+    },
     "block_number": {
       "type": "long",
       "ignore_malformed": true,
