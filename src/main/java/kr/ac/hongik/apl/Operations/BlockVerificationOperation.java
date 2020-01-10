@@ -144,7 +144,7 @@ public class BlockVerificationOperation extends Operation {
 
 		Triple<Integer, String, String> header = getHeader(logger, blockNum);
 		SecretKey key = makeSymmetricKey(header.toString());
-		List<Map<String, Object>> plainDatas = esRestClient.newGetBlockData(indexName, blockNumber);
+		List<Map<String, Object>> plainDatas = esRestClient.getBlockData(indexName, blockNumber);
 
 		//먼저 ES에서 가져온 plainData의 hash를 계산한다.
 		List<String> plainHashList = new ArrayList<>();

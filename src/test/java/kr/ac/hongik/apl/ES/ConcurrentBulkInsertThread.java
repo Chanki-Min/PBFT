@@ -14,19 +14,19 @@ public class ConcurrentBulkInsertThread extends Thread {
 	private Map<String, Object> esRestClientConfigs;
 	private final String indexName;
 	private final List<Map<String, Object>> plain_data;
-	private final List<byte[]> encrypt_data;
 	private final int threadID;
 	private final int versionNumber;
 	private final String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
 	private final String settingPath = "/ES_MappingAndSetting/Setting.json";
+	private int block_number;
 
-	public ConcurrentBulkInsertThread(Map esRestClientConfigs, String indexName, int block_number, List<Map<String, Object>> plain_data, List<byte[]> encrypt_data, int sleepTime, int versionNumber, int threadID) {
+	public ConcurrentBulkInsertThread(Map esRestClientConfigs, String indexName, int block_number, List<Map<String, Object>> plain_data, int sleepTime, int versionNumber, int threadID) {
 		this.esRestClientConfigs = esRestClientConfigs;
 		this.indexName = indexName;
 		this.plain_data = plain_data;
-		this.encrypt_data = encrypt_data;
 		this.versionNumber = versionNumber;
 		this.threadID = threadID;
+		this.block_number = block_number;
 	}
 
 	@Override
@@ -51,7 +51,7 @@ public class ConcurrentBulkInsertThread extends Thread {
 				}
 			}
 			esRestClient.bulkInsertDocumentByProcessor(
-					indexName, 0, plain_data, encrypt_data, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
+					indexName, block_number, plain_data, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
 			esRestClient.deleteIndex(indexName);
 			esRestClient.close();
 

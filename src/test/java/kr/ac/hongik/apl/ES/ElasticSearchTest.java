@@ -2,7 +2,6 @@ package kr.ac.hongik.apl.ES;
 
 
 import kr.ac.hongik.apl.Util;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -39,15 +38,12 @@ import javax.net.ssl.SSLContext;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Serializable;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.*;
-
-import static java.lang.Thread.sleep;
 
 public class ElasticSearchTest {
 	private static EsRestClient esRestClient;
@@ -164,7 +160,7 @@ public class ElasticSearchTest {
 		String dataFilePath = "/Es_testData/Debug_test_data.json";
 		int blockNumber = 0;
 		int entrySize = 100;
-		boolean deleteIndexAfterFinish = false;
+		boolean deleteIndexAfterFinish = true;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
@@ -178,20 +174,14 @@ public class ElasticSearchTest {
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
-			List<byte[]> encData = new ArrayList<>();
-
-			String seed = "Hello World!";
-			SecretKey key = Util.makeSymmetricKey(seed);
 
 			for (int i = 0; i < entrySize; i++) {
 				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes(), key));
 			}
 			for (int i = 0; i < entrySize; i++) {
 				IndexRequest request = new IndexRequest(indexName);
-				sampleUserData.get(i).put("encrypt_data", Base64.getEncoder().encodeToString(encData.get(i)));
 				sampleUserData.get(i).put("block_number", String.valueOf(blockNumber));
 				sampleUserData.get(i).put("entry_number", String.valueOf(i));
 				request.source(sampleUserData.get(i));
@@ -201,10 +191,8 @@ public class ElasticSearchTest {
 				System.err.println(response.status());
 				System.err.println("index success " + i + "/" + entrySize);
 			}
-
-			Assertions.assertEquals(entrySize, getBlockEntrySize(indexName, blockNumber) - 1);
 			if (deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
-		} catch (EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException | Util.EncryptionException e) {
+		} catch (EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			throw new IOError(e);
@@ -223,7 +211,7 @@ public class ElasticSearchTest {
 		int entrySize = 1000;
 		int sleepTime = 1000;
 		int versionNumber = 1;
-		boolean deleteIndexAfterFinish = false;
+		boolean deleteIndexAfterFinish = true;
 		EsJsonParser parser = new EsJsonParser();
 		esRestClient = new EsRestClient(esRestClientConfigs);
 		try {
@@ -237,7 +225,6 @@ public class ElasticSearchTest {
 			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
 
 			List<Map<String, Object>> sampleUserData = new ArrayList<>();
-			List<byte[]> encData = new ArrayList<>();
 
 			String seed = "Hello World!";
 			SecretKey key = Util.makeSymmetricKey(seed);
@@ -246,11 +233,10 @@ public class ElasticSearchTest {
 				var map = parser.jsonFileToMap(dataFilePath);
 				map.put("start_time", String.valueOf(System.currentTimeMillis()));
 				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes(), key));
 			}
 
 			long time = System.currentTimeMillis();
-			esRestClient.bulkInsertDocumentByProcessor(indexName, blockNumber, sampleUserData, encData, versionNumber, 10000, 10, ByteSizeUnit.MB, 5);
+			esRestClient.bulkInsertDocumentByProcessor(indexName, blockNumber, sampleUserData, versionNumber, 10000, 10, ByteSizeUnit.MB, 5);
 			System.err.println("time :" + (System.currentTimeMillis() - time));
 
 			if (deleteIndexAfterFinish) esRestClient.deleteIndex(indexName);
@@ -258,70 +244,10 @@ public class ElasticSearchTest {
 			e.printStackTrace();
 		} catch (IOException e) {
 			throw new IOError(e);
-		} catch (Util.EncryptionException e) {
-			e.printStackTrace();
 		} finally {
 			esRestClient.close();
 		}
 
-	}
-
-	@Test
-	void getBlockDataPairTest() throws IOException {
-		String indexName = "test_block_chain10ls";
-		String mappingPath = "/ES_MappingAndSetting/Debug_test_mapping.json";
-		String settingPath = "/ES_MappingAndSetting/Setting.json";
-		String dataFilePath = "/Es_testData/Debug_test_data.json";
-		int blockNumber = 0;
-		int entrySize = 100;
-		int versionNumber = 1;
-		int sleepTime = 5000;
-		boolean deleteIndexAfterFinish = false;
-		EsJsonParser parser = new EsJsonParser();
-		esRestClient = new EsRestClient(esRestClientConfigs);
-		try {
-			esRestClient.connectToEs();
-			XContentBuilder mappingBuilder;
-			XContentBuilder settingBuilder;
-
-			mappingBuilder = parser.jsonFileToXContentBuilder(mappingPath,false);
-			settingBuilder = parser.jsonFileToXContentBuilder(settingPath,false);
-			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
-
-			String seed = "Hello World!";
-			SecretKey key = Util.makeSymmetricKey(seed);
-
-			List<Map<String, Object>> sampleUserData = new ArrayList<>();
-			List<byte[]> encData = new ArrayList<>();
-
-			for (int i = 0; i < entrySize; i++) {
-				var map = parser.jsonFileToMap(dataFilePath);
-				map.put("start_time", String.valueOf(System.currentTimeMillis()));
-				sampleUserData.add(map);
-				encData.add(Util.encrypt(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes(), key));
-			}
-			System.err.println("Test data ready");
-
-			long currTime = System.currentTimeMillis();
-			esRestClient.bulkInsertDocumentByProcessor(
-					indexName, 0, sampleUserData, encData, 1, 100, 10, ByteSizeUnit.MB, 5);
-			System.err.println("entrySize :" + entrySize + " bulkInsertionTime :" + (System.currentTimeMillis() - currTime));
-
-			sleep(sleepTime);
-
-			currTime = System.currentTimeMillis();
-			Pair<List<Map<String, Object>>, List<String>> resultPair = esRestClient.getBlockDataPair(indexName, blockNumber);
-			System.err.println("entrySize :" + entrySize + " getAllDataTime :" + (System.currentTimeMillis() - currTime));
-			Assertions.assertTrue(isDataEquals(encData, resultPair.getRight()));
-			esRestClient.close();
-			if (deleteIndexAfterFinish) esRestClient.deleteIndex("test_block_chain");
-		} catch (InterruptedException | EsRestClient.EsConcurrencyException | EsRestClient.EsException | NoSuchFieldException | EsRestClient.EsSSLException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			throw new IOError(e);
-		} catch (Util.EncryptionException e) {
-			e.printStackTrace();
-		}
 	}
 
 	@Test
@@ -336,16 +262,14 @@ public class ElasticSearchTest {
 
 		EsJsonParser parser = new EsJsonParser();
 		List<Map<String, Object>> sampleUserData = new ArrayList<>();
-		List<byte[]> encData = new ArrayList<>();
 
 		for (int i = 0; i < entrySize; i++) {
 			sampleUserData.add(parser.jsonFileToMap(dataFilePath));
-			encData.add(Util.serToBase64String((Serializable) sampleUserData.get(i)).getBytes());
 		}
 
 		try {
 			for (int i = 0; i < maxThreadNum; i++) {
-				Thread thread = new Thread(new ConcurrentBulkInsertThread(esRestClientConfigs, indexName, blockNumber, sampleUserData, encData, sleepTime, 1, i));
+				Thread thread = new Thread(new ConcurrentBulkInsertThread(esRestClientConfigs, indexName, blockNumber, sampleUserData, sleepTime, 1, i));
 				threadList.add(thread);
 			}
 			for (var t: threadList) {

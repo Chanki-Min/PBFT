@@ -2,7 +2,6 @@ package kr.ac.hongik.apl.ES;
 
 
 import kr.ac.hongik.apl.Replica;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -206,7 +205,7 @@ public class EsRestClient implements Closeable {
 	 * @throws EsConcurrencyException throws when headDocument of (indexName,BlockNumber) already exists.
 	 *                                that means other replica already bulkInserting to certain version, so cancel method
 	 */
-	public void newBulkInsertDocumentByProcessor(
+	public void bulkInsertDocumentByProcessor(
 			String indexName, int blockNumber, List<Map<String, Object>> entryList, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
 			throws IOException, EsException, EsConcurrencyException, InterruptedException {
 
@@ -279,144 +278,7 @@ public class EsRestClient implements Closeable {
 		bulkProcessor.awaitClose(10L, TimeUnit.SECONDS);
 	}
 
-	/**
-	 * This store PlainData + encData
-	 *
-	 * @param indexName
-	 * @param blockNumber
-	 * @param plainDataList original userData
-	 * @param encData
-	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
-	 * @param maxAction     limit of request number of One bulk execution
-	 * @param maxSize       limit of request all size of One bulk execution
-	 * @param maxSizeUnit   unit of maxSize(Kb, Mb, etc...)
-	 * @param threadSize    limit of threads
-	 * @return ElasticSearch's BulkResponse instance of  data-insertion
-	 * @throws IOException
-	 * @throws EsException            throws when (index not exists, some of insertion failed)
-	 * @throws EsConcurrencyException throws when headDocument of (indexName,BlockNumber) already exists.
-	 *                                that means other replica already bulkInserting to certain version, so cancel method
-	 */
-	public void bulkInsertDocumentByProcessor(
-			String indexName, int blockNumber, List<Map<String, Object>> plainDataList, List<byte[]> encData, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
-			throws IOException, EsException, EsConcurrencyException, InterruptedException {
-
-		if (!this.isIndexExists(indexName))
-			throw new EsException("index :" + indexName + " does not exists");
-
-		//Check plainDataList's mapping equals to Index's mapping
-		Set indexKeySet = getFieldKeySet(indexName);
-		indexKeySet.remove("block_number");
-		indexKeySet.remove("entry_number");
-		indexKeySet.remove("encrypt_data");
-		if (!plainDataList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
-			throw new EsException("index :" + indexName + " field mapping does NOT equal to given plainDataList ketSet");
-
-		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
-		try {
-			restHighLevelClient.index(getHeadDocument(indexName, blockNumber, versionNumber), RequestOptions.DEFAULT);
-		} catch (ElasticsearchStatusException e) {
-			StringBuilder builder = new StringBuilder();
-			builder.append(this.getClass().getName()).append("::bulkInsertDocument").append(" ConcurrencyException");
-			builder.append(" indexName :").append(indexName).append(" BlockNum :").append(blockNumber);
-			builder.append(" Cause :Document inserting already executing by other replica");
-			throw new EsConcurrencyException(builder.toString());
-		}
-		BulkProcessor.Listener listener = new BulkProcessor.Listener() {
-			@Override
-			public void beforeBulk(long executionId, BulkRequest request) {
-				Replica.msgDebugger.debug(String.format( "bulk insertion START, LEN : %s SIZE : %s", request.numberOfActions(), request.estimatedSizeInBytes()));
-			}
-
-			@Override
-			public void afterBulk(long executionId, BulkRequest request,
-								  BulkResponse response) {
-				Replica.msgDebugger.debug(String.format( "bulk insertion Success, LEN : %s SIZE : %s exeID : %s", request.numberOfActions(), request.estimatedSizeInBytes(), executionId));
-			}
-
-			@Override
-			public void afterBulk(long executionId, BulkRequest request,
-								  Throwable failure) {
-				Replica.msgDebugger.error(String.format("bulk insertion FAIL, cause : %s", failure));
-			}
-		};
-		BulkProcessor.Builder processorBuilder = BulkProcessor.builder(
-				(req, bulkListener) ->
-						restHighLevelClient.bulkAsync(req, RequestOptions.DEFAULT, bulkListener),
-				listener);
-		processorBuilder.setBulkActions(maxAction);
-		processorBuilder.setBulkSize(new ByteSizeValue(maxSize, maxSizeUnit));
-		processorBuilder.setConcurrentRequests(threadSize);
-		processorBuilder.setBackoffPolicy(BackoffPolicy
-				.constantBackoff(TimeValue.timeValueSeconds(1L), 3));
-		BulkProcessor bulkProcessor = processorBuilder.build();
-
-		//make query
-		Base64.Encoder encoder = Base64.getEncoder();
-		for (int entryNumber = 0; entryNumber < encData.size(); entryNumber++) {
-			String id = generateId(indexName, blockNumber, entryNumber);
-			String base64EncodedData = encoder.encodeToString(encData.get(entryNumber));
-			XContentBuilder builder = new XContentFactory().jsonBuilder();
-			builder.startObject();
-			{
-				builder.field("block_number", blockNumber);
-				builder.field("entry_number", entryNumber);
-				builder.field("encrypt_data", base64EncodedData);
-			}
-			for (String plainKey: plainDataList.get(entryNumber).keySet()) {
-				builder.field(plainKey, plainDataList.get(entryNumber).get(plainKey));
-			}
-			builder.endObject();
-			bulkProcessor.add(new IndexRequest(indexName).id(id).source(builder).version(versionNumber).versionType(VersionType.EXTERNAL));
-		}
-		bulkProcessor.awaitClose(10L, TimeUnit.SECONDS);
-	}
-
-	/**
-	 * @param indexName
-	 * @param blockNumber
-	 * @return Pair (plain_data_list, base64 encoded Stirng) in #blockNumber th block EXCEPT headDocument
-	 * @throws IOException
-	 * @throws EsException
-	 */
-	public Pair<List<Map<String, Object>>, List<String>> getBlockDataPair(String indexName, int blockNumber) throws IOException, EsException, NoSuchFieldException {
-		if (!isIndexExists(indexName)) {
-			throw new EsException(indexName + " does not exists");
-		}
-		if (!isBlockExists(indexName, blockNumber)) {
-			throw new EsException(blockNumber + " does not exists in " + indexName);
-		}
-
-		SearchRequest request = new SearchRequest(indexName);
-		SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-		BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-
-		boolQueryBuilder.must(QueryBuilders.matchQuery("block_number", blockNumber));
-		boolQueryBuilder.mustNot(QueryBuilders.matchQuery("_id", generateId(indexName, blockNumber, -1)));
-
-		searchSourceBuilder.query(boolQueryBuilder);
-		searchSourceBuilder.sort("entry_number", SortOrder.ASC);    //set sort option to "entry_number" ascending
-
-		searchSourceBuilder.from(0);
-		searchSourceBuilder.size(getBlockEntrySize(indexName, blockNumber) - 1);        //set search range to [0, index Size], without headDoc
-
-		request.source(searchSourceBuilder);
-		SearchResponse response = restHighLevelClient.search(request, RequestOptions.DEFAULT);
-		SearchHit[] searchHits = response.getHits().getHits();
-
-		List<Map<String, Object>> plain_data_list = new ArrayList<>();
-		List<String> encrypt_data_list = new ArrayList<>();
-
-		for (SearchHit searchHit: searchHits) {
-			var sourceMap = searchHit.getSourceAsMap();
-			encrypt_data_list.add((String) sourceMap.get("encrypt_data"));
-			sourceMap.keySet().removeAll(Set.of("block_number", "entry_number", "encrypt_data"));
-			plain_data_list.add(sourceMap);
-		}
-		return Pair.of(plain_data_list, encrypt_data_list);
-	}
-
-	public List<Map<String, Object>> newGetBlockData(String indexName, int blockNumber) throws EsException, IOException {
+	public List<Map<String, Object>> getBlockData(String indexName, int blockNumber) throws EsException, IOException {
 		if (!isIndexExists(indexName)) {
 			throw new EsException(indexName + " does not exists");
 		}
