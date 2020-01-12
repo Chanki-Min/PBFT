@@ -28,6 +28,6 @@ exit
 
 
 source /etc/profile
-rm -f ~/*.db
+rm -rf ~/replicaData_IP_PORT
 pkill -9 -f "PBFT"
 java -jar ~/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar server IP PORT VIRTUALPORT
