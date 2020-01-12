@@ -112,7 +112,7 @@ public class Replica extends Connector {
 	 */
 	public Replica(Properties prop, String serverPublicIp, int serverPublicPort, int serverInnerPort) {
 		super(prop); //Connector 설정
-		this.logger = new Logger(); //logger file 생성
+		this.logger = new Logger(serverPublicIp, serverPublicPort); //logger file 생성
 		this.myNumber = getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort);
 		this.lowWatermark = 0;
 

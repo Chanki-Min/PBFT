@@ -32,7 +32,7 @@ class SampleOperation extends Operation {
 class LoggerTest {
 	@Test
 	void createDB() {
-		Logger logger = new Logger();
+		Logger logger = new Logger("127.0.0.1", 1234);
 		logger.createBlockChainDb("test_blk_1");
 	}
 

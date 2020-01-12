@@ -31,7 +31,7 @@ class PrepareMessageTest {
 		CommitMessage commitMessage = CommitMessage.makeCommitMsg(privateKey, expected.getViewNum(),
 				expected.getSeqNum(), expected.getDigest(), expected.getReplicaNum());
 
-		Logger logger = new Logger();
+		Logger logger = new Logger("127.0.0.1", 1234);
 		logger.insertMessage(expected);
 
 		PrepareMessage actual = PrepareMessage.fromCommitMessage(commitMessage);

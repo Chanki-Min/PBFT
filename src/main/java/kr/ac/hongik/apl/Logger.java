@@ -22,11 +22,14 @@ public class Logger {
 	public static final String CONSENSUS = "consensus";
 	public static final String BLOCK_CHAIN = "BlockChain";
 	public static final String HASHES = "Hashes";
-	public static final String DB_PATH = "/replicaData/";
+	private static final String ABSOLUTE_DB_NAME = "/replicaData";
+	public final String DB_PATH;
 
 	private Map<String, Connection> connectionMap = new HashMap<>();
 
-	public Logger() {
+	public Logger(String serverIP, int serverPort) {
+		DB_PATH = String.format("%s_%s_%d/", ABSOLUTE_DB_NAME, serverIP, serverPort);
+
 		createDataDirectoryIfNotExists();
 		loadDbConnection();
 		if (!connectionMap.containsKey(Logger.CONSENSUS)) {
@@ -37,7 +40,7 @@ public class Logger {
 	public void loadDbConnection() {
 		File dataDir = new File(getResourceFolder());
 		if (!dataDir.exists() || !dataDir.isDirectory()) {
-			throw new NoSuchElementException("cannt find Logger.DB_PATH");
+			throw new NoSuchElementException(String.format("cannt find dbDir : %s", getResourceFolder()));
 		}
 
 		String[] dbFileList = dataDir.list(new FilenameFilter() {
