@@ -10,6 +10,7 @@ import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.InsertHeaderOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Operations.VerifyBlockOperation;
+import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,6 +52,43 @@ public class BlockVerificationOperationTest {
 	@AfterEach
 	public void disconnect() throws IOException {
 		esRestClient.close();
+	}
+
+	@Test
+	public void insertManyManyBlock() throws Exception {
+		String dummyDataPath = "/Es_testData/Init_data00.json";
+		String indexMappingPath = "/ES_MappingAndSetting/Mapping_car_log.json";
+		String indexSettingPath = "/ES_MappingAndSetting/Setting.json";
+		String indexName = getIndexNameFromFilePath(indexMappingPath);
+		String chainName = indexName;
+		boolean isDataLoop = true;
+		int blockSize = 100;
+		int dataSize = 600;
+
+		Generator generator = new Generator(dummyDataPath, isDataLoop);
+		List<Map<String, Object>> carLogList = new ArrayList<>();
+		for(int i=0; i<dataSize; i++) {
+			carLogList.add(generator.generate().getLeft());
+		}
+
+		if(!esRestClient.isIndexExists(indexName)) {
+			EsJsonParser esJsonParser = new EsJsonParser();
+			XContentBuilder mappingBuilder = esJsonParser.jsonFileToXContentBuilder(indexMappingPath, false);
+			XContentBuilder settingBuilder = esJsonParser.jsonFileToXContentBuilder(indexSettingPath, false);
+			esRestClient.createIndex(indexName, mappingBuilder, settingBuilder);
+		}
+		for(int i=0; i<blockSize; i++) {
+			List<String> hashList = new ArrayList<>();
+			for (Map<String, Object> carLogMap: carLogList) {
+				String s = objectMapper.writeValueAsString(carLogMap);
+				String hash = Util.hash(s);
+				hashList.add(hash);
+			}
+			HashTree hashTree = new HashTree(hashList.toArray(new String[0]));
+			int blockNumber = storeHeaderAndHashToPBFTAndReturnIdx(chainName, hashTree.toString(), hashList);
+			storeDataToEs(indexName, chainName, blockNumber, carLogList);
+			Replica.msgDebugger.info(String.format("block #%d inserted to %s index, %s chain", i, indexName, chainName));
+		}
 	}
 
 	@Test
