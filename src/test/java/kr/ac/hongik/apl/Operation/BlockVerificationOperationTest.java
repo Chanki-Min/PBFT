@@ -7,9 +7,9 @@ import kr.ac.hongik.apl.ES.EsJsonParser;
 import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Generator.Generator;
 import kr.ac.hongik.apl.Messages.RequestMessage;
-import kr.ac.hongik.apl.Operations.BlockVerificationOperation;
 import kr.ac.hongik.apl.Operations.InsertHeaderOperation;
 import kr.ac.hongik.apl.Operations.Operation;
+import kr.ac.hongik.apl.Operations.VerifyBlockOperation;
 import kr.ac.hongik.apl.Util;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -97,7 +97,7 @@ public class BlockVerificationOperationTest {
 
 		Client client = new Client(prop);
 
-		Operation verifyBlockOp = new BlockVerificationOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
+		Operation verifyBlockOp = new VerifyBlockOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
 		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), verifyBlockOp);
 		long send = System.currentTimeMillis();
 		client.request(insertRequestMsg);
@@ -107,7 +107,7 @@ public class BlockVerificationOperationTest {
 		데이터를 변조한 뒤에 다시 검증해본다
 		 */
 
-		verifyBlockOp = new BlockVerificationOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
+		verifyBlockOp = new VerifyBlockOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
 		insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), verifyBlockOp);
 		client.request(insertRequestMsg);
 		List errorResult = (List) client.getReply();

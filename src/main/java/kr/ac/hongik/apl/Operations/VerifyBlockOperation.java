@@ -9,8 +9,6 @@ import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
-import org.apache.commons.lang3.tuple.ImmutableTriple;
-import org.apache.commons.lang3.tuple.Triple;
 
 import java.io.IOException;
 import java.security.PublicKey;
@@ -19,14 +17,14 @@ import java.util.*;
 
 import static kr.ac.hongik.apl.Util.hash;
 
-public class BlockVerificationOperation extends Operation {
+public class VerifyBlockOperation extends Operation {
 	private ObjectMapper objectMapper = null;
 	private String chainName;
 	private int blockNumber;
 	private Map<String, Object> esRestClientConfigs;
 	private EsRestClient esRestClient;
 
-	public BlockVerificationOperation(PublicKey publicKey, Map<String, Object> esRestClientConfigs,String chainName, int blockNumber) {
+	public VerifyBlockOperation(PublicKey publicKey, Map<String, Object> esRestClientConfigs, String chainName, int blockNumber) {
 		super(publicKey);
 		this.esRestClientConfigs = esRestClientConfigs;
 		this.chainName = chainName;
