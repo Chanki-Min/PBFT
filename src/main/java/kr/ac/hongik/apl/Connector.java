@@ -30,7 +30,7 @@ import static kr.ac.hongik.apl.Util.*;
  */
 abstract class Connector {
 	public final static long TIMEOUT = 15000;    //Unit: milliseconds
-	static private Map<Integer, SocketChannel> replicas = new HashMap<>();
+	private Map<Integer, SocketChannel> replicas = new HashMap<>();
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
 	protected Selector selector;
@@ -246,7 +246,7 @@ abstract class Connector {
 		}
 	}
 
-	static public Map<Integer, SocketChannel> getReplicaMap() {
+	public Map<Integer, SocketChannel> getReplicaMap() {
 		return replicas;
 	}
 

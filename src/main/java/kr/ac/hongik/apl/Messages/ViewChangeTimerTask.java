@@ -38,7 +38,7 @@ public class ViewChangeTimerTask extends java.util.TimerTask {
 		Replica.detailDebugger.trace(String.format("Checkpoint num : %d NewViewNum : %d", replica.getWatermarks()[0], newViewNum));
 		synchronized (replica.watermarkLock) {
 			ViewChangeMessage viewChangeMessage = ViewChangeMessage.makeViewChangeMsg(replica.getWatermarks()[0], newViewNum, replica, replica.getLogger()::getPreparedStatement);
-			Replica.getReplicaMap().values().forEach(sock -> replica.send(sock, viewChangeMessage));
+			replica.getReplicaMap().values().forEach(sock -> replica.send(sock, viewChangeMessage));
 		}
 	}
 }

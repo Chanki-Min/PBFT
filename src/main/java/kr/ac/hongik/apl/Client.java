@@ -253,7 +253,7 @@ public class Client extends Connector implements Closeable {
 				client.setReceivingTimeStamp(nextRequestMessage.getTime());
 				BroadcastTask task = new BroadcastTask(nextRequestMessage, this.client, this.timerMap, this.timerCount + 1);
 				RequestMessage finalNextRequestMessage = nextRequestMessage;
-				getReplicaMap().values().forEach(socket -> client.send(socket, finalNextRequestMessage));
+				client.getReplicaMap().values().forEach(socket -> client.send(socket, finalNextRequestMessage));
 				Timer timer = new Timer();
 				timer.schedule(task, (this.timerCount + 1) * TIMEOUT);
 

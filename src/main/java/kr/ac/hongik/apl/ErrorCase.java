@@ -21,10 +21,10 @@ import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
 public class ErrorCase {
 	public static void doFaulty(Replica replica, int errno, int primaryErrSeqNum, PreprepareMessage preprepareMessage) throws OperationExecutionException {
 		int seqNum = preprepareMessage.getSeqNum();
-		if ((seqNum % 10 == primaryErrSeqNum && 0 == replica.getViewNum() % Connector.getReplicaMap().size()) ||
-				(seqNum % 10 == primaryErrSeqNum - 1 && 1 == replica.getViewNum() % Connector.getReplicaMap().size()) ||
-				(seqNum % 10 == primaryErrSeqNum - 2 && 2 == replica.getViewNum() % Connector.getReplicaMap().size()) ||
-				(seqNum % 10 == primaryErrSeqNum - 3 && 3 == replica.getViewNum() % Connector.getReplicaMap().size())
+		if ((seqNum % 10 == primaryErrSeqNum && 0 == replica.getViewNum() % replica.getReplicaMap().size()) ||
+				(seqNum % 10 == primaryErrSeqNum - 1 && 1 == replica.getViewNum() % replica.getReplicaMap().size()) ||
+				(seqNum % 10 == primaryErrSeqNum - 2 && 2 == replica.getViewNum() % replica.getReplicaMap().size()) ||
+				(seqNum % 10 == primaryErrSeqNum - 3 && 3 == replica.getViewNum() % replica.getReplicaMap().size())
 		) {
 			if (errno == 1) { //primary stops suddenly[
 				System.err.println("Faulty Case I'm gonna sleep at #" + seqNum);
@@ -38,13 +38,13 @@ public class ErrorCase {
 			} else if (errno == 4) { // primary sends reply messages more than 2*f and broadcast pre-prepare message
 				System.err.println("Faulty Case I'm sending all replys and valid prepre at #" + seqNum);
 				primarySendAllReplyMsg(replica, seqNum, preprepareMessage);
-				Connector.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
+				replica.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
 			} else {
-				Connector.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
+				replica.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
 			}
 			return;
 		} else {
-			Connector.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
+			replica.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
 		}
 	}
 
@@ -70,7 +70,7 @@ public class ErrorCase {
 		Operation op = new GreetingOperation(client.getPublicKey());
 		RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
 		PreprepareMessage preprepareMessage = makePrePrepareMsg(replica.getPrivateKey(), replica.getViewNum(), seqNum, requestMessage);
-		Connector.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
+		replica.getReplicaMap().values().forEach(channel -> replica.send(channel, preprepareMessage));
 	}
 
 	public static void primarySendAllReplyMsg(Replica replica, int seqNum, PreprepareMessage preprepareMessage) throws OperationExecutionException {

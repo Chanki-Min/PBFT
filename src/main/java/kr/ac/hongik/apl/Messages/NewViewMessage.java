@@ -135,16 +135,16 @@ public class NewViewMessage implements Message {
 
 	public boolean isVerified(Replica replica) {
 		Map<SocketChannel, PublicKey> keymap = replica.getPublicKeyMap();
-		int newPrimaryNum = getNewViewNum() % Replica.getReplicaMap().size();
+		int newPrimaryNum = getNewViewNum() % replica.getReplicaMap().size();
 
 		Boolean[] checklist = new Boolean[4];
 
 		//NewViewMessage의 signature를 검증한다
-		checklist[0] = this.verify(keymap.get(Replica.getReplicaMap().get(newPrimaryNum)));
+		checklist[0] = this.verify(keymap.get(replica.getReplicaMap().get(newPrimaryNum)));
 
 		//NewViewMessage의 ViewChangeList의 모든 vMsg의 signatue를 검증한다
 		checklist[1] = this.getViewChangeMessageList().stream()
-				.allMatch(v -> v.verify(keymap.get(Replica.getReplicaMap().get(v.getReplicaNum()))));
+				.allMatch(v -> v.verify(keymap.get(replica.getReplicaMap().get(v.getReplicaNum()))));
 
 		//모든 vMsg에서 PreprareMsg를 가져온다
 		List<PrepareMessage> agreed_prepares = this.getViewChangeMessageList()
@@ -160,7 +160,7 @@ public class NewViewMessage implements Message {
 					.filter(pp -> pp.getDigest() != null)
 					.filter(pp -> agreed_prepares.stream()
 							.filter(p -> p.equals(pp))
-							.filter(p -> p.verify(keymap.get(Replica.getReplicaMap().get(p.getReplicaNum()))))
+							.filter(p -> p.verify(keymap.get(replica.getReplicaMap().get(p.getReplicaNum()))))
 							.count() > 2 * replica.getMaximumFaulty()
 					)
 					.count() == this.getOperationList().stream().filter(pp -> pp.getDigest() != null).count();
