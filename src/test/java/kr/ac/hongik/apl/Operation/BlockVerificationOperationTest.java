@@ -59,7 +59,7 @@ public class BlockVerificationOperationTest {
 		String indexMappingPath = "/ES_MappingAndSetting/Mapping_car_log.json";
 		String indexSettingPath = "/ES_MappingAndSetting/Setting.json";
 		String indexName = getIndexNameFromFilePath(indexMappingPath);
-		String chainName = "car_logs_blockChain";
+		String chainName = indexName;
 		boolean isDataLoop = true;
 
 		int dataSize = 100;
