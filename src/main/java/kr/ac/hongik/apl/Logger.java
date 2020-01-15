@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 import static kr.ac.hongik.apl.Util.desToObject;
 import static kr.ac.hongik.apl.Util.serToBase64String;
@@ -189,6 +190,12 @@ public class Logger {
 
 	public boolean isBlockChainExists(String dbName) {
 		return connectionMap.containsKey(dbName);
+	}
+
+	public List<String> getLoadedChainList() {
+		return connectionMap.keySet().stream()
+				.filter(x -> !x.equals(CONSENSUS))
+				.collect(Collectors.toUnmodifiableList());
 	}
 
 	/**
