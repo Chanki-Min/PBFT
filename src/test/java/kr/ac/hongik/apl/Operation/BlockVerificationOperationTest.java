@@ -161,7 +161,7 @@ public class BlockVerificationOperationTest {
 	}
 
 	private void storeDataToEs(String indexName ,String chainName, int blockNumber, List<Map<String, Object>> dataList) throws IOException, EsRestClient.EsConcurrencyException, InterruptedException, EsRestClient.EsException {
-		esRestClient.bulkInsertDocumentByProcessor(indexName, chainName, blockNumber, dataList,
+		esRestClient.bulkInsertDocumentByProcessor(indexName, chainName, blockNumber, dataList, true,
 				1, 1000, 10, ByteSizeUnit.MB, 5);
 	}
 

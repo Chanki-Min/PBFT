@@ -53,7 +53,7 @@ public class ConcurrentBulkInsertThread extends Thread {
 				}
 			}
 			esRestClient.bulkInsertDocumentByProcessor(chainName, indexName, block_number,
-					plain_data, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
+					plain_data, true, versionNumber, 100, 10, ByteSizeUnit.MB, 5);
 			esRestClient.deleteIndex(indexName);
 			esRestClient.close();
 

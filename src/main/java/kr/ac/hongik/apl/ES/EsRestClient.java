@@ -192,10 +192,11 @@ public class EsRestClient implements Closeable {
 	/**
 	 * This store PlainData + encData
 	 *
-	 * @param indexName
+	 * @param indexName 삽입할 Elasticsearch index name
 	 * @param chainName 소속된 블록체인의 이름
-	 * @param blockNumber
+	 * @param blockNumber 블록 번호
 	 * @param entryList original userData
+	 * @param enableIndexCheck 이 값이 true일 경우 1.인덱스 존재 여부 검사, 2.매핑과 삽입할 데이터의 key가 일치하는지 검사합니다.
 	 * @param versionNumber number that stating with "1" and MUST increases whenever document updates
 	 * @param maxAction     limit of request number of One bulk execution
 	 * @param maxSize       limit of request all size of One bulk execution
@@ -208,20 +209,22 @@ public class EsRestClient implements Closeable {
 	 *                                that means other replica already bulkInserting to certain version, so cancel method
 	 */
 	public void bulkInsertDocumentByProcessor(
-			String indexName, String chainName, int blockNumber, List<Map<String, Object>> entryList, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
+			String indexName, String chainName, int blockNumber, List<Map<String, Object>> entryList, boolean enableIndexCheck, long versionNumber, int maxAction, int maxSize, ByteSizeUnit maxSizeUnit, int threadSize)
 			throws IOException, EsException, EsConcurrencyException, InterruptedException {
 
-		if (!this.isIndexExists(indexName))
-			throw new EsException("index :" + indexName + " does not exists");
+		//if enableIndexCheck == true, 1.check is index exist, 2.check is mapping == entry's key list
+		if(enableIndexCheck) {
+			if (!this.isIndexExists(indexName))
+				throw new EsException("index :" + indexName + " does not exists");
 
-		//Check entryList's mapping equals to Index's mapping
-		Set<String> indexKeySet = getFieldKeySet(indexName);
-		indexKeySet.remove("chain_name");
-		indexKeySet.remove("block_number");
-		indexKeySet.remove("entry_number");
-		if (!entryList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
-			throw new EsException("index :" + indexName + " field mapping does NOT equal to given entryList ketSet");
-
+			//Check entryList's mapping equals to Index's mapping
+			Set<String> indexKeySet = getFieldKeySet(indexName);
+			indexKeySet.remove("chain_name");
+			indexKeySet.remove("block_number");
+			indexKeySet.remove("entry_number");
+			if (!entryList.stream().allMatch(x -> x.keySet().equals(indexKeySet)))
+				throw new EsException("index :" + indexName + " field mapping does NOT equal to given entryList ketSet");
+		}
 		//insert HeadDocument, when Head already exist for (indexName,blockNumber,versionNumber), throw exception and cancel bulkInsertion
 		try {
 			restHighLevelClient.index(getHeadDocument(indexName, blockNumber, versionNumber), RequestOptions.DEFAULT);
