@@ -24,6 +24,8 @@ import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -148,6 +150,33 @@ public class ElasticSearchTest {
 			esRestClient.deleteIndex("test_block_chain");
 			Assertions.assertEquals(false, isIndexExists("test_block_chain"));
 			esRestClient.close();
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	@Test
+	void HeaderInsertWithoutMapping() {
+		String indexName = "test_block_chain";
+		int blockNumber = 1;
+
+		esRestClient = new EsRestClient(esRestClientConfigs);
+		try {
+			esRestClient.connectToEs();
+
+			XContentBuilder builder = new XContentFactory().jsonBuilder();
+			builder.startObject();
+			{
+				builder.field("block_number", blockNumber);
+				builder.field("entry_number", -1);
+			}
+			builder.endObject();
+
+			IndexRequest indexRequest = new IndexRequest(indexName).id("lee_1_-1")
+					.source(builder).version(1).versionType(VersionType.EXTERNAL);
+
+			esRestClient.getClient().index(indexRequest, RequestOptions.DEFAULT);
 
 		} catch (Exception e) {
 			e.printStackTrace();
