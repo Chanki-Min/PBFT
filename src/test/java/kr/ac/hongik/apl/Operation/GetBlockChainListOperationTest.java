@@ -4,6 +4,7 @@ import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.GetBlockChainListOperation;
 import kr.ac.hongik.apl.Operations.Operation;
+import kr.ac.hongik.apl.Util;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -14,7 +15,7 @@ import java.util.Properties;
 public class GetBlockChainListOperationTest {
 	@Test
 	public void getListTest() throws IOException {
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 

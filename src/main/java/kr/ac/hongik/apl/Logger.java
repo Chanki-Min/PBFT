@@ -111,7 +111,8 @@ public class Logger {
 	}
 
 	private String getResourceFolder() {
-		var folder = System.getProperty("user.dir");
+		//String folder = System.getProperty("user.dir");
+		String folder = Util.getCurrentProgramDir();
 		folder = folder.endsWith("/") ? folder.substring(0, folder.length() - 1) : folder;
 		return folder.concat(DB_PATH);
 	}

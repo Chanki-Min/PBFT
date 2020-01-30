@@ -84,7 +84,8 @@ public class Replica extends Connector {
 	public static void main(String[] args) throws IOException {
 		try {
 			Properties properties = new Properties();
-			InputStream is = Replica.class.getResourceAsStream("/replica.properties");
+			//InputStream is = Replica.class.getResourceAsStream("/replica.properties");
+			InputStream is = Util.getInputStreamOfGivenResource("replica.properties");
 			properties.load(new java.io.BufferedInputStream(is));
 			if(args.length < 3) {
 				msgDebugger.error(String.format("Usage: program <ip> <forwarded-public port> <opening port>"));

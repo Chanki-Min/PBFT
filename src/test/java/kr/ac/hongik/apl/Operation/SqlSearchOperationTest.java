@@ -10,6 +10,7 @@ import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Operations.SQLSearchOperation;
+import kr.ac.hongik.apl.Util;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
@@ -52,7 +53,7 @@ public class SqlSearchOperationTest {
 		String HttpProtocol = "GET";
 		String query = "SELECT * from test_block_chain";
 
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 		Client client = new Client(prop);

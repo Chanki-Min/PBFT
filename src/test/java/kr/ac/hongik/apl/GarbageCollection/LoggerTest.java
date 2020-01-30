@@ -6,6 +6,7 @@ import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.Dev.CountMsgsOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Replica;
+import kr.ac.hongik.apl.Util;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -45,7 +46,7 @@ class LoggerTest {
 	@Test
 	public void OneClientGC() {
 		try {
-			InputStream in = getClass().getResourceAsStream("/replica.properties");
+			InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 
 			Properties prop = new Properties();
 			prop.load(in);
@@ -82,7 +83,7 @@ class LoggerTest {
 	@Test
 	public void ManyClientGC() {
 		try {
-			InputStream in = getClass().getResourceAsStream("/replica.properties");
+			InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 			Properties prop = new Properties();
 			prop.load(in);
 

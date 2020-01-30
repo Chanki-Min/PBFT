@@ -58,7 +58,7 @@ public class ErrorCase {
 	}
 
 	public static void primarySendBadPrepreCase(Replica replica, int seqNum) {
-		InputStream in = replica.getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		try {
 			prop.load(in);

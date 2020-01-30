@@ -21,6 +21,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -138,5 +139,15 @@ class UtilTest {
 
 		var tree = objectMapper.readTree(is);
 		return;
+	}
+
+	@Test
+	public void getResourceTest() throws Exception {
+		System.err.println(Util.getCurrentProgramDir());
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
+
+		Properties properties = new Properties();
+		properties.load(in);
+		int i=0;
 	}
 }

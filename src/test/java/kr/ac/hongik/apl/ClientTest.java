@@ -13,7 +13,7 @@ import java.util.Properties;
 public class ClientTest {
 	@Test
 	public void closeConnectionTest() throws IOException {
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 
@@ -33,7 +33,7 @@ public class ClientTest {
 
 	@Test
 	public void heartbeatTest() throws IOException {
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 

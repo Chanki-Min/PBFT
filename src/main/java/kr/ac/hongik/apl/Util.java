@@ -8,9 +8,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.apache.commons.lang3.SerializationUtils;
 
 import javax.crypto.*;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.Serializable;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.security.*;
 import java.util.*;
@@ -229,6 +227,38 @@ public class Util {
 
 		} catch (IllegalBlockSizeException | BadPaddingException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
 			throw new EncryptionException(e);
+		}
+	}
+
+	public static String getCurrentProgramDir() {
+		File jarDir = new File(Util.class.getProtectionDomain().getCodeSource().getLocation().getPath());
+		try {
+			return jarDir.getParentFile().getCanonicalPath();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * resourceDirectories.properties 에 미리 정의된 필수 설정 파일의 상대 경로부터 리소스 파일의 InputStream을 가져옵니다
+	 * 이를 위하여 config 디렉토리는 무조건 .jar 파일과 같이 배포되어야 하며, .jar파일과 같은 디렉토리에 있어야 합니다
+	 *
+	 * @param resourceName resourceDirectories.properties 에 명시된 리소스 파일의 이름
+	 * @return resourceDirectories.properties에 명시된 상대 경로에서 읽어온 리소스 파일의 InputStream
+	 */
+	public static InputStream getInputStreamOfGivenResource(String resourceName) {
+		try {
+			InputStream inputStream = Util.class.getResourceAsStream("/resourceDirectories.properties");
+			Properties prop = new Properties();
+			prop.load(inputStream);
+
+			String relativePath = prop.getProperty(resourceName);
+			String absolutePath = Util.getCurrentProgramDir() + "/" + relativePath;
+
+			File resourceFile = new File(absolutePath);
+			return new BufferedInputStream(new FileInputStream(resourceFile));
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
 	}
 

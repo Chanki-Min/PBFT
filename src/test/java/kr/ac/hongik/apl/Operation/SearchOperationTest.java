@@ -6,6 +6,7 @@ import kr.ac.hongik.apl.ES.EsRestClient;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Operations.SearchOperation;
+import kr.ac.hongik.apl.Util;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Request;
@@ -50,7 +51,7 @@ public class SearchOperationTest {
 		paramMap.put("format", "json");
 		String body = "";
 
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 

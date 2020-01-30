@@ -5,6 +5,7 @@ import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.GetHeaderOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Operations.OperationExecutionException;
+import kr.ac.hongik.apl.Util;
 import org.apache.commons.lang3.tuple.Triple;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ public class GetHeaderOperationTest {
 		String chanName = "test";
 		int blockNumber = 0;
 
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 

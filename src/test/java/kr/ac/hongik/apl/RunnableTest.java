@@ -19,7 +19,7 @@ import static java.lang.Thread.sleep;
 public class RunnableTest {
     @Test
     void requestTest() throws IOException {
-        InputStream in = getClass().getResourceAsStream("/replica.properties");
+        InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
         Properties prop = new Properties();
         prop.load(in);
 
@@ -37,7 +37,7 @@ public class RunnableTest {
     @Test
     void countlessRequest() throws IOException, InterruptedException {
         // request countless RequestMessages
-        InputStream in = getClass().getResourceAsStream("/replica.properties");
+        InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
         Properties prop = new Properties();
         prop.load(in);
 
@@ -60,7 +60,7 @@ public class RunnableTest {
     @Test
     void oneClientManyOperations() throws IOException, InterruptedException {
         //run only 3 Replicas. Expected to make agreement only with 3 Replicas
-        InputStream in = getClass().getResourceAsStream("/replica.properties");
+        InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
         Properties prop = new Properties();
         prop.load(in);
 

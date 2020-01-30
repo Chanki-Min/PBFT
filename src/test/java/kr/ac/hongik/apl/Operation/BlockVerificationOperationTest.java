@@ -129,7 +129,7 @@ public class BlockVerificationOperationTest {
 		/*
 		데이터 삽입 종료, 무결한 상태의 블록을 검증해본다
 		 */
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 
@@ -167,7 +167,7 @@ public class BlockVerificationOperationTest {
 
 	private int storeHeaderAndHashToPBFTAndReturnIdx(String chainName, String root, List<String> hashList) throws IOException {
 		//send [block#, root] to PBFT to PBFT generates Header and store to sqliteDB itself
-		InputStream in = getClass().getResourceAsStream("/replica.properties");
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
 		Properties prop = new Properties();
 		prop.load(in);
 		Client client = new Client(prop);
