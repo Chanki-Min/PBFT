@@ -40,6 +40,7 @@ public class VerifyBlockOperation extends Operation {
 	public Object execute(Object obj) throws OperationExecutionException {
 		this.objectMapper = new ObjectMapper()
 				.enable(JsonParser.Feature.ALLOW_COMMENTS)
+				.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
 				.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 		Logger logger = (Logger) obj;
 		String indexName;

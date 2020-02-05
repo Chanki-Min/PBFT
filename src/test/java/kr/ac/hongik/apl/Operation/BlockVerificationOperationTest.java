@@ -35,7 +35,7 @@ public class BlockVerificationOperationTest {
 		esRestClientConfigs = new HashMap<>();
 		esRestClientConfigs.put("userName", "apl");
 		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
-		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPath", "/esRestClient-cert.p12");
 		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
 
 		Map<String, Object> masterMap = new HashMap<>();
@@ -149,6 +149,24 @@ public class BlockVerificationOperationTest {
 		insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), verifyBlockOp);
 		client.request(insertRequestMsg);
 		List errorResult = (List) client.getReply();
+	}
+
+	@Test
+	public void verifyBlockTest() throws IOException {
+		final String chainName = "chanki-buffered";
+		final int blockNumber = 1;
+
+		InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
+		Properties prop = new Properties();
+		prop.load(in);
+
+		Client client = new Client(prop);
+
+		Operation verifyBlockOp = new VerifyBlockOperation(client.getPublicKey(), esRestClientConfigs, chainName, blockNumber);
+		RequestMessage insertRequestMsg = RequestMessage.makeRequestMsg(client.getPrivateKey(), verifyBlockOp);
+		long send = System.currentTimeMillis();
+		client.request(insertRequestMsg);
+		List noErrorResult = (List) client.getReply();
 	}
 
 	private String getIndexNameFromFilePath(String fileName) {
