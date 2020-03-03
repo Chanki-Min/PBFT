@@ -19,6 +19,7 @@ import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static kr.ac.hongik.apl.Util.*;
 
@@ -30,12 +31,12 @@ import static kr.ac.hongik.apl.Util.*;
  */
 abstract class Connector {
 	public final static long TIMEOUT = 15000;    //Unit: milliseconds
-	private Map<Integer, SocketChannel> replicas = new HashMap<>();
+	private Map<Integer, SocketChannel> replicas = new ConcurrentHashMap<>();
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
 	protected Selector selector;
 
-	protected Map<SocketChannel, PublicKey> publicKeyMap = new HashMap<>();
+	protected Map<SocketChannel, PublicKey> publicKeyMap = new ConcurrentHashMap<>();
 	protected PublicKey publicKey;
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 
@@ -144,10 +145,11 @@ abstract class Connector {
 		/* Broken connection: try reconnecting if that socket was connected to replica */
 		Replica.detailDebugger.trace(String.format("try to reconnect with socket %s", channel == null ? "" : channel.toString()));
 		SocketChannel newChannel = null;
+
+		int replicaNum = getReplicaMap().entrySet().stream()
+				.filter(x -> x.getValue().equals(channel))
+				.findFirst().orElseThrow(NoSuchElementException::new).getKey();
 		try {
-			int replicaNum = getReplicaMap().entrySet().stream()
-					.filter(x -> x.getValue().equals(channel))
-					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
 			closeWithoutException(channel);    //de-register a selector
 			var address = replicaAddresses.get(replicaNum);
 			newChannel = makeConnection(address);
@@ -161,6 +163,10 @@ abstract class Connector {
 		} catch (IOException e) {
 			Replica.msgDebugger.warn(String.format("reconnection failed"));
 			Replica.msgDebugger.warn(e);
+			closeWithoutException(channel);
+			//TODO : ConcurrentModificationException 해결하기
+			getReplicaMap().remove(replicaNum);
+			publicKeyMap.remove(channel);
 			return;
 		}
 		if(!channel.isConnected()) {

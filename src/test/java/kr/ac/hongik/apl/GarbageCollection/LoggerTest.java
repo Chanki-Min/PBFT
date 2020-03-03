@@ -72,6 +72,8 @@ class LoggerTest {
 				Arrays.stream(ret).forEach(x -> System.err.print(x + " "));
 				System.err.println();
 				//Assertions.assertEquals((firstRet[3] + i) % Replica.WATERMARK_UNIT, ret[3] % Replica.WATERMARK_UNIT);
+
+				Thread.sleep(1000);
 			}
 			client.close();
 		} catch (Exception e) {

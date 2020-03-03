@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Client extends Connector implements Closeable {
 
+	private final boolean MEASURE;
 	private HashMap<Long, HashSet<Integer>> replies = new HashMap<>();
 	private List<Long> ignoreList = new ArrayList<>();
 	private Map<Long, Timer> timerMap = new ConcurrentHashMap<>();    /* Key: timestamp, value: timer  */
@@ -26,6 +27,7 @@ public class Client extends Connector implements Closeable {
 	public Client(Properties prop) {
 		super(prop);    //make socket to every replica
 		super.connect();
+		this.MEASURE = Boolean.parseBoolean(prop.getProperty(PropertyNames.REPLICA_MEASURE));
 	}
 
 	@Override
@@ -77,9 +79,9 @@ public class Client extends Connector implements Closeable {
 		synchronized (replyLock) {
 			BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 			Timer timer = new Timer();
-			timer.schedule(task, TIMEOUT);
+			timer.schedule(task, viewChangeTimeOutMillis);
 			timerMap.put(msg.getTime(), timer);
-			if(Replica.MEASURE){
+			if(this.MEASURE){
 				getReplicaMap().values().stream().forEach(x -> send(x, msg));
 				setReceivingTimeStamp(msg.getTime());
 				return;
@@ -113,9 +115,9 @@ public class Client extends Connector implements Closeable {
 		synchronized (replyLock) {
 			BroadcastTask task = new BroadcastTask(msg, this, this.timerMap, 1);
 			Timer timer = new Timer();
-			timer.schedule(task, TIMEOUT);
+			timer.schedule(task, viewChangeTimeOutMillis);
 			timerMap.put(msg.getTime(), timer);
-			if(Replica.MEASURE){
+			if(this.MEASURE){
 				getReplicaMap().values().stream().forEach(x -> send(x, msg));
 				setReceivingTimeStamp(msg.getTime());
 				return;
@@ -193,7 +195,7 @@ public class Client extends Connector implements Closeable {
 						timerMap.get(replyMessage.getTime()).cancel();
 						timerMap.remove(replyMessage.getTime());
 
-						if(Replica.MEASURE){
+						if(this.MEASURE){
 							turnAroundTimeMap.put(replyMessage.getTime(), Instant.now().toEpochMilli() - replyMessage.getTime());
 							Replica.measureDebugger.info(String.format("Turn Around Time : %f", ((double) (turnAroundTimeMap.get(replyMessage.getTime())) / 1000)));
 						}
@@ -255,7 +257,7 @@ public class Client extends Connector implements Closeable {
 				RequestMessage finalNextRequestMessage = nextRequestMessage;
 				client.getReplicaMap().values().forEach(socket -> client.send(socket, finalNextRequestMessage));
 				Timer timer = new Timer();
-				timer.schedule(task, (this.timerCount + 1) * TIMEOUT);
+				timer.schedule(task, (this.timerCount + 1) * client.viewChangeTimeOutMillis);
 
 				timerMap.put(nextRequestMessage.getTime(), timer);
 			}

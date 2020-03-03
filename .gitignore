@@ -5,6 +5,7 @@
 
 # Maven
 log/
+!target/config/
 target/
 
 

@@ -32,6 +32,7 @@ public class RunnableTest {
         var ret = client.getReply();
 
         Assertions.assertEquals("Hello, World!", ret.toString());
+        client.close();
     }
 
     @Test

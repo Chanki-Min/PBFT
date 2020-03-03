@@ -51,7 +51,11 @@ public class Util {
 		}
 	}
 
-	public static List<InetSocketAddress> parseProperties(Properties prop) {
+	/**
+	 * @param prop replica.property 파일을 로드한 객체
+	 * @return prop에서 파싱된 전체 replica의 주소 리스트
+	 */
+	public static List<InetSocketAddress> parsePropertiesToAddress(Properties prop) {
 		List<InetSocketAddress> replicaAddresses = new ArrayList<>();
 		var numOfReplica = Integer.parseInt(prop.getProperty("replica"));
 

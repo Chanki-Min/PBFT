@@ -40,7 +40,7 @@ public class ViewChangeMessage implements Message {
 		List<CheckPointMessage> checkPointMessages = getCheckpointMessages(preparedStatement, lastCheckpointNum,
 				replica.getMaximumFaulty());
 
-		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum, new int[] {lastCheckpointNum, lastCheckpointNum + Replica.WATERMARK_UNIT - 1},
+		List<Pm> messageList = getMessageList(preparedStatement, lastCheckpointNum, new int[] {lastCheckpointNum, lastCheckpointNum + replica.WATERMARK_UNIT - 1},
 				replica.getMaximumFaulty());
 
 		Data data = new Data(newViewNum, lastCheckpointNum, checkPointMessages, messageList, replica.getMyNumber());
