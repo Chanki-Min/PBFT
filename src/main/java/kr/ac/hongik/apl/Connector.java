@@ -30,12 +30,12 @@ import static kr.ac.hongik.apl.Util.*;
  * 주의 : 이를 상속한 클래스가 오픈한 소캣을 바인딩 해줘야 정상적으로 동작할 수 있음
  */
 abstract class Connector {
-	public final static long TIMEOUT = 15000;    //Unit: milliseconds
-	private Map<Integer, SocketChannel> replicas = new ConcurrentHashMap<>();
+	public final long viewChangeTimeOutMillis;    //Unit: milliseconds
 	//Invariant: replica index and its socket is matched!
 	protected List<InetSocketAddress> replicaAddresses;
 	protected Selector selector;
 
+	private Map<Integer, SocketChannel> replicas = new ConcurrentHashMap<>();
 	protected Map<SocketChannel, PublicKey> publicKeyMap = new ConcurrentHashMap<>();
 	protected PublicKey publicKey;
 	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
@@ -56,7 +56,8 @@ abstract class Connector {
 			Replica.msgDebugger.error(e);
 			throw new RuntimeException(e);
 		}
-		replicaAddresses = Util.parseProperties(prop);
+		replicaAddresses = Util.parsePropertiesToAddress(prop);
+		viewChangeTimeOutMillis = Long.parseLong(prop.getProperty(PropertyNames.REPLICA_VIEWCHANGE_TIMEOUT_MILLIS));
 	}
 
 	protected void closeWithoutException(SocketChannel socketChannel) {
@@ -85,7 +86,6 @@ abstract class Connector {
 	private SocketChannel makeConnection(SocketAddress address) throws IOException {
 		SocketChannel channel = handshake(address);
 		sendHeaderMessage(channel);
-
 		return channel;
 	}
 
@@ -98,7 +98,6 @@ abstract class Connector {
 				getReplicaMap().put(i, socketChannel);
 				Replica.msgDebugger.debug(String.format("HeaderMessage sent to %d", i));
 			} catch (IOException e) {
-				reconnect(socketChannel);
 			}
 		}
 	}
@@ -115,7 +114,6 @@ abstract class Connector {
 	 */
 	public void send(SocketChannel channel, Message message) {
 		if(!channel.isConnected()) {
-			reconnect(channel);
 			return;
 		}
 		byte[] payload = serialize(message);
@@ -145,10 +143,20 @@ abstract class Connector {
 		/* Broken connection: try reconnecting if that socket was connected to replica */
 		Replica.detailDebugger.trace(String.format("try to reconnect with socket %s", channel == null ? "" : channel.toString()));
 		SocketChannel newChannel = null;
-
-		int replicaNum = getReplicaMap().entrySet().stream()
-				.filter(x -> x.getValue().equals(channel))
-				.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+		/*
+		TODO : 문제점 발견
+		 1. client가 close()하지 않은 상태에서 종료될 경우 send를 느리게 한 레플리카는 reconnect에서 replicaNum을 찾지 못한다
+		 2. replicas, publickeyMap에서 정보가 지워진 레플리카, 또는 재접속한 replica에 대하여 newView시 처리할 수가 없다. -> 각 레플리카는 명시적인 퍼블릭키를 사용해야 할 것 같다
+		 */
+		int replicaNum;
+		try {
+			replicaNum = getReplicaMap().entrySet().stream()
+					.filter(x -> x.getValue().equals(channel))
+					.findFirst().orElseThrow(NoSuchElementException::new).getKey();
+		} catch (NoSuchElementException e) {
+			closeWithoutException(channel);
+			return;
+		}
 		try {
 			closeWithoutException(channel);    //de-register a selector
 			var address = replicaAddresses.get(replicaNum);
@@ -164,9 +172,6 @@ abstract class Connector {
 			Replica.msgDebugger.warn(String.format("reconnection failed"));
 			Replica.msgDebugger.warn(e);
 			closeWithoutException(channel);
-			//TODO : ConcurrentModificationException 해결하기
-			getReplicaMap().remove(replicaNum);
-			publicKeyMap.remove(channel);
 			return;
 		}
 		if(!channel.isConnected()) {

@@ -36,11 +36,11 @@ public class Replica extends Connector {
 	/**
 	 * Replica가 WATERMART_UNIT단위의 Execution마다 GC를 실행한다
 	 */
-	public final static int WATERMARK_UNIT = 10;
+	public final int WATERMARK_UNIT;
 	/**
 	 * Replica의 성능측정 모드를 켠다
 	 */
-	final static boolean MEASURE = false;
+	public final boolean MEASURE;
 	/**
 	 * Garbage collection과 ViewChangeTimer의 충돌을 방지하는 Lock
 	 */
@@ -113,6 +113,9 @@ public class Replica extends Connector {
 	 */
 	public Replica(Properties prop, String serverPublicIp, int serverPublicPort, int serverInnerPort) {
 		super(prop); //Connector 설정
+		this.WATERMARK_UNIT = Integer.parseInt(prop.getProperty(PropertyNames.REPLICA_GC_WATERMARK_UNIT));
+		this.MEASURE = Boolean.parseBoolean(prop.getProperty(PropertyNames.REPLICA_MEASURE));
+
 		this.logger = new Logger(serverPublicIp, serverPublicPort); //logger file 생성
 		this.myNumber = getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort);
 		this.lowWatermark = 0;
@@ -283,7 +286,7 @@ public class Replica extends Connector {
 				//Set a timer for view-change phase
 				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], this.getViewNum() + 1, this);
 				Timer timer = new Timer();
-				timer.schedule(viewChangeTimerTask, Replica.TIMEOUT);
+				timer.schedule(viewChangeTimerTask, viewChangeTimeOutMillis);
 
 				/** Store timer object to cancel it when the request is executed and the timer is not expired.
 				 * key: operation's hash, value: timer
@@ -365,7 +368,6 @@ public class Replica extends Connector {
 
 	private void handleHeaderMessage(HeaderMessage message) {
 		msgDebugger.debug(String.format("Got Header msg replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
-
 		SocketChannel channel = message.getChannel();
 		this.publicKeyMap.put(channel, message.getPublicKey());
 
@@ -561,7 +563,7 @@ public class Replica extends Connector {
 				/* 2f + 1개의 v+i에 해당하는 메시지 수집 -> new view를 기다리는 동안 timer 작동 */
 				ViewChangeTimerTask viewChangeTimerTask = new ViewChangeTimerTask(getWatermarks()[0], message.getNewViewNum() + 1, this);
 				Timer timer = new Timer();
-				timer.schedule(viewChangeTimerTask, TIMEOUT * (message.getNewViewNum() + 1  - this.getViewNum()));
+				timer.schedule(viewChangeTimerTask, viewChangeTimeOutMillis * (message.getNewViewNum() + 1  - this.getViewNum()));
 
 				newViewTimerMap.put(message.getNewViewNum() + 1, timer);
 				msgDebugger.debug(String.format("Put NewViewTimer in timerMap, timerMap size : %d", viewChangeTimerMap.size()));
