@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class Util {
+	public static final ObjectMapper objectMapper = new ObjectMapper().disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 	static final String ALGORITHM = "SHA1withRSA";
 
 	public static Map<Integer, byte[]> toMap(List<Object> retrieved, int myNumber, byte[] myPiece) {

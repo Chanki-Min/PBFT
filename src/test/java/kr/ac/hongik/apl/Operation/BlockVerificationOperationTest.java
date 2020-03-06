@@ -1,6 +1,8 @@
 package kr.ac.hongik.apl.Operation;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import kr.ac.hongik.apl.Blockchain.HashTree;
 import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.ES.EsJsonParser;
@@ -27,7 +29,9 @@ import java.util.regex.Pattern;
 public class BlockVerificationOperationTest {
 	private Map<String, Object> esRestClientConfigs;
 	private EsRestClient esRestClient;
-	private ObjectMapper objectMapper = new ObjectMapper();
+	private ObjectMapper objectMapper = new ObjectMapper().enable(JsonParser.Feature.ALLOW_COMMENTS)
+			.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 	boolean isHashListInclude = false;
 
 	@BeforeEach
@@ -35,7 +39,7 @@ public class BlockVerificationOperationTest {
 		esRestClientConfigs = new HashMap<>();
 		esRestClientConfigs.put("userName", "apl");
 		esRestClientConfigs.put("passWord", "wowsan2015@!@#$");
-		esRestClientConfigs.put("certPath", "/esRestClient-cert.p12");
+		esRestClientConfigs.put("certPath", "/ES_Connection/esRestClient-cert.p12");
 		esRestClientConfigs.put("certPassWord", "wowsan2015@!@#$");
 
 		Map<String, Object> masterMap = new HashMap<>();

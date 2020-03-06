@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl;
 
+import kr.ac.hongik.apl.Blockchain.BlockHeader;
 import kr.ac.hongik.apl.Messages.*;
 import kr.ac.hongik.apl.Operations.OperationExecutionException;
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +51,8 @@ public class Replica extends Connector {
 	 */
 	public final Object viewChangeLock = new Object();
 
+	private final Properties properties;
+
 	private int viewNum = 0;
 	private final int myNumber;
 	private int lowWatermark;
@@ -84,7 +87,6 @@ public class Replica extends Connector {
 	public static void main(String[] args) throws IOException {
 		try {
 			Properties properties = new Properties();
-			//InputStream is = Replica.class.getResourceAsStream("/replica.properties");
 			InputStream is = Util.getInputStreamOfGivenResource("replica.properties");
 			properties.load(new java.io.BufferedInputStream(is));
 			if(args.length < 3) {
@@ -115,6 +117,7 @@ public class Replica extends Connector {
 		super(prop); //Connector 설정
 		this.WATERMARK_UNIT = Integer.parseInt(prop.getProperty(PropertyNames.REPLICA_GC_WATERMARK_UNIT));
 		this.MEASURE = Boolean.parseBoolean(prop.getProperty(PropertyNames.REPLICA_MEASURE));
+		this.properties = prop;
 
 		this.logger = new Logger(serverPublicIp, serverPublicPort); //logger file 생성
 		this.myNumber = getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort);
@@ -142,7 +145,20 @@ public class Replica extends Connector {
 	 * 이러한 구조를 통하여 TCP 버퍼가 꽉 차서 메세지가 버려지는 것을 방지하고, 우선순위에 따른 메세지 처리를 수행한다.
 	 */
 	private void start() {
-		//1번
+		//GossipHandler 를 다른 스레드에서 돌린다
+		new Thread(() -> {
+			Properties properties = new Properties();
+			InputStream is = Util.getInputStreamOfGivenResource("replica.properties");
+			try {
+				properties.load(new java.io.BufferedInputStream(is));
+			} catch (IOException e) {
+				throw new RuntimeException("Cannot load prop");
+			}
+			GossipHandler gossipHandler = new GossipHandler(myNumber, properties, logger, publicKey, getPrivateKey());
+			gossipHandler.start();
+		}).start();
+
+		//connector의 TCP버퍼를 주기적으로 관찰하여 메모리 버퍼인 receiveBuffer에 옮기는 스레드를 실행한다
 		new Thread(() -> {
 			while (true) {
 				try {
@@ -152,7 +168,7 @@ public class Replica extends Connector {
 			}
 		}).start();
 
-		//2번
+		//Replica의 msg handler 시작
 		while (true) {
 			Message message;
 			try {
@@ -174,8 +190,8 @@ public class Replica extends Connector {
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
 				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo())) {
+					detailDebugger.trace(String.format("Got Preprepare msg but ignored, publicKeyMap.contains? : %b", publicKeyMap.containsValue(((PreprepareMessage) message).getRequestMessage().getClientInfo())));
 					receiveBuffer.put(message);
-					detailDebugger.trace(String.format("Got request msg but ignored, publicKeyMap.contains? : %b", publicKeyMap.containsValue(((PreprepareMessage) message).getRequestMessage().getClientInfo())));
 				}
 				else
 					handlePreprepareMessage((PreprepareMessage) message);
@@ -332,9 +348,8 @@ public class Replica extends Connector {
 			logger.insertMessage(message);
 		}
 
-		/*
-		* Commits 의 viewNum까지 확인해줘야 viewChange phase에서 재접속한 노드가 정상적인 실행을 할 수 있음에 주의해야 한다.
-		*/
+
+		//Commits 의 viewNum까지 확인해줘야 viewChange phase에서 재접속한 노드가 정상적인 실행을 할 수 있음에 주의해야 한다.
 		try (var pstmt = logger.getPreparedStatement(Logger.CONSENSUS,"SELECT count(*) FROM Commits C WHERE C.viewNum = ? ANd C.seqNum = ? AND C.replica = ? AND C.digest = ?")) {
 			pstmt.setInt(1, message.getViewNum());
 			pstmt.setInt(2, message.getSeqNum());
@@ -391,9 +406,7 @@ public class Replica extends Connector {
 	}
 
 	private void handleCommitMessage(CommitMessage cmsg) {
-
 		msgDebugger.debug(String.format("Got Commit msg view : %d seq : %d from %d", cmsg.getViewNum(), cmsg.getSeqNum(), cmsg.getReplicaNum()));
-
 		PublicKey publicKey = publicKeyMap.get(getReplicaMap().get(cmsg.getReplicaNum()));
 		if (!cmsg.verify(publicKey))
 			return;
@@ -436,6 +449,8 @@ public class Replica extends Connector {
 								printConsensusTime();
 							}
 						}
+						UnstableCheckPoint unstableCheckPoint = makeUnstableCheckPoint(getPrivateKey(), this.getWatermarks()[0], rightNextCommitMsg.getSeqNum(), rightNextCommitMsg.getDigest());
+						logger.insertMessage(unstableCheckPoint);
 						var viewNum = cmsg.getViewNum();
 						var timestamp = operation.getTimestamp();
 						var clientInfo = operation.getClientInfo();
@@ -445,9 +460,6 @@ public class Replica extends Connector {
 						logger.insertMessage(rightNextCommitMsg.getSeqNum(), replyMessage);
 						SocketChannel destination = getChannelFromClientInfo(replyMessage.getClientInfo());
 						send(destination, replyMessage);
-
-						UnstableCheckPoint unstableCheckPoint = makeUnstableCheckPoint(getPrivateKey(), this.getWatermarks()[0], rightNextCommitMsg.getSeqNum(), rightNextCommitMsg.getDigest());
-						logger.insertMessage(unstableCheckPoint);
 					}
 
 					/* Checkpoint Phase */
@@ -488,8 +500,10 @@ public class Replica extends Connector {
 				psmt.setInt(2, this.myNumber);
 				var ret = psmt.executeQuery();
 				ret.next();
-				if (ret.getInt(1) != 1)
+				if (ret.getInt(1) != 1) {
+					Replica.detailDebugger.trace(String.format("CheckPointMsg verification fail. cause : this is not first msg, count : %d", ret.getInt(1)));
 					return;
+				}
 			}
 			query = "SELECT stateDigest FROM Checkpoints C WHERE C.seqNum = ?";
 			try (var psmt = logger.getPreparedStatement(Logger.CONSENSUS, query)) {
@@ -514,10 +528,11 @@ public class Replica extends Connector {
 									.collect(Collectors.toList());
 							logger.executeGarbageCollection(message.getSeqNum(), clientInfos);
 							lowWatermark += WATERMARK_UNIT;
-
+							logger.updateLatestHeaders();
 							detailDebugger.trace(String.format("GARBAGE COLLECTION DONE -> new low watermark : %d", lowWatermark));
-
 						}
+					} else {
+						Replica.detailDebugger.trace(String.format("CheckPointMsg verification fail. cause : max : %d, getMaximumFaulty : %d, msg.low : %d, this.low : %d", max, getMaximumFaulty()*2, message.getSeqNum(), this.lowWatermark));
 					}
 				}
 			}
@@ -641,7 +656,26 @@ public class Replica extends Connector {
 				.getLastCheckpointNum();
 
 		synchronized (watermarkLock) {
-			this.lowWatermark = getWatermarks()[0] > newLowWatermark ? getWatermarks()[0] : newLowWatermark;
+			//원래 low watermark 가 NVmsg 와 다를 경우가 있을 수 있다.
+			//NVmsg의 watermark는 모든 유효한 Vmsg 들의 checkpoint 중 가장 높은 checkpoint 이므로 해당 워터마크의 블록으로 상태를 복구할 필요가 있다.
+			//따라서 GossipClient 를 사용하여 모든 replica에게 받아와서 low watermark 직전의 블록을 복구한다.
+			if(getWatermarks()[0] < newLowWatermark) {
+				Replica.msgDebugger.info(String.format("My watermark lower than NewViewMsg's watermark (%d : %d). Try to send Gossip msg and recover latest block...", getWatermarks()[0], newLowWatermark));
+				//TODO : replicaPublicKeyMap 제대로 만들기
+				Map<Integer, PublicKey> replicaPublicKeyMap = new HashMap<>();
+				replicaPublicKeyMap.put(0, null);replicaPublicKeyMap.put(1, null);replicaPublicKeyMap.put(2, null);replicaPublicKeyMap.put(3, null);
+				GossipClient gossipClient = new GossipClient(properties, replicaPublicKeyMap, myNumber, getPublicKey(), getPrivateKey());
+				gossipClient.request();
+
+				Map<String, BlockHeader> map = gossipClient.getReply();
+				Replica.msgDebugger.info("Got gossip reply");
+				map.forEach((key, value) -> System.err.printf("%s : %s\n", key, value));
+				//Gossip network를 통하여 정족수 이상의 결과로 확정된 블록헤더를 삽입하여 상태를 복구한다.
+				for (Map.Entry<String, BlockHeader> entry: map.entrySet()) {
+					logger.insertBlockChain(entry.getKey(), entry.getValue());
+				}
+			}
+			this.lowWatermark = newLowWatermark;
 			message.getViewChangeMessageList()
 					.stream()
 					.flatMap(x -> x.getCheckPointMessages().stream())
@@ -650,6 +684,7 @@ public class Replica extends Connector {
 					.map(Util::serToBase64String)
 					.collect(Collectors.toList());
 			logger.executeGarbageCollection(getWatermarks()[0] - 1, clientInfos);
+			detailDebugger.trace(String.format("NewView message GARBAGE COLLECTION DONE -> new low watermark : %d", lowWatermark));
 		}
 		//모든 preprepareMsg를 합의하여 낙오된 replica를 복구한다
 		if (message.getOperationList() != null) {
@@ -657,7 +692,7 @@ public class Replica extends Connector {
 					.stream()
 					.forEach(pp -> handlePreprepareMessage(pp));
 		}
-		msgDebugger.info(String.format("Newview Fixed, TimerMap Size : %d",this.viewChangeTimerMap.size()));
+		msgDebugger.info(String.format("Newview Fixed, TimerMap Size : %d", this.viewChangeTimerMap.size()));
 	}
 
 	/**
@@ -807,6 +842,7 @@ public class Replica extends Connector {
 		}
 	}
 
+	@Deprecated
 	private void loopback(Message message) {
 		TimerTask task = new TimerTask() {
 			@Override

@@ -113,6 +113,10 @@ abstract class Connector {
 	 * @param message
 	 */
 	public void send(SocketChannel channel, Message message) {
+		if(channel == null) {
+			Replica.msgDebugger.warn("channel is null, skipping send()");
+			return;
+		}
 		if(!channel.isConnected()) {
 			return;
 		}

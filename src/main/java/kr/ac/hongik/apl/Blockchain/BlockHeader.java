@@ -1,6 +1,11 @@
 package kr.ac.hongik.apl.Blockchain;
 
-public class BlockHeader {
+import com.fasterxml.jackson.core.JsonProcessingException;
+import kr.ac.hongik.apl.Util;
+
+import java.io.Serializable;
+
+public class BlockHeader implements Serializable {
 	private Integer blockNumber;
 	private String rootHash;
 	private String prevHash;
@@ -14,7 +19,11 @@ public class BlockHeader {
 	}
 
 	public String toString() {
-		return String.format("(%d,%s,%s,%b)", blockNumber, rootHash ,prevHash, hasHashList);
+		try {
+			return Util.objectMapper.writeValueAsString(this);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public Integer getBlockNumber() {return blockNumber;}

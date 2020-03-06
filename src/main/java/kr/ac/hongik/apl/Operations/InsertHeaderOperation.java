@@ -59,22 +59,14 @@ public class InsertHeaderOperation extends Operation {
 	 * @throws SQLException
 	 */
 	private int storeHeaderAndReturnIdx(String root, Logger logger) {
-		String query = "INSERT INTO " + Logger.BLOCK_CHAIN + " VALUES ( ?, ?, ?, ? )";
-		try (var psmt = logger.getPreparedStatement(chainName, query)) {
-			BlockHeader previousBlock = logger.getLatestBlockHeader(chainName);
-			Replica.msgDebugger.debug(String.format("previousBlock : %d", previousBlock.getBlockNumber()));
-			String prevHash = Util.hash(previousBlock.toString());
+		BlockHeader previousBlock = logger.getLatestBlockHeader(chainName);
+		Replica.msgDebugger.debug(String.format("previousBlock : %d", previousBlock.getBlockNumber()));
+		int newBlockNum = previousBlock.getBlockNumber() + 1;
+		String prevHash = Util.hash(previousBlock.toString());
 
-			psmt.setInt(1, previousBlock.getBlockNumber() + 1);
-			psmt.setString(2, root);
-			psmt.setString(3, prevHash);
-			psmt.setBoolean(4, hashes != null);
-			psmt.execute();
-			return previousBlock.getBlockNumber() + 1;
-		} catch (SQLException e) {
-			Replica.msgDebugger.error(e);
-			throw new RuntimeException(e);
-		}
+		BlockHeader newBlockHeader = new BlockHeader(newBlockNum, root, prevHash, hashes != null);
+		logger.insertBlockChain(chainName, newBlockHeader);
+		return previousBlock.getBlockNumber() + 1;
 	}
 
 	/**

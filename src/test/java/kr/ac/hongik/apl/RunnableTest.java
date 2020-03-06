@@ -3,6 +3,7 @@ package kr.ac.hongik.apl;
 import kr.ac.hongik.apl.GarbageCollection.CountlessClientTest;
 import kr.ac.hongik.apl.Messages.RequestMessage;
 import kr.ac.hongik.apl.Operations.Dev.GreetingOperation;
+import kr.ac.hongik.apl.Operations.InsertHeaderOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -25,13 +26,33 @@ public class RunnableTest {
 
         Client client = new Client(prop);
         Operation op = new GreetingOperation(client.getPublicKey());
-		RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+        RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
         System.err.println("Client: Request");
         client.request(requestMessage);
         System.err.println("Client: try to get reply");
         var ret = client.getReply();
 
         Assertions.assertEquals("Hello, World!", ret.toString());
+        client.close();
+    }
+
+    @Test
+    void generateSimpleBlockTest() throws Exception {
+        int repeatTime = 1;
+        InputStream in = Util.getInputStreamOfGivenResource("replica.properties");
+        Properties prop = new Properties();
+        prop.load(in);
+        Client client = new Client(prop);
+
+        for (int i = 0; i < repeatTime; i++) {
+
+            Operation op = new InsertHeaderOperation(client.getPublicKey(), "test", "test_root");
+            RequestMessage requestMessage = RequestMessage.makeRequestMsg(client.getPrivateKey(), op);
+            client.request(requestMessage);
+            var ret = client.getReply();
+            System.out.printf("result : %d", ret);
+        }
+
         client.close();
     }
 

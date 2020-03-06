@@ -160,6 +160,7 @@ public class Logger {
 				"CREATE TABLE ViewChanges (newViewNum INT, checkpointNum INT, replica INT, checkpointMsgs TEXT, PPMsgs TEXT, data TEXT, " +
 						"PRIMARY KEY(newViewNum, replica))",
 				"CREATE TABLE NewViewMessages (newViewNum INT, data TEXT, PRIMARY KEY(newViewNum) )",
+				"CREATE TABLE LatestHeaders (chainName TEXT, idx INT, root TEXT, prev TEXT, hasHashList BOOLEAN, PRIMARY KEY(chainName) )",
 		};
 		for (String query: queries) {
 			try (var preparedStatement = connectionMap.get(CONSENSUS).prepareStatement(query)) {
@@ -642,6 +643,82 @@ public class Logger {
 				throw new RuntimeException(e);
 			}
 		}
+	}
+
+	public void insertBlockChain(String chainName, BlockHeader blockHeader) {
+		String query = "INSERT INTO " + Logger.BLOCK_CHAIN + " VALUES ( ?, ?, ?, ? )";
+		try (var psmt = getPreparedStatement(chainName, query)) {
+			psmt.setInt(1, blockHeader.getBlockNumber());
+			psmt.setString(2, blockHeader.getRootHash());
+			psmt.setString(3, blockHeader.getPrevHash());
+			psmt.setBoolean(4, blockHeader.getHasHashList() != null);
+			psmt.execute();
+		} catch (SQLException e) {
+			if(e.getErrorCode() == CONSTRAINT_ERROR) {
+				Replica.msgDebugger.warn(String.format("got CONSTRAINT_ERROR while inserting %s. Updating %s.", BLOCK_CHAIN, chainName));
+				deleteBlockChain(chainName, blockHeader.getBlockNumber());
+				insertBlockChain(chainName, blockHeader);
+			} else {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
+		}
+	}
+
+	private void deleteBlockChain(String chainName, int idx) {
+		String query = "DELETE FROM " + Logger.BLOCK_CHAIN + " WHERE idx = ?";
+		try(var psmt = getPreparedStatement(chainName, query)) {
+			psmt.setInt(1, idx);
+			psmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+	}
+
+	public void updateLatestHeaders() {
+		Map<String, BlockHeader> latestHeaderMap = new HashMap<>();
+		getLoadedChainList().forEach(chain -> latestHeaderMap.put(chain, getLatestBlockHeader(chain)));
+
+		String deleteQuery = "DELETE FROM LatestHeaders";
+		try (var psmt = getPreparedStatement(CONSENSUS, deleteQuery)) {
+			psmt.execute();
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+
+		String query = "INSERT INTO LatestHeaders VALUES (?, ?, ?, ?, ?)";
+		try (var psmt = getPreparedStatement(CONSENSUS, query)) {
+			for (Map.Entry<String, BlockHeader> entry: latestHeaderMap.entrySet()) {
+				psmt.setString(1, entry.getKey());
+				psmt.setInt(2, entry.getValue().getBlockNumber());
+				psmt.setString(3, entry.getValue().getRootHash());
+				psmt.setString(4, entry.getValue().getPrevHash());
+				psmt.setBoolean(5, entry.getValue().getHasHashList());
+				psmt.addBatch();
+			}
+			psmt.executeBatch();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public Map<String, BlockHeader> getLatestHeaders() {
+		Map<String, BlockHeader> latestHeaders = new HashMap<>();
+		String query = "SELECT chainName, idx, root, prev, hasHashList FROM LatestHeaders";
+		try (var psmt = getPreparedStatement(CONSENSUS, query)) {
+			ResultSet ret = psmt.executeQuery();
+			while (ret.next()) {
+				BlockHeader blockHeader = new BlockHeader(ret.getInt(2), ret.getString(3), ret.getString(4), ret.getBoolean(5));
+				latestHeaders.put(ret.getString(1), blockHeader);
+			}
+			return latestHeaders;
+		} catch (SQLException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+
 	}
 
 	void insertMessage(int sequenceNumber, ReplyMessage message) {

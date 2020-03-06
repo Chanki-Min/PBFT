@@ -56,7 +56,7 @@ public class Generator {
 		}
 	}
 
-	public Pair<Map, Map> generate() throws NoSuchFieldException {
+	public Pair<LinkedHashMap<String, Object>, LinkedHashMap<String, Object>> generate() throws NoSuchFieldException {
 		if (index == route.size()) {
 			if (isDataLoop)
 				this.index = 0;
@@ -69,14 +69,14 @@ public class Generator {
 		this.mileage += distance;
 		SimpleDateFormat humanTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-		Map car_log = new HashMap();
+		LinkedHashMap<String, Object> car_log = new LinkedHashMap<String, Object>();
 		car_log.put("car_id", car_id);
 		car_log.put("timestamp", humanTimeFormat.format(new Date(timestamp)));
 		car_log.put("fuel_level", fuel_level);
 		car_log.put("car_location", route.get(index));
 		car_log.put("mileage", mileage);
 
-		Map user_log = new HashMap();
+		LinkedHashMap<String, Object> user_log = new LinkedHashMap<String, Object>();
 		user_log.put("user_id", user_id);
 		user_log.put("login_time", humanTimeFormat.format(new Date(timestamp)));
 		user_log.put("verification_method", verification_method);

@@ -1,5 +1,6 @@
 package kr.ac.hongik.apl.GarbageCollection;
 
+import kr.ac.hongik.apl.Blockchain.BlockHeader;
 import kr.ac.hongik.apl.Client;
 import kr.ac.hongik.apl.Logger;
 import kr.ac.hongik.apl.Messages.RequestMessage;
@@ -7,11 +8,12 @@ import kr.ac.hongik.apl.Operations.Dev.CountMsgsOperation;
 import kr.ac.hongik.apl.Operations.Operation;
 import kr.ac.hongik.apl.Replica;
 import kr.ac.hongik.apl.Util;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.security.PublicKey;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,10 +33,58 @@ class SampleOperation extends Operation {
 }
 
 class LoggerTest {
+	/**
+	 * invokeMethod
+	 * private method 테스트를 위한 util
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T> T invokeMethod(Object object, String methodName, Class<T> returnType, Object... args) {
+		Class<?>[] parameters = new Class<?>[args.length];
+		for (int i = 0; i < args.length; i++) {
+			parameters[i] = args[i].getClass();
+		}
+		try {
+			Method method = object.getClass().getDeclaredMethod(methodName, parameters);
+			method.setAccessible(true);
+			return (T) method.invoke(object, args);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	@Test
 	void createDB() {
 		Logger logger = new Logger("127.0.0.1", 1234);
 		logger.createBlockChainDb("test_blk_1");
+	}
+
+	@Test
+	void createAndUpdateLatestHeaders() {
+		String chainPrefix = "test_blk_";
+		int chainNum = 5;
+		String root = "test_root";
+		Logger logger = new Logger("127.0.0.1", 1234);
+
+		for (int i = 0; i < chainNum; i++) {
+			String chainName = chainPrefix + i;
+
+			logger.createBlockChainDb(chainName);
+			String query = "INSERT INTO " + Logger.BLOCK_CHAIN + " VALUES ( ?, ?, ?, ? )";
+			try (var psmt = logger.getPreparedStatement(chainName, query)) {
+				BlockHeader previousBlock = logger.getLatestBlockHeader(chainName);
+				Replica.msgDebugger.debug(String.format("previousBlock : %d", previousBlock.getBlockNumber()));
+				String prevHash = Util.hash(previousBlock.toString());
+				psmt.setInt(1, previousBlock.getBlockNumber() + 1);
+				psmt.setString(2, root);
+				psmt.setString(3, prevHash);
+				psmt.setBoolean(4, false);
+				psmt.execute();
+			} catch (SQLException e) {
+				Replica.msgDebugger.error(e);
+				throw new RuntimeException(e);
+			}
+		}
+		invokeMethod(logger, "updateLatestHeaders", void.class);
 	}
 
 	@Test

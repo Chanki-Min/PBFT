@@ -96,9 +96,12 @@ public class Client extends Connector implements Closeable {
 		}
 	}
 
+	/**
+	 * replicas map에 등록된 모든 레플리카에 대해서 소켓을 테스트한다. send가 실패하면 자연스럽게 reconnet가 이어지므로, 재접속을 기대할 수 있다
+	 */
 	public void checkSocketChannel() {
 		Replica.detailDebugger.trace("Checking Socket connection before send message...");
-		for(var entry : getReplicaMap().entrySet()) {
+		for (var entry: getReplicaMap().entrySet()) {
 			HeartBeatMessage signal = new HeartBeatMessage();
 			send(entry.getValue(), signal);
 		}
