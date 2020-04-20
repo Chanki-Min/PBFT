@@ -114,7 +114,7 @@ public class Replica extends Connector {
 	 * @param serverInnerPort 서버의 실제 Port (receive socket을 열기 위하여 필요하다)
 	 */
 	public Replica(Properties prop, String serverPublicIp, int serverPublicPort, int serverInnerPort) {
-		super(prop); //Connector 설정
+		super(prop, getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort)); //Connector 설정
 		this.WATERMARK_UNIT = Integer.parseInt(prop.getProperty(PropertyNames.REPLICA_GC_WATERMARK_UNIT));
 		this.MEASURE = Boolean.parseBoolean(prop.getProperty(PropertyNames.REPLICA_MEASURE));
 		this.properties = prop;
@@ -189,12 +189,15 @@ public class Replica extends Connector {
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
+				//TODO : 삭제해도 괜찮은지 테스트 필요함
+				/*
 				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo())) {
 					detailDebugger.trace(String.format("Got Preprepare msg but ignored, publicKeyMap.contains? : %b", publicKeyMap.containsValue(((PreprepareMessage) message).getRequestMessage().getClientInfo())));
 					receiveBuffer.put(message);
 				}
 				else
-					handlePreprepareMessage((PreprepareMessage) message);
+				*/
+				handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
 			} else if (message instanceof CommitMessage) {
@@ -797,7 +800,7 @@ public class Replica extends Connector {
 		throw new NoSuchElementException("getSeqNumFromMsg can't apply to " + message.getClass().toString());
 	}
 
-	private int getMyNumberFromProperty(Properties prop, String serverIp, int serverPort) {
+	private static int getMyNumberFromProperty(Properties prop, String serverIp, int serverPort) {
 		int numOfReplica = Integer.parseInt(prop.getProperty("replica"));
 		for (int i = 0; i < numOfReplica; i++) {
 			if (prop.getProperty("replica" + i).equals(serverIp + ":" + serverPort)) {
