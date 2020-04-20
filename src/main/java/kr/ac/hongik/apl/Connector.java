@@ -16,8 +16,10 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -50,6 +52,35 @@ abstract class Connector {
 		KeyPair keyPair = generateKeyPair();
 		this.privateKey = keyPair.getPrivate();
 		this.publicKey = keyPair.getPublic();
+		try {
+			this.selector = Selector.open();
+		} catch (IOException e) {
+			Replica.msgDebugger.error(e);
+			throw new RuntimeException(e);
+		}
+		replicaAddresses = Util.parsePropertiesToAddress(prop);
+		viewChangeTimeOutMillis = Long.parseLong(prop.getProperty(PropertyNames.REPLICA_VIEWCHANGE_TIMEOUT_MILLIS));
+	}
+
+	/**
+	 * 객체의 생성자, public-private key를 생성하고 JAVA NIO의 selector를 open, replica의 정보를 Map에 로드한다
+	 *
+	 * @param prop
+	 */
+	public Connector(Properties prop, int replicaNum) {
+		String privateKeyPath = prop.getProperty("replica"+replicaNum+".privateKey.path");
+		String publicKeyPath = prop.getProperty("replica"+replicaNum+".publicKey.path");
+
+		privateKeyPath = Util.getCurrentProgramDir() + "/" + privateKeyPath;
+		publicKeyPath = Util.getCurrentProgramDir() + "/" + publicKeyPath;
+
+		try {
+			this.privateKey = Util.loadPKCS8PemPrivateKey(privateKeyPath, "RSA");
+			this.publicKey = Util.loadX509PemPublicKey(publicKeyPath, "RSA");
+		} catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException e) {
+			Replica.msgDebugger.fatal("Failed to load keypair", e);
+			throw new RuntimeException(e);
+		}
 		try {
 			this.selector = Selector.open();
 		} catch (IOException e) {
