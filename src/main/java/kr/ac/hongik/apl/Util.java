@@ -11,6 +11,9 @@ import javax.crypto.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -265,6 +268,58 @@ public class Util {
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	/**
+	 * PKCS8 포맷의 .pem 형식의 base64 인코드된 private key를 로드합니다.
+	 * @param filePath path of file
+	 * @param algorithm Algorithm is usually "RSA"
+	 * @return the private key read from the file;
+	 * @throws Exception
+	 */
+	public static PrivateKey loadPKCS8PemPrivateKey(String filePath, String algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+		File f = new File(filePath);
+		FileInputStream fis = new FileInputStream(f);
+		DataInputStream dis = new DataInputStream(fis);
+		byte[] keyBytes = new byte[(int) f.length()];
+		dis.readFully(keyBytes);
+		dis.close();
+
+		String privateKeyPEM = new String(keyBytes)
+				.replace("-----BEGIN PRIVATE KEY-----", "")	//PKCS8 format 의 header 삭제
+				.replace("-----END PRIVATE KEY-----", "")	//PKCS8 format 의 trailer 삭제
+				.replaceAll("\n", "");						//줄바꿈 문자 제거
+		byte[] decoded = Base64.getDecoder().decode(privateKeyPEM);			//Base64 decode
+
+		PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
+		KeyFactory kf = KeyFactory.getInstance(algorithm);
+		return kf.generatePrivate(spec);
+	}
+
+	/**
+	 * X509 포맷의 .pem 형식의 base64 인코드된 public key를 로드합니다.
+	 * @param filePath path of file
+	 * @param algorithm is usually "RSA"
+	 * @return the public key read from the file;
+	 * @throws Exception
+	 */
+	public static PublicKey loadX509PemPublicKey(String filePath, String algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+		File f = new File(filePath);
+		FileInputStream fis = new FileInputStream(f);
+		DataInputStream dis = new DataInputStream(fis);
+		byte[] keyBytes = new byte[(int) f.length()];
+		dis.readFully(keyBytes);
+		dis.close();
+
+		String publicKeyPEM = new String(keyBytes)
+				.replace("-----BEGIN PUBLIC KEY-----", "")	//header 삭제
+				.replace("-----END PUBLIC KEY-----", "")	//trailer 삭제
+				.replaceAll("\n", "");						//줄바꿈 문자 제거
+
+		byte[] decoded = Base64.getDecoder().decode(publicKeyPEM);
+		X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
+		KeyFactory kf = KeyFactory.getInstance(algorithm);
+		return kf.generatePublic(spec);
 	}
 
 	/**
