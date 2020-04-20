@@ -2,7 +2,7 @@
 set -euxo pipefail
 
 cd ../
-cp -r ./config ./target/
+\cp -rf ./config ./target/
 mvn -T4 package ; set +euxo pipefail
 pkill -9 -f "java -jar" ; set -euxo pipefail
 

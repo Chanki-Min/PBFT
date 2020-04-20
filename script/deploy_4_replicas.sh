@@ -2,7 +2,7 @@
 set -euxo pipefail
 
 cd ../
-cp -r ./config ./target/
+\cp -rf ./config ./target/
 mvn -T4 package
 scp -r -P 19122 "target/config" "target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar" apl@223.194.70.105:~/
 scp -r -P 19222 "target/config" "target/PBFT-1.0-SNAPSHOT-jar-with-dependencies.jar" apl@223.194.70.105:~/
