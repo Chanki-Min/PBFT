@@ -244,19 +244,6 @@ public class Logger {
 		}
 	}
 
-	//TODO : Logger::close() 메소드 구현
-	/*
-	void close() {
-		try {
-			conn.close();
-		} catch (SQLException e) {
-			Replica.msgDebugger.error(e);
-			throw new RuntimeException(e);
-		}
-	}
-	ㅇ
-	 */
-
 	public String getStateDigest(int seqNum, int maxFaulty, int viewNum) {
 		StringBuilder builder = new StringBuilder();
 
