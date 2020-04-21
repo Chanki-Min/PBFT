@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 public class Util {
 	public static final ObjectMapper objectMapper = new ObjectMapper().disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 	static final String ALGORITHM = "SHA1withRSA";
+	static final String KEY_ALGORITHM = "RSA";
 
 	public static Map<Integer, byte[]> toMap(List<Object> retrieved, int myNumber, byte[] myPiece) {
 		Map<Integer, byte[]> ret = new TreeMap<>();
@@ -275,7 +276,9 @@ public class Util {
 	 * @param filePath path of file
 	 * @param algorithm Algorithm is usually "RSA"
 	 * @return the private key read from the file;
-	 * @throws Exception
+	 * @throws IOException
+	 * @throws NoSuchAlgorithmException
+	 * @throws InvalidKeySpecException
 	 */
 	public static PrivateKey loadPKCS8PemPrivateKey(String filePath, String algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
 		File f = new File(filePath);
@@ -301,7 +304,9 @@ public class Util {
 	 * @param filePath path of file
 	 * @param algorithm is usually "RSA"
 	 * @return the public key read from the file;
-	 * @throws Exception
+	 * @throws IOException
+	 * @throws NoSuchAlgorithmException
+	 * @throws InvalidKeySpecException
 	 */
 	public static PublicKey loadX509PemPublicKey(String filePath, String algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
 		File f = new File(filePath);
