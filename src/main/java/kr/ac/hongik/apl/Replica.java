@@ -5,6 +5,7 @@ import kr.ac.hongik.apl.Messages.*;
 import kr.ac.hongik.apl.Operations.OperationExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.echocat.jsu.JdbcUtils;
+import org.elasticsearch.common.settings.Setting;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,9 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -24,6 +27,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.diffplug.common.base.Errors.rethrow;
+import static com.diffplug.common.base.Errors.suppress;
 import static kr.ac.hongik.apl.Messages.PrepareMessage.makePrepareMsg;
 import static kr.ac.hongik.apl.Messages.PreprepareMessage.makePrePrepareMsg;
 import static kr.ac.hongik.apl.Messages.ReplyMessage.makeReplyMsg;
@@ -56,23 +60,25 @@ public class Replica extends Connector {
 	private int viewNum = 0;
 	private final int myNumber;
 	private int lowWatermark;
+	private final Map<Integer, PublicKey> replicaPublicKeyMap = new HashMap<>();
 
-	private Logger logger;
+
+	private final Logger logger;
 	/**
 	 * FIFO 실행을 보장하기 위하여 Committed-Local 단계를 통과한 msg들을 삽입하고, 가장 seqNum이 낮은 Request를 처리함
 	 */
-	private PriorityQueue<CommitMessage> executionBuffer = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
+	private final PriorityQueue<CommitMessage> executionBuffer = new PriorityQueue<>(Comparator.comparingInt(CommitMessage::getSeqNum));
 	/**
 	 * super.receive한 메세지들의 우선순위대로 처리하기 위핸 버퍼
 	 */
-	private PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getPriorityFromMsg));
+	private final PriorityBlockingQueue<Message> receiveBuffer = new PriorityBlockingQueue<>(10, Comparator.comparing(Replica::getPriorityFromMsg));
 
-	private ConcurrentHashMap<String, Timer> viewChangeTimerMap = new ConcurrentHashMap<>();
-	private ConcurrentHashMap<Integer, Timer> newViewTimerMap = new ConcurrentHashMap<>();
-	private AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
+	private final ConcurrentHashMap<String, Timer> viewChangeTimerMap = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<Integer, Timer> newViewTimerMap = new ConcurrentHashMap<>();
+	private final AtomicBoolean isViewChangePhase = new AtomicBoolean(false);
 
-	private HashMap<Long, Long> receiveRequestTimeMap = new HashMap<>();
-	private HashMap<Long, Long> consensusTimeMap = new HashMap<>();
+	private final HashMap<Long, Long> receiveRequestTimeMap = new HashMap<>();
+	private final HashMap<Long, Long> consensusTimeMap = new HashMap<>();
 
 	public static final org.apache.logging.log4j.Logger msgDebugger = LogManager.getLogger("msgDebugger");
 	public static final org.apache.logging.log4j.Logger detailDebugger = LogManager.getLogger("detail");
@@ -122,6 +128,16 @@ public class Replica extends Connector {
 		this.logger = new Logger(serverPublicIp, serverPublicPort); //logger file 생성
 		this.myNumber = getMyNumberFromProperty(prop, serverPublicIp, serverPublicPort);
 		this.lowWatermark = 0;
+
+		int numberOfReplica = this.replicaAddresses.size();
+		for(int i=0; i< numberOfReplica; i++) {
+			try {
+				this.replicaPublicKeyMap.put(i, loadReplicaPublicKeyMap(prop, i));
+			} catch (NoSuchAlgorithmException | IOException | InvalidKeySpecException e) {
+				measureDebugger.fatal(String.format("Cannot load replica%d's publicKey. Shutting down replica.", i), e);
+				throw new RuntimeException(e);
+			}
+		}
 
 		try {
 			ServerSocketChannel listener = ServerSocketChannel.open();
@@ -189,14 +205,6 @@ public class Replica extends Connector {
 				else
 					handleRequestMessage((RequestMessage) message);
 			} else if (message instanceof PreprepareMessage) {
-				//TODO : 삭제해도 괜찮은지 테스트 필요함
-				/*
-				if (!publicKeyMap.containsValue(((PreprepareMessage) message).getOperation().getClientInfo())) {
-					detailDebugger.trace(String.format("Got Preprepare msg but ignored, publicKeyMap.contains? : %b", publicKeyMap.containsValue(((PreprepareMessage) message).getRequestMessage().getClientInfo())));
-					receiveBuffer.put(message);
-				}
-				else
-				*/
 				handlePreprepareMessage((PreprepareMessage) message);
 			} else if (message instanceof PrepareMessage) {
 				handlePrepareMessage((PrepareMessage) message);
@@ -384,16 +392,31 @@ public class Replica extends Connector {
 		}
 	}
 
+	/**
+	 1.message.type == client
+	 - message에서 채널을 가져온다
+	 - this.pulicKeyMap 에 <채널, 클라이언트의 공개키> 를 저장한다.
+	 2.message.type == replica
+	 - message에서 repicaNum, publicKey를 가져와서 신원을 검사한다.
+	 - 만약 내가 가진 파일에 존재한다면 this.pulicKeyMap 에 <채널, 레플리카의 공개키> 를 저장한다.
+	 - 없다면 로그에 경고하고 해당 접속을 무시한다.
+	 */
 	private void handleHeaderMessage(HeaderMessage message) {
-		msgDebugger.debug(String.format("Got Header msg replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
 		SocketChannel channel = message.getChannel();
-		this.publicKeyMap.put(channel, message.getPublicKey());
-
 		switch (message.getType()) {
 			case "replica":
-				getReplicaMap().put(message.getReplicaNum(), channel);
+				msgDebugger.debug(String.format("Got Header msg replica : %d channel : %s", message.getReplicaNum(), message.getChannel().toString()));
+				int replicaNum = message.getReplicaNum();
+				if(this.replicaPublicKeyMap.get(replicaNum).equals(message.getPublicKey())) {
+					this.publicKeyMap.put(channel, message.getPublicKey());
+					getReplicaMap().put(message.getReplicaNum(), channel);
+				} else {
+					msgDebugger.error(String.format("Cannot verify HeaderMsg's publicKey, replica : %d. Ignoring HeaderMsg.", replicaNum));
+				}
 				break;
 			case "client":
+				detailDebugger.trace("Got Header msg from client");
+				this.publicKeyMap.put(channel, message.getPublicKey());
 				break;
 			default:
 				msgDebugger.error(String.format("Invalid header message : %s", message));
@@ -664,10 +687,7 @@ public class Replica extends Connector {
 			//따라서 GossipClient 를 사용하여 모든 replica에게 받아와서 low watermark 직전의 블록을 복구한다.
 			if(getWatermarks()[0] < newLowWatermark) {
 				Replica.msgDebugger.info(String.format("My watermark lower than NewViewMsg's watermark (%d : %d). Try to send Gossip msg and recover latest block...", getWatermarks()[0], newLowWatermark));
-				//TODO : replicaPublicKeyMap 제대로 만들기
-				Map<Integer, PublicKey> replicaPublicKeyMap = new HashMap<>();
-				replicaPublicKeyMap.put(0, null);replicaPublicKeyMap.put(1, null);replicaPublicKeyMap.put(2, null);replicaPublicKeyMap.put(3, null);
-				GossipClient gossipClient = new GossipClient(properties, replicaPublicKeyMap, myNumber, getPublicKey(), getPrivateKey());
+				GossipClient gossipClient = new GossipClient(properties, this.replicaPublicKeyMap, myNumber, getPublicKey(), getPrivateKey());
 				gossipClient.request();
 
 				Map<String, BlockHeader> map = gossipClient.getReply();
@@ -998,5 +1018,10 @@ public class Replica extends Connector {
 
 	public void setViewNum(int primary) {
 		this.viewNum = primary;
+	}
+
+	private PublicKey loadReplicaPublicKeyMap(Properties prop, int replicaNum) throws NoSuchAlgorithmException, IOException, InvalidKeySpecException {
+		String path = prop.getProperty(PropertyNames.REPLICA_PUBLICKEY_PATH.replace('#', Character.forDigit(replicaNum, 10)));
+		return Util.loadX509PemPublicKey(path, Util.KEY_ALGORITHM);
 	}
 }
