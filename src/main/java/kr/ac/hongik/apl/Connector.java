@@ -37,10 +37,10 @@ abstract class Connector {
 	protected List<InetSocketAddress> replicaAddresses;
 	protected Selector selector;
 
-	private Map<Integer, SocketChannel> replicas = new ConcurrentHashMap<>();
+	private final Map<Integer, SocketChannel> replicas = new ConcurrentHashMap<>();
 	protected Map<SocketChannel, PublicKey> publicKeyMap = new ConcurrentHashMap<>();
 	protected PublicKey publicKey;
-	private PrivateKey privateKey;            //Don't try to access directly, instead access via getter
+	private final PrivateKey privateKey;            //Don't try to access directly, instead access via getter
 
 
 	/**
@@ -68,8 +68,8 @@ abstract class Connector {
 	 * @param prop
 	 */
 	public Connector(Properties prop, int replicaNum) {
-		String privateKeyPath = prop.getProperty("replica"+replicaNum+".privateKey.path");
-		String publicKeyPath = prop.getProperty("replica"+replicaNum+".publicKey.path");
+		String privateKeyPath = prop.getProperty(PropertyNames.REPLICA_PRIVATEKEY_PATH.replace('#', Character.forDigit(replicaNum, 10)));
+		String publicKeyPath = prop.getProperty(PropertyNames.REPLICA_PUBLICKEY_PATH.replace('#', Character.forDigit(replicaNum, 10)));
 
 		privateKeyPath = Util.getCurrentProgramDir() + "/" + privateKeyPath;
 		publicKeyPath = Util.getCurrentProgramDir() + "/" + publicKeyPath;
